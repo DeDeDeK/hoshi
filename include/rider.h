@@ -51,6 +51,16 @@ typedef enum CopyKind
     COPYKIND_NUM,
 } CopyKind;
 
+typedef enum PowerUpKind
+{
+    POWERUPKIND_NONE = -1,
+    POWERUPKIND_FIRECRACKER = 0,
+    POWERUPKIND_TIMEBOMB,
+    POWERUPKIND_GORDO,
+    POWERUPKIND_PANICSPIN,
+    POWERUPKIND_NUM,
+} PowerUpKind;
+
 typedef struct rdDataKirby
 {
     void *attr; // 0x0
@@ -359,9 +369,9 @@ typedef struct RiderData
     int x44c;                  // 0x44c
     CamInterest *x450;       // 0x450
     CopyKind copy_kind;        // 0x454
-    int x458;                  // 0x458
-    int x45c;                  // 0x45c
-    int x460;                  // 0x460
+    int queued_ability_kind;   // 0x458
+    PowerUpKind powerup_kind;  // 0x45c
+    PowerUpKind queued_powerup_kind; // 0x460
     int x464;                  // 0x464
     int x468;                  // 0x468
     int x46c;                  // 0x46c
@@ -435,7 +445,7 @@ typedef struct RiderData
     int x57c;                  // 0x57c
     int x580;                  // 0x580
     int x584;                  // 0x584
-    int x588;                  // 0x588
+    int candy_duration;        // 0x588
     int x58c;                  // 0x58c
     int x590;                  // 0x590
     int x594;                  // 0x594
@@ -656,9 +666,9 @@ typedef struct RiderData
     int x8f0;                           // 0x8f0
     int x8f4;                           // 0x8f4
     int x8f8;                           // 0x8f8
-    int x8fc;                           // 0x8fc
+    void *copy_wheel_jobj;              // 0x8fc, JOBJ for the copy chance wheel 3D model
     int x900;                           // 0x900
-    int x904;                           // 0x904
+    void *copy_wheel_alloc;             // 0x904, heap allocation associated with copy wheel model
     int x908;                           // 0x908
     int x90c;                           // 0x90c
     int x910;                           // 0x910
@@ -672,7 +682,7 @@ typedef struct RiderData
     void (*cb_copy_input)(RiderData *); // 0x930
     int x934;                           // 0x934
     int x938;                           // 0x938
-    int x93c;                           // 0x93c
+    CopyKind copy_wheel_result;         // 0x93c, CopyKind selected by the wheel, used by randomAbility_queuedGive
     int x940;                           // 0x940
     int x944;                           // 0x944
     int x948;                           // 0x948
@@ -696,12 +706,12 @@ typedef struct RiderData
     int x990;                           // 0x990
     int x994;                           // 0x994
     int x998;                           // 0x998
-    int x99c;                           // 0x99c
+    int copy_wheel_index;               // 0x99c, current index into copy_wheel_ability_list (-1 when inactive)
     int x9a0;                           // 0x9a0
     int x9a4;                           // 0x9a4
     int x9a8;                           // 0x9a8
     int x9ac;                           // 0x9ac
-    int x9b0;                           // 0x9b0
+    int *copy_wheel_ability_list;       // 0x9b0, pointer to array of CopyKind values the wheel cycles through
     int x9b4;                           // 0x9b4
     int x9b8;                           // 0x9b8
     int x9bc;                           // 0x9bc
@@ -780,17 +790,49 @@ typedef struct RiderData
 
 static rdDataKirby **stc_rdDataKirby = (rdDataKirby **)0x80559fa8;
 
+// Copy ability initialization function table. 11 entries (one per CopyKind),
+// each pointing to the ability's init function (e.g., ability_Fire at 0x801af474).
+// Indexed by CopyKind. NULL entry means the ability is not implemented.
+typedef void (*AbilityInitFunc)(RiderData *);
+static AbilityInitFunc *stc_ability_init_table = (AbilityInitFunc *)0x804af4f0;
+
+// Copy wheel ability list tables used by Rider_StartCopyWheel.
+// Normal mode: 11 entries {0,1,2,...,10} (all CopyKinds).
+// Melee mode: 29 entries (abilities + duplicates).
+// Each table entry is a struct { int count; int *ability_list; }.
+typedef struct CopyWheelTable
+{
+    int count;          // 0x0, number of entries in ability_list
+    int *ability_list;  // 0x4, pointer to array of CopyKind values
+} CopyWheelTable;
+static CopyWheelTable *stc_copy_wheel_normal = (CopyWheelTable *)0x804af730; // count=11, list at 0x804af690
+static CopyWheelTable *stc_copy_wheel_melee = (CopyWheelTable *)0x804af738;  // count=29, list at 0x804af6bc
+
 void Rider_RespawnEnter(RiderData *);
-void Rider_GiveAbility(RiderData *, CopyKind);
+int Rider_GiveAbility(RiderData *, CopyKind);
 int Rider_CheckUnableAbility(RiderData *); // checks if the rider can receive an ability?
 void Rider_AbilityRemoveModel(RiderData *);
 void Rider_AbilityRemoveUnk(RiderData *);
 void Rider_LoseAbilityState_Enter(RiderData *);
 void Rider_GiveIntangibility(RiderData *, int time);
 void Rider_GiveInvincibility(RiderData *, int time);
+int RiderGObj_GetPly(GOBJ *gobj); // 0x8019203c, returns player index from a rider GOBJ
 int Rider_IsOnMachine(RiderData *);
 int Rider_IsMachineDead(RiderData *);       // can only be called between the RDPRI_HITCOLL and RDPRI_DMGAPPLY priority.
 void Rider_DropPatches(RiderData *, float stat_array[9], int drop_mode); // drop_mode=0,1,2 mode 0 drops a random individual patch, mode 1 drop many patches behind the player, mode 2 drops many patches in front of the player. Mode 1/2 drop all ups if stats are high enough
+int Rider_CheckCanReceiveAbility(GOBJ *gobj); // returns 1 if rider can receive a copy ability
+int Rider_CheckAndGiveAbility(GOBJ *gobj, int kind); // checks rider is Kirby, then gives copy ability, returns 1 on success
+void Rider_RecordCopyAbility(int ply, int copy_kind); // 0x8022ee00, records ability in history buffer, checks achievement sequences, increments per-ability counters
+void Rider_MarkCopyAbilityObtained(int ply, int copy_kind); // 0x8022f150, sets bit in obtained-abilities bitmask for checklist tracking
+int randomAbility_giveAbility(RiderData *, int kind); // 0x801a61d4, gives copy ability from copy chance wheel (no unable/queue check)
+void Rider_StartCopyWheel(RiderData *rd, int copy_kind); // 0x801ae550, initializes copy wheel at starting ability, sets rd->copy_wheel_ability_list and index
+int Rider_StartRandomCopyWheel(RiderData *rd); // 0x801ae4ec, picks HSD_Randi(11) starting ability, calls Rider_StartCopyWheel. Returns 1 if wheel started.
+int Rider_GiveRandomAbility(GOBJ *gobj); // 0x80191fb8, GOBJ wrapper for Rider_StartRandomCopyWheel
+int Rider_CheckCanReceivePowerUp(GOBJ *gobj); // returns 1 if rider can receive a power-up (checks lower 4 bits of rd->x825 are clear)
+int Rider_GivePowerUp(GOBJ *gobj, PowerUpKind kind); // gives rider a power-up if rider is Kirby, returns 1 on success
+int Rider_TryGivePowerUp(RiderData *rd, PowerUpKind kind); // checks unable, queues into x460 or calls Rider_GivePowerUpByKind
+int Rider_GivePowerUpByKind(RiderData *rd, PowerUpKind kind); // removes current ability and initializes power-up kind (0-3), returns 1 on success
+void Rider_SetCandyTimer(GOBJ *gobj, int duration); // stores duration in rd->candy_duration, enters rider state 47 (countdown timer)
 
 AudioEmitter Rider_AllocAudioEmitter(int index);
 

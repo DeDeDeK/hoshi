@@ -40,8 +40,36 @@ typedef enum GroundKind
 
 typedef enum StageKind
 {
-    STAGEKIND_NUM,
+    STAGEKIND_NUM = 60,
 } StageKind;
+
+// Air Ride course indices (0-8), a subset of StageKind used for Air Ride mode
+typedef enum AirRideCourse
+{
+    AIRRIDE_FANTASY_MEADOWS,
+    AIRRIDE_CELESTIAL_VALLEY,
+    AIRRIDE_FROZEN_HILLSIDE,
+    AIRRIDE_MAGMA_FLOWS,
+    AIRRIDE_BEANSTALK_PARK,
+    AIRRIDE_MACHINE_PASSAGE,
+    AIRRIDE_SKY_SANDS,
+    AIRRIDE_CHECKER_KNIGHTS,
+    AIRRIDE_NEBULA_BELT,
+    AIRRIDE_NUM,
+} AirRideCourse;
+
+// Top Ride course indices (0-6), stored in GameData[0x374]
+typedef enum TopRideCourse
+{
+    TOPRIDE_GRASS,
+    TOPRIDE_SAND,
+    TOPRIDE_SKY,
+    TOPRIDE_FIRE,
+    TOPRIDE_LIGHT,
+    TOPRIDE_WATER,
+    TOPRIDE_METAL,
+    TOPRIDE_NUM,
+} TopRideCourse;
 
 typedef struct YakumonoParam
 {
@@ -98,8 +126,8 @@ typedef struct GrData // exists in the stage file
         int x0;
         float machine_accel;
         float scale;
-        float gravity_unk;
-        Vec3 gravity_force;
+        float gravity_unk; // flight dropoff?
+        Vec3 gravity_force; // actually gravity direction?
         int fog_flags;
     } *stage_node;         // 0x4
     int x8;                // 0x8
@@ -138,6 +166,18 @@ GroundKind Gm_GetCurrentGrKind();
 GroundKind Gm_GetGrKindFromStageKind(StageKind stage_kind);
 
 void Gr_StateChange(YakumonoData *yp, int state_idx, int anim_idx, int joint_idx, int flags, float start_frame, float anim_rate, float blend_rate);
+
+// Sky/lighting system — operates on GrObj, presets loaded from stage file
+void Sky_Init(GrObj *grobj);                            // 0x8010f114 — initial sky setup per stage
+void Sky_SetPresetIndex(GrObj *grobj, int preset_index); // 0x800dc630 — store preset index in sky state +0x1C
+void Sky_LoadPreset(GrObj *grobj);                       // 0x800dc1b4 — load preset immediately (no transition)
+void Sky_BeginTransition(GrObj *grobj, int preset_index); // 0x800dc354 — smooth transition to preset
+void Sky_ApplyStoredIndex(GrObj *grobj);                 // 0x800dc4c0 — transition to stored index (+0x1C)
+void Sky_Update(GrObj *grobj);                           // 0x800dc640 — per-frame interpolation
+int Sky_GetPresetCount();                                // 0x800d5414 — total preset count from stage data
+void Sky_TransitionGlobal(int preset_index);             // 0x800d5444 — transition via stc_grobj_ptr
+void Sky_RestoreGlobal(void);                            // 0x800d546c — restore default sky preset
+int Gm_Roll(int *weights, int count);                    // 0x800db2b8 — weighted random selection
 
 AudioEmitter Map_AllocAudioEmitter(int index);
 #endif

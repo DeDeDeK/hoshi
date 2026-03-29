@@ -127,16 +127,379 @@ typedef enum PauseKind
     PAUSEKIND_8,        //
 } PauseKind;
 
+typedef enum AirRideClearKind
+{
+    AR_CLEAR_RACE_100_LAPS,                    // 0   Race over 100 laps!
+    AR_CLEAR_RACE_300_LAPS,                    // 1   Race over 300 laps!
+    AR_CLEAR_GLIDE_30_MIN,                     // 2   Glide for more than 30 minutes!
+    AR_CLEAR_GLIDE_1_HOUR,                     // 3   Glide for more than 1 hour!
+    AR_CLEAR_DEFEAT_300_ENEMIES,               // 4   Defeat over 300 of your enemies!
+    AR_CLEAR_DEFEAT_1000_ENEMIES,              // 5   Defeat over 1,000 of your enemies!
+    AR_CLEAR_SWALLOW_CHILLY_1ST,               // 6   Swallow Chilly 3+ times and take 1st!
+    AR_CLEAR_SWALLOW_PLASMA_1ST,               // 7   Swallow Plasma Wisp 3+ times and take 1st!
+    AR_CLEAR_SWALLOW_SWORD_1ST,                // 8   Swallow Sword Knight 3+ times and take 1st!
+    AR_CLEAR_SWALLOW_WHEELIE_1ST,              // 9   Swallow Wheelie 3+ times and take 1st!
+    AR_CLEAR_GOAL_3_TIMES,                     // 10  Reach the goal a total of 3 times (not Free Run)!
+    AR_CLEAR_CHECKER_5500FT_2MIN,              // 11  CHECKER KNIGHTS Race over 5,500ft in 2 min!
+    AR_CLEAR_MAGMA_4800FT_2MIN,                // 12  MAGMA FLOWS Race over 4,800ft in 2 min!
+    AR_CLEAR_MAGMA_2LAPS_2_20,                 // 13  MAGMA FLOWS Finish 2 laps in under 02:20!
+    AR_CLEAR_SWALLOW_200_ENEMIES,              // 14  Swallow 200 or more enemies!
+    AR_CLEAR_DEFEAT_100_EXHALED,               // 15  Defeat 100+ enemies with exhaled stars!
+    AR_CLEAR_SWALLOW_5_GARBAGE_1ST,            // 16  Swallow 5 consecutive garbage enemies and take 1st!
+    AR_CLEAR_BEANSTALK_2LAPS_2_18,             // 17  BEANSTALK PARK Finish 2 laps in under 02:18!
+    AR_CLEAR_PASSAGE_2LAPS_2_10,               // 18  MACHINE PASSAGE Finish 2 laps in under 02:10!
+    AR_CLEAR_CHECKER_2LAPS_3_05,               // 19  CHECKER KNIGHTS Finish 2 laps in under 03:05!
+    AR_CLEAR_MEADOWS_4500FT_2MIN,              // 20  FANTASY MEADOWS Race over 4,500ft in 2 min!
+    AR_CLEAR_CELESTIAL_6000FT_2MIN,            // 21  CELESTIAL VALLEY Race over 6,000ft in 2 min!
+    AR_CLEAR_SKYSANDS_4000FT_2MIN,             // 22  SKY SANDS Race over 4,000ft in 2 min!
+    AR_CLEAR_HILLSIDE_5300FT_2MIN,             // 23  FROZEN HILLSIDE Race over 5,300ft in 2 min!
+    AR_CLEAR_FILL_100_BLOCKS,                  // 24  Fill in over 100 Checklist blocks!
+    AR_CLEAR_MEADOWS_3LAPS_1_20,               // 25  FANTASY MEADOWS Finish 3 laps in under 01:20!
+    AR_CLEAR_CELESTIAL_2LAPS_2_20,             // 26  CELESTIAL VALLEY Finish 2 laps in under 02:20!
+    AR_CLEAR_SKYSANDS_2LAPS_2_05,              // 27  SKY SANDS Finish 2 laps in under 02:05!
+    AR_CLEAR_SWORD_10_SWINGS_1ST,              // 28  Swing your sword exactly 10 times and take 1st!
+    AR_CLEAR_HILLSIDE_2LAPS_2_20,              // 29  FROZEN HILLSIDE Finish 2 laps in under 02:20!
+    AR_CLEAR_TORNADO_15_ENEMIES_1ST,           // 30  Defeat 15+ enemies as Tornado and finish 1st!
+    AR_CLEAR_QUICKSPIN_10_ENEMIES,             // 31  Defeat 10+ enemies using the Quick Spin!
+    AR_CLEAR_QUICKSPIN_20_RIVALS,              // 32  Hit 20+ rivals with your Quick Spin!
+    AR_CLEAR_PASSAGE_4500FT_2MIN,              // 33  MACHINE PASSAGE Race over 4,500ft in 2 min!
+    AR_CLEAR_BEANSTALK_5500FT_2MIN,            // 34  BEANSTALK PARK Race over 5,500ft in 2 min!
+    AR_CLEAR_MEADOWS_3LAPS_1_03,               // 35  FANTASY MEADOWS Finish 3 laps in under 01:03!
+    AR_CLEAR_CELESTIAL_2LAPS_1_56,             // 36  CELESTIAL VALLEY Finish 2 laps in under 01:56!
+    AR_CLEAR_SKYSANDS_2LAPS_1_45,              // 37  SKY SANDS Finish 2 laps in under 01:45!
+    AR_CLEAR_HILLSIDE_2LAPS_1_56,              // 38  FROZEN HILLSIDE Finish 2 laps in under 01:56!
+    AR_CLEAR_MAGMA_2LAPS_2_01,                 // 39  MAGMA FLOWS Finish 2 laps in under 02:01!
+    AR_CLEAR_BEANSTALK_2LAPS_1_56,             // 40  BEANSTALK PARK Finish 2 laps in under 01:56!
+    AR_CLEAR_PASSAGE_2LAPS_1_48,               // 41  MACHINE PASSAGE Finish 2 laps in under 01:48!
+    AR_CLEAR_CHECKER_2LAPS_2_40,               // 42  CHECKER KNIGHTS Finish 2 laps in under 02:40!
+    AR_CLEAR_TA_MEADOWS_1_12,                  // 43  TA: FANTASY MEADOWS in under 01:12!
+    AR_CLEAR_TA_MEADOWS_1_00,                  // 44  TA: FANTASY MEADOWS in under 01:00!
+    AR_CLEAR_TA_CELESTIAL_3_20,                // 45  TA: CELESTIAL VALLEY in under 03:20!
+    AR_CLEAR_TA_CELESTIAL_2_56,                // 46  TA: CELESTIAL VALLEY in under 02:56!
+    AR_CLEAR_TA_SKYSANDS_3_10,                 // 47  TA: SKY SANDS in under 03:10!
+    AR_CLEAR_TA_SKYSANDS_2_40,                 // 48  TA: SKY SANDS in under 02:40!
+    AR_CLEAR_TA_HILLSIDE_3_14,                 // 49  TA: FROZEN HILLSIDE in under 03:14!
+    AR_CLEAR_TA_HILLSIDE_2_50,                 // 50  TA: FROZEN HILLSIDE in under 02:50!
+    AR_CLEAR_TA_MAGMA_3_20,                    // 51  TA: MAGMA FLOWS in under 03:20!
+    AR_CLEAR_TA_MAGMA_3_04,                    // 52  TA: MAGMA FLOWS in under 03:04!
+    AR_CLEAR_TA_BEANSTALK_3_10,                // 53  TA: BEANSTALK PARK in under 03:10!
+    AR_CLEAR_TA_BEANSTALK_2_55,                // 54  TA: BEANSTALK PARK in under 02:55!
+    AR_CLEAR_TA_PASSAGE_3_10,                  // 55  TA: MACHINE PASSAGE in under 03:10!
+    AR_CLEAR_TA_PASSAGE_2_48,                  // 56  TA: MACHINE PASSAGE in under 02:48!
+    AR_CLEAR_TA_CHECKER_4_30,                  // 57  TA: CHECKER KNIGHTS in under 04:30!
+    AR_CLEAR_TA_CHECKER_4_00,                  // 58  TA: CHECKER KNIGHTS in under 04:00!
+    AR_CLEAR_FR_MEADOWS_0_24,                  // 59  FR: FANTASY MEADOWS 1 lap in under 00:24!
+    AR_CLEAR_FR_MEADOWS_0_21,                  // 60  FR: FANTASY MEADOWS 1 lap in under 00:21!
+    AR_CLEAR_FR_MEADOWS_0_23_WAGON,            // 61  FR: FANTASY MEADOWS under 00:23 on Wagon Star!
+    AR_CLEAR_FR_CELESTIAL_1_10,                // 62  FR: CELESTIAL VALLEY 1 lap in under 01:10!
+    AR_CLEAR_FR_CELESTIAL_0_57,                // 63  FR: CELESTIAL VALLEY 1 lap in under 00:57!
+    AR_CLEAR_FR_CELESTIAL_1_02_SLICK,          // 64  FR: CELESTIAL VALLEY under 01:02 on Slick Star!
+    AR_CLEAR_FR_SKYSANDS_1_05,                 // 65  FR: SKY SANDS 1 lap in under 01:05!
+    AR_CLEAR_FR_SKYSANDS_0_53,                 // 66  FR: SKY SANDS 1 lap in under 00:53!
+    AR_CLEAR_FR_SKYSANDS_1_05_BULK,            // 67  FR: SKY SANDS under 01:05 on Bulk Star!
+    AR_CLEAR_FR_HILLSIDE_1_10,                 // 68  FR: FROZEN HILLSIDE 1 lap in under 01:10!
+    AR_CLEAR_FR_HILLSIDE_0_58,                 // 69  FR: FROZEN HILLSIDE 1 lap in under 00:58!
+    AR_CLEAR_FR_HILLSIDE_1_10_FORMULA,         // 70  FR: FROZEN HILLSIDE under 01:10 on Formula Star!
+    AR_CLEAR_FR_MAGMA_1_10,                    // 71  FR: MAGMA FLOWS 1 lap in under 01:10!
+    AR_CLEAR_FR_MAGMA_1_01,                    // 72  FR: MAGMA FLOWS 1 lap in under 01:01!
+    AR_CLEAR_FR_MAGMA_1_02_TURBO,              // 73  FR: MAGMA FLOWS under 01:02 on Turbo Star!
+    AR_CLEAR_FR_BEANSTALK_1_07,                // 74  FR: BEANSTALK PARK 1 lap in under 01:07!
+    AR_CLEAR_FR_BEANSTALK_0_58,                // 75  FR: BEANSTALK PARK 1 lap in under 00:58!
+    AR_CLEAR_FR_BEANSTALK_0_58_WINGED,         // 76  FR: BEANSTALK PARK under 00:58 on Winged Star!
+    AR_CLEAR_FR_PASSAGE_1_05,                  // 77  FR: MACHINE PASSAGE 1 lap in under 01:05!
+    AR_CLEAR_FR_PASSAGE_0_56,                  // 78  FR: MACHINE PASSAGE 1 lap in under 00:56!
+    AR_CLEAR_FR_PASSAGE_0_57_SWERVE,           // 79  FR: MACHINE PASSAGE under 00:57 on Swerve Star!
+    AR_CLEAR_FR_CHECKER_1_35,                  // 80  FR: CHECKER KNIGHTS 1 lap in under 01:35!
+    AR_CLEAR_FR_CHECKER_1_20,                  // 81  FR: CHECKER KNIGHTS 1 lap in under 01:20!
+    AR_CLEAR_FR_CHECKER_1_25_ROCKET,           // 82  FR: CHECKER KNIGHTS under 01:25 on Rocket Star!
+    AR_CLEAR_LAPTIME_SAME_DIGITS,              // 83  Make your lap time's last two digits the same!
+    AR_CLEAR_RACE_ALL_COURSES,                 // 84  Race all of the standard Air Ride courses!
+    AR_CLEAR_4TH_TO_1ST,                       // 85  Start final lap in 4th, move to 1st to win!
+    AR_CLEAR_FINISH_1ST_SPINNING,              // 86  Cross finish line while spinning and take 1st!
+    AR_CLEAR_FINISH_1ST_DAMAGED,               // 87  Finish in 1st place while taking damage!
+    AR_CLEAR_FINISH_1ST_FLYING,                // 88  Finish in 1st place while flying!
+    AR_CLEAR_FINISH_1ST_SLEEP,                 // 89  Finish in 1st place with Sleep ability!
+    AR_CLEAR_FINISH_1ST_FIRE,                  // 90  Finish in 1st place with Fire ability!
+    AR_CLEAR_FINISH_1ST_NEEDLE,                // 91  Finish in 1st place with Needle ability!
+    AR_CLEAR_FINISH_1ST_WING,                  // 92  Finish in 1st place with Wing ability!
+    AR_CLEAR_TA_MEADOWS_1_05_SLICK,            // 93  TA: FANTASY MEADOWS under 01:05 on Slick Star!
+    AR_CLEAR_DROP_CLIFFS_3_TIMES,              // 94  Drop from the cliffs 3 times in one game!
+    AR_CLEAR_MEADOWS_SWALLOW_20_1ST,           // 95  FANTASY MEADOWS: Swallow 20+ enemies and take 1st!
+    AR_CLEAR_MEADOWS_1LAP_ABOVE_20MPH,         // 96  FANTASY MEADOWS: 1 lap without dropping below 20 mph!
+    AR_CLEAR_BEANSTALK_3LAPS_NO_WHEEL,         // 97  BEANSTALK PARK: 3+ laps without riding the Ferris wheel!
+    AR_CLEAR_BEANSTALK_SWALLOW_20_1ST,         // 98  BEANSTALK PARK: Swallow 20+ enemies and take 1st!
+    AR_CLEAR_CHECKER_7_SPINPANELS_1ST,         // 99  CHECKER KNIGHTS: Use spin panels 7+ times and take 1st!
+    AR_CLEAR_CHECKER_2_WALLS_1ST,              // 100 CHECKER KNIGHTS: Break 2+ walls and finish 1st!
+    AR_CLEAR_CHECKER_SWALLOW_20_1ST,           // 101 CHECKER KNIGHTS: Swallow 20+ enemies and finish 1st!
+    AR_CLEAR_HILLSIDE_20_ICE_1ST,              // 102 FROZEN HILLSIDE: Split 20+ ice platforms and finish 1st!
+    AR_CLEAR_SKYSANDS_BREAK_CORAL_1ST,         // 103 SKY SANDS: Break all coral and finish 1st!
+    AR_CLEAR_SKYSANDS_3_QUICKSAND_1ST,         // 104 SKY SANDS: Enter quicksand 3 times and finish 1st!
+    AR_CLEAR_TA_CELESTIAL_2_58_JET,            // 105 TA: CELESTIAL VALLEY under 02:58 on Jet Star!
+    AR_CLEAR_SKYSANDS_3_TRAPDOOR_1ST,          // 106 SKY SANDS: Open trapdoor exactly 3 times and finish 1st!
+    AR_CLEAR_PASSAGE_3_FROM_CANNON,            // 107 MACHINE PASSAGE: Shoot 3 from the cannon at once!
+    AR_CLEAR_TA_SKYSANDS_2_40_WAGON,           // 108 TA: SKY SANDS under 02:40 on Wagon Star!
+    AR_CLEAR_PASSAGE_1ST_NO_WALLS,             // 109 MACHINE PASSAGE: Finish 1st without touching walls!
+    AR_CLEAR_MAGMA_ALL_RAILS_1ST,              // 110 MAGMA FLOWS: Use all volcano rails and finish 1st!
+    AR_CLEAR_MAGMA_BUMP_DRAGON,                // 111 MAGMA FLOWS: Bump into a flaming dragon!
+    AR_CLEAR_MAGMA_ALL_BOOSTS_1ST,             // 112 MAGMA FLOWS: Use all Boost Panels and finish 1st!
+    AR_CLEAR_TA_HILLSIDE_3_10_TURBO,           // 113 TA: FROZEN HILLSIDE under 03:10 on Turbo Star!
+    AR_CLEAR_CELESTIAL_BOTH_RAILINGS,          // 114 CELESTIAL VALLEY: Ride both bridge railings!
+    AR_CLEAR_TA_MAGMA_3_15_SHADOW,             // 115 TA: MAGMA FLOWS under 03:15 on Shadow Star!
+    AR_CLEAR_CELESTIAL_COPY_WHEEL_TREE,        // 116 CELESTIAL VALLEY: Use Copy Chance Wheel on tree!
+    AR_CLEAR_TA_BEANSTALK_3_00_ROCKET,         // 117 TA: BEANSTALK PARK under 03:00 on Rocket Star!
+    AR_CLEAR_TA_PASSAGE_2_50_REX,              // 118 TA: MACHINE PASSAGE under 02:50 on Rex Wheelie!
+    AR_CLEAR_TA_CHECKER_3_55_WARPSTAR,         // 119 TA: CHECKER KNIGHTS under 03:55 on Warpstar!
+    AR_CLEAR_NUM = 120,
+} AirRideClearKind;
+
+typedef enum TopRideClearKind
+{
+    TR_CLEAR_GOAL_20_TIMES,                    // 0   Cross the goal 20 or more times!
+    TR_CLEAR_RACE_300_LAPS,                    // 1   Race over 300 laps!
+    TR_CLEAR_10_MULTI_RACES,                   // 2   Compete in more than 10 multiplayer races!
+    TR_CLEAR_50_MULTI_RACES,                   // 3   Compete in more than 50 multiplayer races!
+    TR_CLEAR_FR_100_LAPS,                      // 4   Free Run: Race more than 100 laps!
+    TR_CLEAR_TA_GOAL_30_TIMES,                 // 5   Time Attack: Cross the goal 30 or more times!
+    TR_CLEAR_1ST_ALL_COURSES,                  // 6   Take 1st place on all courses!
+    TR_CLEAR_1LAP_NO_WALL_1ST,                 // 7   Race one lap without hitting a wall and finish 1st!
+    TR_CLEAR_20_QUICKSPINS_1ST,                // 8   Do 20+ Quick Spins in one lap and finish 1st!
+    TR_CLEAR_ALL_COURSES_NO_ITEMS,             // 9   Complete all courses without using items!
+    TR_CLEAR_1ST_ALL_NO_ITEMS,                 // 10  Finish 1st on all courses using no items!
+    TR_CLEAR_COLLECT_500_ITEMS,                // 11  Collect 500 items or more!
+    TR_CLEAR_ALL_NO_BOOST,                     // 12  Finish all courses without using Boost!
+    TR_CLEAR_1ST_ALL_NO_BOOST,                 // 13  Finish 1st on all courses without Boost!
+    TR_CLEAR_SAME_ITEM_3_TIMES,                // 14  Get the same item 3 times in one race!
+    TR_CLEAR_1ST_QUICKSPIN,                    // 15  Take 1st place while doing a Quick Spin!
+    TR_CLEAR_1ST_HAMMER,                       // 16  Take 1st place while holding the Hammer!
+    TR_CLEAR_1ST_1LAP_AHEAD,                   // 17  Finish 1st with 1 lap between you and #2!
+    TR_CLEAR_1ST_2LAPS_AHEAD,                  // 18  Finish 1st with 2 laps between you and #2!
+    TR_CLEAR_20_SPINNER_ITEMS,                 // 19  Get more than 20 Spinner items!
+    TR_CLEAR_20_INVINCIBLE_CANDY,              // 20  Get more than 20 Invincible Candy items!
+    TR_CLEAR_20_WALKY_ITEMS,                   // 21  Get more than 20 Walky items!
+    TR_CLEAR_TORCH_3_WITH_FIRE,                // 22  Torch 3+ rivals using one Fire item!
+    TR_CLEAR_3_RIVALS_BUZZ_SAW,                // 23  Send 3+ rivals sailing using one Buzz Saw item!
+    TR_CLEAR_HIT_3_BOMB_ITEMS,                 // 24  Hit enemies 3+ times with Bomb items in one game!
+    TR_CLEAR_18_ITEM_TYPES,                    // 25  Get over 18 different types of items!
+    TR_CLEAR_GRASS_NO_ITEMS_1ST,               // 26  GRASS: Take 1st without using items!
+    TR_CLEAR_GRASS_NO_BOOST_1ST,               // 27  GRASS: Take 1st without using Boost!
+    TR_CLEAR_GRASS_CPU5_1ST,                   // 28  GRASS: Finish 1st with CPUs set to level 5!
+    TR_CLEAR_GRASS_1ST_10_TIMES,               // 29  GRASS: Take 1st 10 or more times!
+    TR_CLEAR_GRASS_7LAPS_0_43,                 // 30  GRASS: Finish 7 laps in under 00:43!
+    TR_CLEAR_GRASS_100_LAPS,                   // 31  GRASS: Race more than 100 laps!
+    TR_CLEAR_GRASS_5_DASH_PANELS_1ST,          // 32  GRASS: Finish 1st and hit 5+ Dash Panels!
+    TR_CLEAR_GRASS_30_TREE_BOMBS,              // 33  GRASS: Drop 30+ tree bombs in one race!
+    TR_CLEAR_GRASS_1ST_5SEC_AHEAD,             // 34  GRASS: Finish 1st 5 seconds faster than #2!
+    TR_CLEAR_SAND_NO_ITEMS_1ST,                // 35  SAND: Take 1st without using items!
+    TR_CLEAR_SAND_NO_BOOST_1ST,                // 36  SAND: Take 1st without using Boost!
+    TR_CLEAR_SAND_CPU5_1ST,                    // 37  SAND: Finish 1st with CPUs set to level 5!
+    TR_CLEAR_SAND_1ST_10_TIMES,                // 38  SAND: Take 1st 10 or more times!
+    TR_CLEAR_SAND_7LAPS_0_52,                  // 39  SAND: Finish 7 laps in under 00:52!
+    TR_CLEAR_SAND_100_LAPS,                    // 40  SAND: Race more than 100 laps!
+    TR_CLEAR_SAND_CATCH_WORM_3_1ST,            // 41  SAND: Take 1st and catch the worm 3+ times!
+    TR_CLEAR_SAND_ANT_DOOM_50,                 // 42  SAND: Drop into Ant Doom 50+ times!
+    TR_CLEAR_SAND_ANT_DOOM_20_1GAME,           // 43  SAND: Drop into Ant Doom 20 times in one game!
+    TR_CLEAR_SAND_1ST_5SEC_AHEAD,              // 44  SAND: Finish 1st 5 seconds faster than #2!
+    TR_CLEAR_SKY_NO_ITEMS_1ST,                 // 45  SKY: Take 1st without using items!
+    TR_CLEAR_SKY_NO_BOOST_1ST,                 // 46  SKY: Take 1st without using Boost!
+    TR_CLEAR_SKY_CPU5_1ST,                     // 47  SKY: Finish 1st with CPUs set to level 5!
+    TR_CLEAR_SKY_1ST_10_TIMES,                 // 48  SKY: Take 1st 10 or more times!
+    TR_CLEAR_SKY_6LAPS_1_02,                   // 49  SKY: Finish 6 laps in under 01:02!
+    TR_CLEAR_SKY_100_LAPS,                     // 50  SKY: Race more than 100 laps!
+    TR_CLEAR_SKY_ISLE_KNOB_5_1ST,              // 51  SKY: Take 1st and hit the Isle Knob 5+ times!
+    TR_CLEAR_SKY_NO_JUMP_PLATE_1ST,            // 52  SKY: Finish 1st without using the Jump Plate!
+    TR_CLEAR_SKY_1ST_5SEC_AHEAD,               // 53  SKY: Finish 1st 5 seconds faster than #2!
+    TR_CLEAR_FIRE_NO_ITEMS_1ST,                // 54  FIRE: Take 1st without using items!
+    TR_CLEAR_FIRE_NO_BOOST_1ST,                // 55  FIRE: Take 1st without using Boost!
+    TR_CLEAR_FIRE_CPU5_1ST,                    // 56  FIRE: Finish 1st with CPUs set to level 5!
+    TR_CLEAR_FIRE_1ST_10_TIMES,                // 57  FIRE: Take 1st 10 or more times!
+    TR_CLEAR_FIRE_6LAPS_0_53,                  // 58  FIRE: Finish 6 laps in under 00:53!
+    TR_CLEAR_FIRE_100_LAPS,                    // 59  FIRE: Race more than 100 laps!
+    TR_CLEAR_FIRE_HUGE_ERUPTION_3,             // 60  FIRE: Cause a huge eruption 3+ times!
+    TR_CLEAR_FIRE_1ST_FIRE_ITEM,               // 61  FIRE: Finish 1st while holding the Fire item!
+    TR_CLEAR_FIRE_1ST_5SEC_AHEAD,              // 62  FIRE: Finish 1st 5 seconds faster than #2!
+    TR_CLEAR_WATER_NO_ITEMS_1ST,               // 63  WATER: Take 1st without using items!
+    TR_CLEAR_WATER_NO_BOOST_1ST,               // 64  WATER: Take 1st without using Boost!
+    TR_CLEAR_WATER_CPU5_1ST,                   // 65  WATER: Finish 1st with CPUs set to level 5!
+    TR_CLEAR_WATER_1ST_10_TIMES,               // 66  WATER: Take 1st 10 or more times!
+    TR_CLEAR_WATER_5LAPS_1_02,                 // 67  WATER: Finish 5 laps in under 01:02!
+    TR_CLEAR_WATER_100_LAPS,                   // 68  WATER: Race more than 100 laps!
+    TR_CLEAR_WATER_FALLS_5_1ST,                // 69  WATER: Take 1st and enter the falls 5+ times!
+    TR_CLEAR_WATER_1ST_5SEC_AHEAD,             // 70  WATER: Finish 1st 5 seconds faster than #2!
+    TR_CLEAR_LIGHT_NO_ITEMS_1ST,               // 71  LIGHT: Take 1st without using items!
+    TR_CLEAR_LIGHT_NO_BOOST_1ST,               // 72  LIGHT: Take 1st without using Boost!
+    TR_CLEAR_LIGHT_CPU5_1ST,                   // 73  LIGHT: Finish 1st with CPUs set to level 5!
+    TR_CLEAR_LIGHT_1ST_10_TIMES,               // 74  LIGHT: Take 1st 10 or more times!
+    TR_CLEAR_LIGHT_6LAPS_0_43,                 // 75  LIGHT: Finish 6 laps in under 00:43!
+    TR_CLEAR_LIGHT_100_LAPS,                   // 76  LIGHT: Race more than 100 laps!
+    TR_CLEAR_LIGHT_RAIL_50,                    // 77  LIGHT: Ride the grind rail 50+ times!
+    TR_CLEAR_LIGHT_RAIL_5_1ST,                 // 78  LIGHT: Take 1st and grind the rail 5+ times!
+    TR_CLEAR_LIGHT_6_COLUMNS_1ST,              // 79  LIGHT: Finish 1st and bust 6+ columns!
+    TR_CLEAR_LIGHT_1ST_5SEC_AHEAD,             // 80  LIGHT: Finish 1st 5 seconds faster than #2!
+    TR_CLEAR_METAL_NO_ITEMS_1ST,               // 81  METAL: Take 1st without using items!
+    TR_CLEAR_METAL_NO_BOOST_1ST,               // 82  METAL: Take 1st without using Boost!
+    TR_CLEAR_METAL_CPU5_1ST,                   // 83  METAL: Finish 1st with CPUs set to level 5!
+    TR_CLEAR_METAL_1ST_10_TIMES,               // 84  METAL: Take 1st 10 or more times!
+    TR_CLEAR_METAL_5LAPS_0_58,                 // 85  METAL: Finish 5 laps in under 00:58!
+    TR_CLEAR_METAL_100_LAPS,                   // 86  METAL: Race more than 100 laps!
+    TR_CLEAR_METAL_NO_GEAR_WALLS_1ST,          // 87  METAL: Take 1st without breaking any gear walls!
+    TR_CLEAR_METAL_SWITCH_10_1ST,              // 88  METAL: Take 1st and hit the switch 10+ times!
+    TR_CLEAR_METAL_5_GEAR_WALLS_1ST,           // 89  METAL: Take 1st and break 5+ gear walls!
+    TR_CLEAR_METAL_1ST_5SEC_AHEAD,             // 90  METAL: Finish 1st 5 seconds faster than #2!
+    TR_CLEAR_TA_GRASS_0_33,                    // 91  TA: GRASS in under 00:33!
+    TR_CLEAR_TA_SAND_0_35,                     // 92  TA: SAND in under 00:35!
+    TR_CLEAR_TA_LIGHT_0_38,                    // 93  TA: LIGHT in under 00:38!
+    TR_CLEAR_TA_SKY_0_57,                      // 94  TA: SKY in under 00:57!
+    TR_CLEAR_TA_WATER_1_06,                    // 95  TA: WATER in under 01:06!
+    TR_CLEAR_TA_FIRE_0_46,                     // 96  TA: FIRE in under 00:46!
+    TR_CLEAR_TA_METAL_0_57,                    // 97  TA: METAL in under 00:57!
+    TR_CLEAR_TA_GRASS_0_28,                    // 98  TA: GRASS in under 00:28!
+    TR_CLEAR_TA_SAND_0_29,                     // 99  TA: SAND in under 00:29!
+    TR_CLEAR_TA_LIGHT_0_33,                    // 100 TA: LIGHT in under 00:33!
+    TR_CLEAR_TA_SKY_0_47,                      // 101 TA: SKY in under 00:47!
+    TR_CLEAR_TA_WATER_0_56,                    // 102 TA: WATER in under 00:56!
+    TR_CLEAR_TA_FIRE_0_39,                     // 103 TA: FIRE in under 00:39!
+    TR_CLEAR_TA_METAL_0_51,                    // 104 TA: METAL in under 00:51!
+    TR_CLEAR_FR_GRASS_0_06,                    // 105 FR: GRASS 1 lap in under 00:06!
+    TR_CLEAR_FR_SAND_0_06_50,                  // 106 FR: SAND 1 lap in under 00:06:50!
+    TR_CLEAR_FR_LIGHT_0_07_50,                 // 107 FR: LIGHT 1 lap in under 00:07:50!
+    TR_CLEAR_FR_SKY_0_11,                      // 108 FR: SKY 1 lap in under 00:11!
+    TR_CLEAR_FR_WATER_0_12,                    // 109 FR: WATER 1 lap in under 00:12!
+    TR_CLEAR_FR_FIRE_0_08,                     // 110 FR: FIRE 1 lap in under 00:08!
+    TR_CLEAR_FR_METAL_0_11_50,                 // 111 FR: METAL 1 lap in under 00:11:50!
+    TR_CLEAR_FR_GRASS_0_04_50,                 // 112 FR: GRASS 1 lap in under 00:04:50!
+    TR_CLEAR_FR_SAND_0_05,                     // 113 FR: SAND 1 lap in under 00:05!
+    TR_CLEAR_FR_LIGHT_0_06,                    // 114 FR: LIGHT 1 lap in under 00:06!
+    TR_CLEAR_FR_SKY_0_09,                      // 115 FR: SKY 1 lap in under 00:09!
+    TR_CLEAR_FR_WATER_0_10_50,                 // 116 FR: WATER 1 lap in under 00:10:50!
+    TR_CLEAR_FR_FIRE_0_06_50,                  // 117 FR: FIRE 1 lap in under 00:06:50!
+    TR_CLEAR_FR_METAL_0_09_50,                 // 118 FR: METAL 1 lap in under 00:09:50!
+    TR_CLEAR_FILL_100_BLOCKS,                  // 119 Fill in over 100 Checklist blocks!
+    TR_CLEAR_NUM = 120,
+} TopRideClearKind;
+
 typedef enum CityClearKind
 {
-    CITYCLEARKIND_0,
-    CITYCLEARKIND_1,
-    CITYCLEARKIND_COLOR_GREEN = 15,
-    CITYCLEARKIND_COLOR_PURPLE,
-    CITYCLEARKIND_COLOR_BROWN,
-    CITYCLEARKIND_COLOR_WHITE,
-    CITYCLEARKIND_BREAK5CPUMACHINES = 77, // 8004e398
-    CITYCLEARKIND_NUM = 120,
+    CT_CLEAR_RACE_60_MILES,                    // 0   Race over 60 miles!
+    CT_CLEAR_RACE_200_MILES,                   // 1   Race over 200 miles!
+    CT_CLEAR_PICKUP_100_ITEMS,                 // 2   Pick up over 100 items!
+    CT_CLEAR_PICKUP_500_ITEMS,                 // 3   Pick up over 500 items!
+    CT_CLEAR_PICKUP_1000_ITEMS,                // 4   Pick up over 1000 items!
+    CT_CLEAR_PICKUP_3000_ITEMS,                // 5   Pick up over 3000 items!
+    CT_CLEAR_FR_CHANGE_MACHINE_10,             // 6   FR: Change Air Ride Machines 10+ times!
+    CT_CLEAR_BREAK_500_BOXES,                  // 7   Break more than 500 boxes!
+    CT_CLEAR_BREAK_1000_BOXES,                 // 8   Break more than 1000 boxes!
+    CT_CLEAR_FR_DRIVE_10_MIN,                  // 9   FR: Drive for 10+ minutes!
+    CT_CLEAR_FR_DRIVE_30_MIN,                  // 10  FR: Drive for 30+ minutes!
+    CT_CLEAR_FR_DRIVE_2_HOURS,                 // 11  FR: Drive for 2+ hours!
+    CT_CLEAR_STD_10_STADIUMS,                  // 12  Stadium: Play in 10+ stadium modes!
+    CT_CLEAR_STD_20_STADIUMS,                  // 13  Stadium: Play in 20+ stadium modes!
+    CT_CLEAR_STD_DR1_0_24,                     // 14  Stadium: DRAG RACE 1 in under 00:24!
+    CT_CLEAR_STD_DR1_0_20,                     // 15  Stadium: DRAG RACE 1 in under 00:20!
+    CT_CLEAR_STD_DR2_0_24,                     // 16  Stadium: DRAG RACE 2 in under 00:24!
+    CT_CLEAR_STD_DR2_0_20,                     // 17  Stadium: DRAG RACE 2 in under 00:20!
+    CT_CLEAR_STD_DR3_0_35,                     // 18  Stadium: DRAG RACE 3 in under 00:35!
+    CT_CLEAR_STD_DR3_0_27,                     // 19  Stadium: DRAG RACE 3 in under 00:27!
+    CT_CLEAR_STD_DR4_0_24,                     // 20  Stadium: DRAG RACE 4 in under 00:24!
+    CT_CLEAR_STD_DR4_0_19,                     // 21  Stadium: DRAG RACE 4 in under 00:19!
+    CT_CLEAR_STD_HIGH_JUMP_500FT,              // 22  Stadium: HIGH JUMP over 500 feet!
+    CT_CLEAR_STD_HIGH_JUMP_1000FT,             // 23  Stadium: HIGH JUMP over 1,000 feet!
+    CT_CLEAR_STD_HIGH_JUMP_10SEC,              // 24  Stadium: HIGH JUMP airborne 10+ seconds!
+    CT_CLEAR_STD_TARGET_150PTS,                // 25  Stadium: TARGET FLIGHT over 150 points!
+    CT_CLEAR_STD_TARGET_90PTS,                 // 26  Stadium: TARGET FLIGHT exactly 90 points!
+    CT_CLEAR_STD_TARGET_200PTS,                // 27  Stadium: TARGET FLIGHT perfect 200 points!
+    CT_CLEAR_STD_TARGET_15SEC,                 // 28  Stadium: TARGET FLIGHT airborne 15+ seconds!
+    CT_CLEAR_STD_TARGET_15_PLAYS,              // 29  Stadium: TARGET FLIGHT play 15+ times!
+    CT_CLEAR_STD_TARGET_1500PTS,               // 30  Stadium: TARGET FLIGHT over 1,500 points!
+    CT_CLEAR_STD_GLIDER_330FT,                 // 31  Stadium: AIR GLIDER over 330 feet!
+    CT_CLEAR_STD_GLIDER_660FT,                 // 32  Stadium: AIR GLIDER over 660 feet!
+    CT_CLEAR_STD_GLIDER_1300FT,                // 33  Stadium: AIR GLIDER over 1,300 feet!
+    CT_CLEAR_STD_GLIDER_30SEC,                 // 34  Stadium: AIR GLIDER airborne 30+ seconds!
+    CT_CLEAR_STD_DD1_KO5,                      // 35  Stadium: DD1 KO rivals 5+ times!
+    CT_CLEAR_STD_DD2_KO5,                      // 36  Stadium: DD2 KO rivals 5+ times!
+    CT_CLEAR_STD_DD3_KO5,                      // 37  Stadium: DD3 KO rivals 5+ times!
+    CT_CLEAR_STD_DD4_KO5,                      // 38  Stadium: DD4 KO rivals 5+ times!
+    CT_CLEAR_STD_DD5_KO5,                      // 39  Stadium: DD5 KO rivals 5+ times!
+    CT_CLEAR_STD_DD1_BUST_ROCKS,               // 40  Stadium: DD1 bust all rocks on the field!
+    CT_CLEAR_STD_DD_KO50,                      // 41  Stadium: DD (All) KO enemies 50+ times!
+    CT_CLEAR_STD_DD_KO150,                     // 42  Stadium: DD (All) KO enemies 150+ times!
+    CT_CLEAR_STD_KM1_KO50,                     // 43  Stadium: KM1 KO enemies 50+ times!
+    CT_CLEAR_STD_KM2_KO30,                     // 44  Stadium: KM2 KO enemies 30+ times!
+    CT_CLEAR_STD_KM_KO500,                     // 45  Stadium: KM (All) KO 500+ enemies!
+    CT_CLEAR_STD_KM_KO1500,                    // 46  Stadium: KM (All) KO 1,500+ enemies!
+    CT_CLEAR_STD_VS_DEDEDE_1MIN,               // 47  Stadium: VS. KING DEDEDE KO in under 1 minute!
+    CT_CLEAR_DAMAGE_DYNA_BLADE,                // 48  Do some damage to Dyna Blade!
+    CT_CLEAR_TRAMPLED_DYNA_BLADE,              // 49  Get trampled by Dyna Blade!
+    CT_CLEAR_BREAK_5_PILLARS,                  // 50  Break 5+ huge pillars!
+    CT_CLEAR_BREAK_PILLAR_40SEC,               // 51  Break a huge pillar within 40 seconds!
+    CT_CLEAR_STEAL_8_FROM_TAC,                 // 52  Steal 8+ items from Tac!
+    CT_CLEAR_METEOR_3_TIMES,                   // 53  Meteor attacks the city 3+ times!
+    CT_CLEAR_USE_RESTORATION_AREA,             // 54  Use up one of the restoration areas!
+    CT_CLEAR_FILL_100_BLOCKS,                  // 55  Fill in over 100 Checklist blocks!
+    CT_CLEAR_ENTER_CASTLE_CHAMBER,             // 56  Go into the castle chamber when it opens!
+    CT_CLEAR_FLY_RINGS_5_TIMES,                // 57  Fly through the rings in the sky 5+ times!
+    CT_CLEAR_BUST_STAR_POLE,                   // 58  Bust the star pole!
+    CT_CLEAR_BUST_STAR_POLE_10,                // 59  Bust the star pole 10+ times!
+    CT_CLEAR_OPEN_VOLCANO_HOLES,               // 60  Open all holes around the volcano base!
+    CT_CLEAR_WATERWHEEL_10_TIMES,              // 61  Let the waterwheel carry you 10+ times!
+    CT_CLEAR_GARDEN_IN_SKY,                    // 62  Make your way to the garden in the sky!
+    CT_CLEAR_OPEN_FOREST_PITFALL,              // 63  Open up the pitfall in the forest!
+    CT_CLEAR_HIGH_PLAINS_HOLE_3,               // 64  Go into the high plains hole 3+ times!
+    CT_CLEAR_BREAK_ALL_ROCKS,                  // 65  Break all volcano rocks and high plains rocks!
+    CT_CLEAR_GRIND_RAIL_CRATER,                // 66  Use the grind rail to break into the crater!
+    CT_CLEAR_JUMP_BUILDING_10,                 // 67  Jump on top of building 10+ times via super jump ramp!
+    CT_CLEAR_DESTROY_ALL_HOUSES,               // 68  Destroy all dilapidated houses!
+    CT_CLEAR_KNOCK_DOWN_TREES,                 // 69  Knock down all trees in the forest!
+    CT_CLEAR_COPY_WHEEL_BOMB,                  // 70  Get Bomb ability from Copy Chance Wheel!
+    CT_CLEAR_COPY_WHEEL_SLEEP,                 // 71  Get Sleep ability from Copy Chance Wheel!
+    CT_CLEAR_10_ITEMS_20SEC,                   // 72  Get 10 items within the first 20 seconds!
+    CT_CLEAR_DAMAGE_RIVAL_10SEC,               // 73  Do damage to a rival within the first 10 seconds!
+    CT_CLEAR_ALL_OFF_MACHINES,                 // 74  All players simultaneously off their machines!
+    CT_CLEAR_TIMEOUT_ALL_OFF,                  // 75  Time runs out while all players are off machines!
+    CT_CLEAR_TIMEOUT_ALL_RAILS,                // 76  Time runs out while all players are on rails!
+    CT_CLEAR_BREAK_5_CPU_MACHINES,             // 77  Break a CPU's machine 5+ times in the city!
+    CT_CLEAR_DAMAGE_ALL_3_CPUS,                // 78  Damage all 3 CPUs in one race!
+    CT_CLEAR_GET_50_ITEMS,                     // 79  Get 50+ items in one game!
+    CT_CLEAR_GET_10_BOOST_PATCHES,             // 80  Get 10+ Boost patches in one game!
+    CT_CLEAR_STD_DD1_KO10,                     // 81  Stadium: DD1 KO a rival 10+ times!
+    CT_CLEAR_GET_10_TOPSPD_PATCHES,            // 82  Get 10+ Top Speed Patches in one game!
+    CT_CLEAR_STD_DD2_KO10,                     // 83  Stadium: DD2 KO a rival 10+ times!
+    CT_CLEAR_GET_10_TURN_PATCHES,              // 84  Get 10+ Turn Patches in one game!
+    CT_CLEAR_STD_DD4_KO10,                     // 85  Stadium: DD4 KO a rival 10+ times!
+    CT_CLEAR_GET_10_CHARGE_PATCHES,            // 86  Get 10+ Charge Patches in one game!
+    CT_CLEAR_STD_DD5_KO10,                     // 87  Stadium: DD5 KO a rival 10+ times!
+    CT_CLEAR_GET_10_WEIGHT_PATCHES,            // 88  Get 10+ Weight Patches in one game!
+    CT_CLEAR_STD_KM1_KO75,                     // 89  Stadium: KM1 KO 75+ enemies solo!
+    CT_CLEAR_GET_10_DEFENSE_PATCHES,           // 90  Get 10+ Defense Patches in one game!
+    CT_CLEAR_STD_KM2_KO40,                     // 91  Stadium: KM2 KO 40+ enemies solo!
+    CT_CLEAR_GET_10_GLIDE_PATCHES,             // 92  Get 10+ Glide Patches in one game!
+    CT_CLEAR_GET_30_GLIDE_PATCHES,             // 93  Get 30+ Glide Patches!
+    CT_CLEAR_SENSOR_BOMB_KO3,                  // 94  KO rivals 3+ times with Sensor Bombs!
+    CT_CLEAR_GOLD_SPIKES_KO3,                  // 95  KO rivals 3+ times with Gold Spikes!
+    CT_CLEAR_FIREWORKS_KO10,                   // 96  KO rivals 10+ times with Fireworks!
+    CT_CLEAR_EAT_2_MAXIM_TOMATOES,             // 97  Eat 2+ maxim tomatoes in one game!
+    CT_CLEAR_DRINK_3_ENERGY_DRINKS,            // 98  Drink 3+ energy drinks in one game!
+    CT_CLEAR_STD_DR1_0_26_WARPSTAR,            // 99  Stadium: DR1 under 00:26 on Warpstar!
+    CT_CLEAR_STD_DR1_0_17_FORMULA,             // 100 Stadium: DR1 under 00:17 on Formula Star!
+    CT_CLEAR_STD_DR2_0_27_WAGON,               // 101 Stadium: DR2 under 00:27 on Wagon Star!
+    CT_CLEAR_STD_DR2_0_29_WINGED,              // 102 Stadium: DR2 under 00:29 on Winged Star!
+    CT_CLEAR_STD_DR3_0_28_SWERVE,              // 103 Stadium: DR3 under 00:28 on Swerve Star!
+    CT_CLEAR_STD_DR3_0_31_WHEELIE,             // 104 Stadium: DR3 under 00:31 on Wheelie Bike!
+    CT_CLEAR_STD_DR4_0_33_TURBO,               // 105 Stadium: DR4 under 00:33 on Turbo Star!
+    CT_CLEAR_STD_DR4_0_24_REX,                 // 106 Stadium: DR4 under 00:24 on Rex Wheelie!
+    CT_CLEAR_EAT_3_SUSHI,                      // 107 Eat 3+ plates of sushi in one race!
+    CT_CLEAR_EAT_3_HOT_DOGS,                   // 108 Eat 3+ Hot Dogs in one race!
+    CT_CLEAR_UNLOCK_DRAGOON,                   // 109 Unlock Dragoon Parts A, B, and C!
+    CT_CLEAR_UNLOCK_HYDRA,                     // 110 Unlock Hydra Parts X, Y, and Z!
+    CT_CLEAR_BUST_SCOOTER_ON_COMPACT,          // 111 Bust Wheelie Scooter while riding Compact Star!
+    CT_CLEAR_BUST_BIKE_ON_WARPSTAR,            // 112 Bust Wheelie Bike while riding Warpstar!
+    CT_CLEAR_BUST_SWERVE_ON_BIKE,              // 113 Bust Swerve Star while riding Wheelie Bike!
+    CT_CLEAR_BUST_WARPSTAR_ON_SWERVE,          // 114 Bust Warpstar while riding Swerve Star!
+    CT_CLEAR_BUST_FORMULA_ON_TURBO,            // 115 Bust Formula Star while riding Turbo Star!
+    CT_CLEAR_BUST_SLICK_ON_FORMULA,            // 116 Bust Slick Star while riding Formula Star!
+    CT_CLEAR_BUST_ROCKET_ON_SLICK,             // 117 Bust Rocket Star while riding Slick Star!
+    CT_CLEAR_BUST_TURBO_ON_ROCKET,             // 118 Bust Turbo Star while riding Rocket Star!
+    CT_CLEAR_COMPLETE_DRAGOON_AND_HYDRA,       // 119 Complete both Dragoon and Hydra in one match!
+    CT_CLEAR_NUM = 120,
 } CityClearKind;
 
 ///////////////////////
@@ -278,34 +641,12 @@ typedef struct GameData // 805359d8
         u8 color[4];  // 0x15b
         u8 x15f;
     } airride_select_ply;
-    int x160; // 0x160
-    int x164; // 0x164
-    int x168; // 0x168
-    int x16c; // 0x16c
-    int x170; // 0x170
-    int x174; // 0x174
-    int x178; // 0x178
-    int x17c; // 0x17c
-    int x180; // 0x180
-    int x184; // 0x184
-    int x188; // 0x188
-    int x18c; // 0x18c
-    int x190; // 0x190
-    int x194; // 0x194
-    int x198; // 0x198
-    int x19c; // 0x19c
-    int x1a0; // 0x1a0
-    int x1a4; // 0x1a4
-    int x1a8; // 0x1a8
-    int x1ac; // 0x1ac
-    int x1b0; // 0x1b0
-    int x1b4; // 0x1b4
-    int x1b8; // 0x1b8
-    int x1bc; // 0x1bc
-    int x1c0; // 0x1c0
-    int x1c4; // 0x1c4
-    int x1c8; // 0x1c8
-    int x1cc; // 0x1cc
+    struct
+    {
+        u8 x160[0x5a];  // 0x160 to 0x1b9
+        u8 color[4];    // 0x1ba
+        u8 x1be[0x12];  // 0x1be to 0x1cf
+    } topride_select_ply;
     struct
     {
         u8 x1d0;                        // 0x1d0
@@ -423,10 +764,12 @@ typedef struct GameData // 805359d8
     int x368;                        // 0x368
     int x36c;                        // 0x36c
     int x370;                        // 0x370
-    int x374;                        // 0x374
+    int topride_selected_course;     // 0x374, TopRideCourse index (0-6)
     int x378;                        // 0x378
-    int x37c;                        // 0x37c
-    int x380;                        // 0x380
+    u8 x37c;                         // 0x37c
+    u8 topride_course_valid;         // 0x37d, result of course unlock check
+    u8 topride_extra_unlocks[3];     // 0x37e-0x380, booleans from clear_kinds 8, 9, 10
+    u8 x381[3];                      // 0x381-0x383, padding
     int x384;                        // 0x384
     int x388;                        // 0x388
     int x38c;                        // 0x38c
@@ -967,12 +1310,15 @@ typedef struct GameData // 805359d8
     int xd44;                        // 0xd44
     int xd48;                        // 0xd48
     int xd4c;                        // 0xd4c
-    int xd50;                        // 0xd50
-    int xd54;                        // 0xd54
-    int xd58;                        // 0xd58
-    int xd5c;                        // 0xd5c
-    int xd60;                        // 0xd60
-    int xd64;                        // 0xd64
+    struct                           // 0xd50, built by Checklist_BuildUnlockBitfields (80007af0)
+    {                                //
+        u32 airride_unlock_lo;       // 0xd50, bits 0-31 of Air Ride reward unlock status
+        u32 airride_unlock_hi;       // 0xd54, bits 32-45 of Air Ride reward unlock status
+        u32 citytrial_unlock_lo;     // 0xd58, bits 0-31 of City Trial reward unlock status
+        u32 citytrial_unlock_hi;     // 0xd5c, bits 32-43 of City Trial reward unlock status
+        u32 stadium_flags_cache;     // 0xd60, copy of GameData + 0x1510 (stadium unlock flags)
+        u32 xd64;                    // 0xd64, always 0
+    } unlock_cache;                  //
     int xd68;                        // 0xd68
     int xd6c;                        // 0xd6c
     int xd70;                        // 0xd70
@@ -1849,28 +2195,114 @@ typedef struct Game3dData
     int xcfc;                                     // 0xcfc
 } Game3dData;
 
-typedef struct GameClearData
+// Reward type encoding for RewardEntry.reward_type
+typedef enum RewardType
 {
-    u8 x0[0x7c];
+    REWARD_FILLER           = 0x00, // Checkbox filler ("Check off an empty box of your choice!")
+    REWARD_BONUS_MOVIE      = 0x01, // Bonus movie (Air Ride)
+    REWARD_EXTRA_RULE       = 0x02, // Extra rule (Top Ride only)
+    REWARD_STADIUM          = 0x03, // New stadium (City Trial only)
+    REWARD_SOUND_TEST       = 0x04, // Sound test entry (param=0x01)
+    REWARD_MUSIC            = 0x05, // Music track (param=0x01)
+    REWARD_ENDING           = 0x06, // Ending movie (param=0x02)
+    REWARD_COURSE           = 0x07, // Course unlock (Nebula Belt, Air Ride only)
+    REWARD_PAUSE_POWERUPS   = 0x08, // Pause screen power-up display (City Trial only)
+    REWARD_MACHINE_WINGED_STAR     = 0x09,
+    REWARD_MACHINE_WAGON_STAR      = 0x0A,
+    REWARD_MACHINE_SWERVE_STAR     = 0x0B,
+    REWARD_MACHINE_BULK_STAR       = 0x0C,
+    REWARD_MACHINE_WHEELIE_BIKE    = 0x0D,
+    REWARD_MACHINE_SLICK_STAR      = 0x0E,
+    REWARD_MACHINE_FORMULA_STAR    = 0x0F,
+    REWARD_MACHINE_SHADOW_STAR     = 0x10,
+    REWARD_MACHINE_WHEELIE_SCOOTER = 0x11,
+    REWARD_MACHINE_ROCKET_STAR     = 0x12,
+    REWARD_MACHINE_TURBO_STAR      = 0x13,
+    REWARD_MACHINE_JET_STAR        = 0x14,
+    REWARD_MACHINE_REX_WHEELIE     = 0x15,
+    REWARD_KING_DEDEDE      = 0x16, // King Dedede character
+    REWARD_META_KNIGHT      = 0x17, // Meta Knight character
+    REWARD_DRAGOON          = 0x18, // Dragoon complete machine (City Trial)
+    REWARD_HYDRA            = 0x19, // Hydra complete machine (City Trial)
+    REWARD_DRAGOON_PART_A   = 0x1A, // Dragoon Part A (City Trial)
+    REWARD_DRAGOON_PART_B   = 0x1B, // Dragoon Part B (City Trial)
+    REWARD_DRAGOON_PART_C   = 0x1C, // Dragoon Part C (City Trial)
+    REWARD_HYDRA_PART_X     = 0x1D, // Hydra Part X (City Trial)
+    REWARD_HYDRA_PART_Y     = 0x1E, // Hydra Part Y (City Trial)
+    REWARD_HYDRA_PART_Z     = 0x1F, // Hydra Part Z (City Trial)
+    REWARD_COLOR_GREEN      = 0x20, // Green Kirby
+    REWARD_COLOR_PURPLE     = 0x21, // Purple Kirby
+    REWARD_COLOR_BROWN      = 0x22, // Brown Kirby
+    REWARD_COLOR_WHITE      = 0x23, // White Kirby
+    REWARD_ITEM_CHICKIE     = 0x24, // New Item: Chickie (Top Ride)
+    REWARD_ITEM_WHO_PAINT   = 0x25, // New Item: Who? Paint (Top Ride)
+    REWARD_ITEM_LANTERN     = 0x26, // New Item: Lantern (Top Ride)
+} RewardType;
+
+typedef enum RewardParam
+{
+    REWARDPARAM_NONE    = 0x00, // Default for most reward types
+    REWARDPARAM_AUDIO   = 0x01, // Sound test / music rewards
+    REWARDPARAM_ENDING  = 0x02, // Ending movie reward
+} RewardParam;
+
+typedef struct RewardEntry
+{
+    u8 reward_type;     // 0x00, RewardType enum value (u8 to preserve 3-byte struct layout)
+    u8 reward_param;    // 0x01, RewardParam enum value
+    u8 clear_kind;      // 0x02, which ClearKind (0-119) this reward maps to
+} RewardEntry;
+
+typedef struct TopRideStats // 0x34 = 52 bytes. see gmGetClearcheckerType1_2Ptr
+{
+    u8 x0;                  // 0x00, unknown
+    u8 x1;                  // 0x01, unknown
+    u8 counters_02[3];      // 0x02, 3 byte-sized stat counters
+    u8 pad_05;              // 0x05, padding (for halfword alignment)
+    u16 counter_06;         // 0x06, halfword counter (likely total laps)
+    u8 counters_08[37];     // 0x08, 37 byte-sized stat counters
+    u8 flags_2d;            // 0x2D, bitfield (7 bits used, likely per-course flags)
+    u8 flags_2e;            // 0x2E, bitfield (7 bits used, likely per-course flags)
+    u8 flags_2f;            // 0x2F, bitfield (7 bits used, likely per-course flags)
+    u8 counters_30[2];      // 0x30, 2 byte-sized stat counters
+    u8 pad_32[2];           // 0x32, unused
+} TopRideStats;
+
+typedef struct GameClearData // 0xF4 bytes per mode. see gmGetClearcheckerTypeP
+{
+    u8 new_unlock_flag;     // 0x00, nonzero when new unlocks exist requiring visual update
+    u8 x1;                  // 0x01
+    u8 checkbox_filler_num;      // 0x02, number of checkbox fillers available to use
+    u8 checkbox_filler_list_len; // 0x03, length of filler list shown in checklist UI (max 5)
+    u8 grid_mapping[120];   // 0x04, grid_mapping[clear_kind] = visual_position (0-119, col = pos%12, row = pos/12)
     struct
     {
         u8 x0_80 : 1;       // 0x80
         u8 x0_40 : 1;       // 0x40
         u8 x0_20 : 1;       // 0x20
         u8 is_visible : 1;  // 0x10, is visible in the checklist
-        u8 has_reward : 1;  // 0x08, checked and assigned @ 8017e008. function gets clear_kind from reward_kind
+        u8 has_reward : 1;  // 0x08, set by Checklist_SetRewardFlagOnUnlocks when slot is unlocked
         u8 is_unlocked : 1; // 0x04, raised after displaying the unlocked animation
         u8 is_filler : 1;   // 0x02, checkbox filler was used
-        u8 is_new : 1;      // 0x01, raised when the match ends after unlocking it
-    } clear[120];
+        u8 is_new : 1;      // 0x01, raised when objective is completed, pending acknowledgement
+    } clear[120];           // 0x7C
 } GameClearData;
+
+typedef struct gmGameParams
+{
+    int x0;              // 0x00
+    int x4;              // 0x04
+    int x8;              // 0x08
+    int xc;              // 0x0c
+    int x10;             // 0x10
+    int x14;             // 0x14
+    int patch_max;       // 0x18, max stat patch value (returned by Patch_GetMaxValue as s8)
+    int patch_min;       // 0x1c, min stat patch value (returned by Patch_GetMinValue as s8)
+} gmGameParams;
 
 typedef struct gmDataAll
 {
-    struct
-    {
-        int x0;
-    } *x0;
+    gmGameParams *game_params; // 0x0, game parameters including patch min/max
     struct // 0x4
     {
         int x0;                  // unk
@@ -1926,18 +2358,18 @@ typedef struct PlayerData
 
 typedef struct LegendaryPieceData           // 80ae2cec
 {                                           //
-    void *x0;                               // 0x0
-    struct                                  //
-    {                                       //
-        u8 x0;                              // 0x0
-        float item_spawn_match_progress[3]; // 0x4
-        int item_kind[3];                   // 0x10
-        int x1c[3];                         // 0x1c
-        int x28[3];                         // 0x28
-        u8 req_spawn : 1;                   // 0x38, 0x80
-        u8 is_enabled : 1;                  // 0x38, 0x40
-    } machine[2];
-} LegendaryPieceData; //
+    void *config;                           // 0x0, pointer to legendary_pieces config data (adjusted by player count)
+    struct                                  // 0x38 bytes each
+    {                                       // machine[0] = Dragoon, machine[1] = Hydra
+        u8 next_piece_index;                // 0x0, which piece to spawn next (0-2)
+        float spawn_progress[3];            // 0x4, match progress threshold for each piece to spawn
+        int item_kind[3];                   // 0x10, ITKIND for each piece (Dragoon: 0x3a-0x3c, Hydra: 0x37-0x39)
+        int x1c[3];                         // 0x1c, set on spawn, initialized to -1
+        int x28[3];                         // 0x28, set on spawn, initialized to -1
+        u8 req_spawn : 1;                   // 0x34, 0x80, set when match progress passes threshold
+        u8 is_enabled : 1;                  // 0x34, 0x40, set during init if rng passes spawn chance
+    } machine[2];                           //
+} LegendaryPieceData;
 
 typedef struct grBoxGeneObj              // r13 + 0x608
 {                                        //
@@ -1989,15 +2421,10 @@ typedef struct grBoxGeneInfo // r13 + 0x610
             u16 unk_chance;
         } *item_spawn;
         int item_spawn_num; // 0x8
-        struct              // 0xc, 2 of these, one for each legendary machine
+        struct              // 0xc, 2 of these: [0] = Dragoon, [1] = Hydra
         {
-            u8 chance_to_spawn; // out of 100
-            u8 x1;
-            u8 x2;
-            u8 x3;
-            u8 x4;
-            u8 x5;
-            u8 x6;
+            u8 chance_to_spawn;             // 0x0, probability out of 100
+            u8 spawn_progress_range[3][2];  // 0x1, [piece_index][0=min, 1=max] match progress values
         } *legendary_pieces; //
         struct               // 0x10
         {
@@ -2279,8 +2706,9 @@ static gmDataAll **stc_gmdataall = (gmDataAll **)(0x805dd0e0 + 0x494);
 static int *stc_city_machine_num = (int *)(0x805dd0e0 + 0x754); //
 static u8 *stc_city_starting_machine = (u8 *)0x80495816;
 static PlayerData *stc_playerdata = (PlayerData *)0x8055a9f0; // 4 of these
-static u8 *stc_clear_num = (u8 *)0x805d51d0;                  // array here indexed by GMMODE
-static u8 **stc_reward_lookup = (u8 **)0x805d51d0;            // array here indexed by GMMODE then RewardKind
+static u8 *stc_clear_num = (u8 *)0x805d51d0;                          // array indexed by GMMODE, stores clear count per mode
+static RewardEntry **stc_reward_table_ptrs = (RewardEntry **)0x8049755C; // 3 pointers to per-mode reward tables. Indexed by GMMODE
+static u8 *stc_special_rewards = (u8 *)0x804AD270;                     // 5 special reward indices per mode (15 bytes total)
 
 static BGMDesc *stc_bgm_desc = (BGMDesc *)0x80498750;
 
@@ -2291,7 +2719,6 @@ static BGMDesc *stc_bgm_desc = (BGMDesc *)0x80498750;
 TitleScreenData *TitleScreen_GetData();
 GameData *Gm_GetGameData();
 Game3dData *Gm_Get3dData();
-GameClearData *Gm_GetGameClearData();
 
 void CityTrial_DecideStadium();
 
@@ -2302,6 +2729,8 @@ int Gm_IsInCity();
 
 GmIntroState Gm_GetIntroState();
 CityMode Gm_GetCityMode();
+AirRideMode Gm_GetAirRideMode();      // 0x8003d5f0 — returns GameData[0x35d]
+int Gm_GetAirRidePlayerSlot();         // 0x8003d644 — returns GameData[0x35f], active player slot for Free Run / Time Attack
 float Ply_GetCityStatNum(int ply, int stat_idx, int unk);
 GOBJ *Ply_GetRiderGObj(int ply);
 GOBJ *Ply_GetMachineGObj(int ply);
@@ -2325,11 +2754,45 @@ int Ply_SetAllUpCollected(int ply, int num);
 void Gm_FadeOutMusic(int frame_duration);
 int Gm_GetPlyViewNum();
 ItemGroup Gm_GetItemGroup(ItemKind it_kind);
-int ClearChecker_CheckUnkUnlocked();
-int ClearChecker_GetClearKindFromRewardKind(GameMode gm, int clear_kind);
-int ClearChecker_GetRewardNum(GameMode gm);
-int ClearChecker_CheckUnlocked(GameMode gm, int clear_kind);
-u8 ClearChecker_GetClearData(GameMode gm, int clear_kind);
+// Clear Checker core
+u8 Checklist_GetRewardNum(GameMode gm);                                // 80049c20, returns number of rewards for a mode
+u8 Checklist_GetClearKindFromRewardIndex(GameMode gm, u8 reward_index); // 80049c84, returns clear_kind for a reward index
+int ClearChecker_CheckUnlocked(GameMode gm, u8 reward_index);          // 80049e24, checks has_reward bit for a reward index's clear_kind
+void ClearChecker_SetNewUnlock(GameMode gm, u8 clear_kind);            // 8004a054, marks clear_kind as newly completed
+u8 ClearChecker_GetKindClear(GameMode gm, u8 clear_kind);              // 8004a130, returns status byte for a clear_kind
+int ClearChecker_CheckForNewUnlocks(GameMode gm);                      // 8004a1a4, scans for is_new && !is_unlocked
+void Checklist_SetRewardFlagOnUnlocks();                                // 8017df5c, sets has_reward on unlocked slots, rebuilds grid
+void Checklist_BuildUnlockBitfields();                                  // 80007af0, caches unlock status into GameData + 0xD50 bitfields
+int Checklist_IsCacheValid();                                           // 8007b650, returns 1 if unlock bitfield cache is valid
+int Checklist_CheckCachedUnlock_AirRide(s8 reward_index);               // 80007e34, fast bit-test against cached Air Ride unlock bitfield
+int Checklist_CheckCachedUnlock_CityTrial(s8 reward_index);             // 80007e8c, fast bit-test against cached City Trial unlock bitfield
+GameClearData *gmGetClearcheckerTypeP(GameMode mode);                   // 800076a0, returns ClearCheckerData for mode
+GameClearData *gmGetClearcheckerP();                                    // 80006c20, returns base ClearCheckerData (Air Ride)
+u8 Gm_GetClearChecker();                                                // 8017cf14, returns ClearChecker UI state byte
+void ClearChecker_GetRewardFromClearKind(GameMode gm, u8 clear_kind, u8 *out_reward_index, u8 *out_reward_param); // 80049ec4, reverse lookup: clear_kind → reward_index + reward_param
+
+// Grant a checkbox filler for the given mode. checkbox_filler_num is uncapped (u8, max 255).
+// checkbox_filler_list_len controls the displayed filler icons in the UI (capped at 5).
+static inline void Checklist_GrantFiller(GameMode mode) {
+    GameClearData *clear_data = gmGetClearcheckerTypeP(mode);
+    clear_data->checkbox_filler_num++;
+    if (clear_data->checkbox_filler_list_len < 5) {
+        clear_data->checkbox_filler_list_len++;
+    }
+}
+
+// Top Ride pre-game
+s8 TopRide_GetSelectedCourse(void);                                      // 8000b2b8, returns currently selected Top Ride course index (0-6)
+
+// Clear Checker reward query callers
+int AirRide_CheckCourseUnlocked(s8 input);                              // 8000c0e0, checks reward index 34 (Nebula Belt) when input==8
+int AirRide_CheckMachineUnlocked(s8 machine_class, s8 machine_id);      // 8000c364, maps to Air Ride reward indices 19-31 (machines 0x09-0x15)
+int AirRide_CheckCharacterAvailable(CharacterKind ckind);               // 8002090c, checks if a CharacterKind is selectable on the Air Ride select screen
+int AirRide_CheckCharacterUnlocked(s8 character);                       // 8000c488, maps 1→32 (Dedede), 2→33 (Meta Knight)
+int CityTrial_CheckLegendaryMachineUnlocked(int machine);               // 8000c508, maps 4→34 (Hydra), 8→30 (Dragoon)
+int AirRide_CheckBonusUnlocked(s8 bonus);                               // 8000c584, maps 1→35 (Bonus Movie), 2→36 (Ending)
+int CityTrial_CheckStadiumIsUnlocked(s8 stadium_kind);                  // 8000c17c, maps StadiumKind 3-22 → reward indices 37-42
+int Pause_CheckStatsUnlocked();                                         // 8000c768, checks City Trial reward index 43
 int Gm_IsGrKindCity(GroundKind gr_kind);
 int Gm_IsDestructionDerby();
 void CitySelect_Cursor6Update(int ply, int color_idx);
@@ -2352,4 +2815,32 @@ void Pad_StopRumbleAll();
 int hash_32(const void *data, int size);
 int hash_32_str(const void *data);
 void Gm_LoadGroundFGMBank(GroundKind gr_kind); //
+
+// Legendary Machine Pieces (Dragoon & Hydra)
+void LegendaryPieces_Init();                                               // 800ecfac, initializes piece spawn data for City Trial
+int CityItemSpawn_CheckToSpawnLegendaryPiece(float match_progress);        // 800ed2f0, checks if a piece should spawn based on match progress
+void CityItemSpawn_SpawnLegendaryPiece(int spawner, int param_2, int param_3); // 800ed384, spawns the next legendary piece
+void LegendaryPiece_MarkAsSpawned(int spawner, int item_kind);             // 80252f10, marks the item to spawn as a legendary piece
+void LegendaryPiece_ClearSpawnRequest(int spawner);                        // 80252e74, clears pending spawn flag after piece spawns
+int Ply_GetDragoonCollection(int ply);                                     // 8022cdc8, returns count of dragoon pieces collected (0-3)
+void Ply_UpdateDragoonCollection(int ply, int piece_bits);                  // 8022cd64, OR's piece_bits into dragoon collection flags
+int Ply_GetHydraCollection(int ply);                                       // 8022cd04, returns count of hydra pieces collected (0-3)
+void Ply_UpdateHydraCollection(int ply, int piece_bits);                    // 8022cca0, OR's piece_bits into hydra collection flags
+void Ply_OnLegendaryPieceCollect(int ply, int piece_count);                // 8027a4e8, plays SFX based on piece collection progress
+void Ply_MarkLegendaryMachineAssembled(int ply, int machine_index);        // 80231198, marks legendary machine as assembled (0=Dragoon, 1=Hydra)
+void Ply_PlayFGM(int fgm_id, int ply, int param_3);                       // 80277c84, plays a positional sound effect for a player
+
+// Legendary Machine Assembly
+typedef struct LegendaryAssemblyParams
+{
+    int machine_index;    // 0x00, 0 = Dragoon, 1 = Hydra
+    u8 ply;               // 0x04, player index
+    u8 pad[3];            // 0x05
+    Vec3 pos;             // 0x08, machine position
+    Vec3 up;              // 0x14, machine up vector
+    Vec3 forward;         // 0x20, machine forward vector
+} LegendaryAssemblyParams;
+
+void LegendaryMachine_StartAssembly(LegendaryAssemblyParams *params);      // 80283cf0, starts assembly cinematic
+
 #endif

@@ -153,6 +153,10 @@ typedef struct GeneratorAppSRT GeneratorAppSRT;
 typedef struct ColAnimDesc ColAnimDesc;
 typedef struct ColorOverlay ColorOverlay;
 
+// Clear Checker
+typedef struct RewardEntry RewardEntry;
+typedef struct GameClearData GameClearData;
+
 // Item
 typedef struct ItemModelDesc ItemModelDesc;
 typedef struct ItemDesc ItemDesc;

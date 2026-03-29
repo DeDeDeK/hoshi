@@ -147,22 +147,26 @@ typedef enum PatchKind
 
 typedef struct ItemCommonAttr
 {
-    int x0;
-    int x4;
-    int x8;
-    int xc;
-    int x10;
-    int x14;
-    int x18;
-    BoxKind box_kind; // 0x1c, type of box this item spawns from
-    int x20;
-    int x24;
-    struct
+    float scale_factor;     // 0x0, multiplied with ItemData.scale for rendering
+    int x4;                 // 0x4
+    int x8;                 // 0x8
+    float land_offset;      // 0xc, factor for item offset from ground surface on landing
+    int x10;                // 0x10
+    int x14;                // 0x14
+    int x18;                // 0x18
+    BoxKind box_kind;       // 0x1c, type of box this item spawns from
+    int x20;                // 0x20, overridden to -1 by most per-kind init functions
+    int x24;                // 0x24
+    struct                  // 0x28, effect data for patches (NULL for non-patch items)
     {
-        int x0;
-        int x4;
-        ItemGroup group;
-    } *x28;
+        struct
+        {
+            int type;       // effect type: 0-8 = PatchKind, 9 = AllUp, 0xb+ = special
+            float value;    // effect value (e.g. 1.0 for +1 stat)
+        } *entries;         // 0x0, pointer to array of effect entries
+        int count;          // 0x4, number of entries
+        ItemGroup group;    // 0x8
+    } *effect_info;         // 0x28
 } ItemCommonAttr;
 
 typedef struct itData
@@ -235,94 +239,121 @@ typedef struct ItemFallDesc
 
 typedef struct ItemDesc // used to spawn an item
 {
-    int x0;             // 0x00, is 0x4 of ItemData
-    ItemKind kind;      // 0x04
-    int x8;             // 0x08, is x20 of ItemData
-    Vec3 pos;           // 0x0C
-    Vec3 forward;       // 0x18, normalized,
-    Vec3 up;            // 0x24, normalized,
-    float scale;        // 0x30
-    int exist_index;    // 0x34, this item is the nth to exist
-    int x38;            // 0x38, is 0x34 of ItemData
-    int x3c;            // 0x3C, is 0x38 of ItemData
-    int x40;            // 0x40, is 0x3C of ItemData
-    int x44;            // 0x44, is 0x40 of ItemData
-    int lifetime;       // 0x48
-    int coll_kind;      // 0x4C, unsure, is stored to 0x359 of ItemData. most items seem to use 3
-    int is_airborne;    // 0x50, if 0, will raycast and snap to the ground below it
-    int x54;            // 0x54, is 0x35B_40 of ItemData
-    int flags;          // 0x58, is 0x48 of ItemData
+    // Fields marked [computed] are set by Item_InitDesc internally.
+    // Fields marked [param] come from Item_InitDesc parameters.
+    // Fields marked [param?] come from stack params (r9/r10), purpose unclear.
+    int x0;             // 0x00, [computed] always 0. Maps to ItemData[0x04]
+    ItemKind kind;      // 0x04, [param] item kind
+    int x8;             // 0x08, [param] r5 param of Item_InitDesc. Maps to ItemData[0x20]
+    Vec3 pos;           // 0x0C, [param] spawn position
+    Vec3 forward;       // 0x18, [param] normalized forward vector (can be NULL for defaults)
+    Vec3 up;            // 0x24, [param] normalized up vector (can be NULL for defaults)
+    float scale;        // 0x30, [param] item scale
+    int exist_index;    // 0x34, [computed] City_GetItemExistNum(). This item is the nth to exist
+    int x38;            // 0x38, [param?] from stack param (r9). Maps to ItemData[0x34]. Usually -1
+    int x3c;            // 0x3C, [param?] from stack param (r9). Maps to ItemData[0x38]. Usually -1
+    int x40;            // 0x40, [param?] from stack param (r10). Maps to ItemData[0x3C]. Usually -1
+    int x44;            // 0x44, [param?] from stack param (r10). Maps to ItemData[0x40]. Usually -1
+    int lifetime;       // 0x48, [computed] HSD_Randi(variance) + min from ItemCommonParam
+    int coll_kind;      // 0x4C, [computed] from ItemCommonParam. Stored to ItemData[0x359]. Most items use 3
+    int is_airborne;    // 0x50, [param] if 0, will raycast and snap to the ground below it
+    int x54;            // 0x54, [computed] always 0. Stored as bit flag in ItemData[0x35B]
+    int flags;          // 0x58, [computed] based on item kind range and CityItem_GetUnkFlag(4). Maps to ItemData[0x48]
 } ItemDesc;
 
 typedef struct ItemData
 {
-    int x0;                     // 0x0
-    int x4;                     // 0x4
-    int x8;                     // 0x8
-    int xc;                     // 0xc
-    int x10;                    // 0x10
-    int x14;                    // 0x14
+    // === Core Identity (0x00-0x18) ===
+    GOBJ *item_gobj;            // 0x0, this item's GObj
+    GOBJ *parent_gobj;          // 0x4, box GObj that spawned this item (NULL for sky-spawned items)
+    GOBJ *child_gobjs[4];       // 0x8, child items spawned when this box breaks (up to 4)
     GOBJ *shadow_gobj;          // 0x18
+
+    // === Item Kind & Data (0x1c-0x48) ===
     ItemKind kind;              // 0x1c
-    int x20;                    // 0x20
-    int unk_group;              // 0x24, is referenced when defining shadow size. non boxes use a smaller shadow size in ItCommon
+    int spawn_type;             // 0x20, from ItemDesc.x8, differentiates spawn contexts
+    int item_category;          // 0x24, 0=box, non-0=powerup. Determines shadow size, bounce SFX
     JOBJDesc *jobjdesc;         // 0x28
     itData *itData;             // 0x2c
-    int exist_index;            // 0x30, this item is the nth to exist
-    int x34;                    // 0x34
-    int x38;                    // 0x38
-    int x3c;                    // 0x3c
-    int x40;                    // 0x40
-    int lifetime;               // 0x44
-    int x48;                    // 0x48
-    int state;                  // 0x4c
-    int x50;                    // 0x50
-    int x54;                    // 0x54
-    int x58;                    // 0x58
-    int x5c;                    // 0x5c
-    int x60;                    // 0x60
-    int x64;                    // 0x64
-    float state_frame;          // 0x68
-    int x6c;                    // 0x6c
+    int exist_index;            // 0x30, this item is the nth item to exist
+    int x34;                    // 0x34, from ItemDesc.x38, usually -1
+    int x38;                    // 0x38, from ItemDesc.x3c, usually -1
+    int x3c;                    // 0x3c, from ItemDesc.x40, usually -1
+    int x40;                    // 0x40, from ItemDesc.x44, usually -1
+    int lifetime;               // 0x44, decremented each frame in ShadowThink, expire at 0
+    int flags;                  // 0x48, from ItemDesc.flags, cleared conditionally per frame
+
+    // === State Machine (0x4c-0x6c) ===
+    int state;                  // 0x4c, current state index
+    int num_common_states;      // 0x50, count of states in common state table (typically 3)
+    int anim_index;             // 0x54, current animation index (-1 = none)
+    void *common_state_table;   // 0x58, pointer to shared state descriptors (all item kinds)
+    void *kind_data;            // 0x5c, per-kind function/state data from item kind table
+    void *current_anim;         // 0x60, pointer to current animation descriptor
+    float script_timer;         // 0x64, script command countdown, decremented by anim_speed
+    float state_frame;          // 0x68, = anim_frame + anim_overflow
+    void *script_data;          // 0x6c, pointer to state script/command data
     int x70;                    // 0x70
     int x74;                    // 0x74
     int x78;                    // 0x78
     int x7c;                    // 0x7c
     int x80;                    // 0x80
     int x84;                    // 0x84
-    int x88;                    // 0x88
-    int x8c;                    // 0x8c
-    int x90;                    // 0x90
-    int x94;                    // 0x94
+
+    // === Animation (0x88-0xa4) ===
+    float anim_frame;           // 0x88, current animation frame
+    float anim_overflow;        // 0x8c, accumulated overflow from animation wrapping
+    float anim_speed;           // 0x90, animation playback speed (1.0 = normal)
+    void *jobj_array;           // 0x94, allocated array of JOBJ pointers for animation
     int x98;                    // 0x98
-    int x9c;                    // 0x9c
+    void *mat_anim_array;       // 0x9c, allocated material animation data
     int xa0;                    // 0xa0
-    int xa4;                    // 0xa4
-    float xa8;                  // 0xa8
-    float scale;                // 0xac
+    void *shape_anim_array;     // 0xa4, allocated shape animation data
+
+    // === Scale & Alpha (0xa8-0xb4) ===
+    float base_scale;           // 0xa8, from ItemDesc.scale * game_scale_factor
+    float scale;                // 0xac, render scale (copied from base_scale, can be modified)
     float alpha;                // 0xb0
-    float alpha_addend;         // 0xb4, is added to alpha each frame, for box at least 
-    Vec3 xb8;                   // 0xb8, queued velocity? gets added to vel
-    Vec3 vel;                   // 0xc4
-    Vec3 xd0;                   // 0xd0
-    Vec3 pos;                   // 0xdc
-    Vec3 xe8;                   // 0xe8
+    float alpha_addend;         // 0xb4, added to alpha each frame (for fade in/out)
+
+    // === Physics (0xb8-0xf0) ===
+    Vec3 accel;                 // 0xb8, acceleration, added to vel each physics frame
+    Vec3 vel;                   // 0xc4, velocity, added to pos each physics frame
+    Vec3 pos_delta;             // 0xd0, pos - prev_pos, computed each frame in ShadowThink
+    Vec3 pos;                   // 0xdc, current position
+    Vec3 prev_pos;              // 0xe8, previous frame position, updated each frame
     int xf4;                    // 0xf4
     int xf8;                    // 0xf8
     int xfc;                    // 0xfc
-    Vec3 forward;               // 0x100
-    Vec3 up;                    // 0x10c
-    int x118;                   // 0x118
-    int x11c;                   // 0x11c
-    int x120;                   // 0x120
-    int x124;                   // 0x124
-    int x128;                   // 0x128
-    int x12c;                   // 0x12c
-    int x130;                   // 0x130
-    int x134;                   // 0x134
-    Vec3 down;                  // 0x138, like an up vector but down, points in the direction of gravity?
-    int x144;                   // 0x144
-    int x148;                   // 0x148
+
+    // === Orientation (0x100-0x114) ===
+    Vec3 forward;               // 0x100, normalized forward direction
+    Vec3 up;                    // 0x10c, normalized up direction
+
+    // === Common Attributes Copy (0x118-0x140) ===
+    // Runtime copy of ItemCommonAttr fields, may be overridden by per-kind init
+    float attr_scale;           // 0x118, from ItemCommonAttr.scale_factor, render scale multiplier
+    int attr_x04;               // 0x11c, from ItemCommonAttr.x4
+    int attr_x08;               // 0x120, from ItemCommonAttr.x8
+    float attr_land_offset;     // 0x124, from ItemCommonAttr.land_offset, surface offset on landing
+    int attr_x10;               // 0x128, from ItemCommonAttr.x10
+    int attr_x14;               // 0x12c, from ItemCommonAttr.x14
+    int attr_x18;               // 0x130, from ItemCommonAttr.x18
+    int attr_box_kind;          // 0x134, from ItemCommonAttr.box_kind
+    int attr_x20;               // 0x138, from ItemCommonAttr.x20, overridden to -1 by per-kind init
+    int item_group;             // 0x13c, ItemGroup (ITGROUP_FAKE=2 for fake patches, -1 for non-patches). from ItemCommonAttr.x24
+    struct                      // 0x140, effect data used by Patch_GetEffectData / Machine_OnTouchItem. NULL for non-patch items
+    {
+        struct
+        {
+            int type;           // effect type: 0-8 = PatchKind, 9 = AllUp, 0xb-0x25 = special effects
+            float value;        // effect value (e.g. 1.0 for +1 stat)
+        } *entries;             // 0x0, pointer to array of effect entries
+        int count;              // 0x4, number of entries
+    } *effect_data;             // 0x140
+    void *x144;                 // 0x144, allocated from separate object pool
+    // === Hurt / Damage (0x148-0x1a0) ===
+    HurtData *hurt_data;        // 0x148, created by HurtData_Create during CityItem_InitHurtData
     int x14c;                   // 0x14c
     int x150;                   // 0x150
     int x154;                   // 0x154
@@ -345,19 +376,21 @@ typedef struct ItemData
     int x198;                   // 0x198
     int x19c;                   // 0x19c
     int x1a0;                   // 0x1a0
-    CollData *coll_data;        // 0x1a4, if 0, game uses raycasting?
-    struct                      // 0x1a8, items use point collision
+
+    // === Collision (0x1a4-0x1d4) ===
+    CollData *coll_data;        // 0x1a4, map collision data (NULL = uses point collision only)
+    struct                      // 0x1a8, items use point collision for ground detection
     {
-        int raycast_idx;        // 0x1a8, this id represents when the raycast was performed?
-        Vec3 land_pos;          // 0x1ac, calculated ahead of time once
+        int raycast_idx;        // 0x1a8, collision ID from raycast result
+        Vec3 land_pos;          // 0x1ac, ground position calculated by raycast
     } point_coll;               //
     int x1b8;                   // 0x1b8
     int x1bc;                   // 0x1bc
     int x1c0;                   // 0x1c0
-    float x1c4;                 // 0x1c4, is the value returned by 800ceb18
-    Vec3 x1c8;                  // 0x1c8, multiplied with queued velocity @ 0xb8 when a box is landing. another down vector?
-    int x1d4;                   // 0x1d4
-    int x1d8;                   // 0x1d8
+    float x1c4;                 // 0x1c4
+    Vec3 fall_dir;              // 0x1c8, gravity/down direction vector, used for ground raycasting
+    int is_airborne;            // 0x1d4, from ItemDesc. if not -1, raycast/ground check is performed
+    int x1d8;                   // 0x1d8, collision temp data (cleared as 3-word block)
     int x1dc;                   // 0x1dc
     int x1e0;                   // 0x1e0
     int x1e4;                   // 0x1e4
@@ -376,18 +409,22 @@ typedef struct ItemData
     int x218;                   // 0x218
     int x21c;                   // 0x21c
     int x220;                   // 0x220
-    int x224;                   // 0x224
+    int damage_processed;       // 0x224, cleared after damage processing in HitColl
     int x228;                   // 0x228
-    int x22c;                   // 0x22c
-    int x230;                   // 0x230
+    int effect_gfx_a;           // 0x22c, particle/GFX effect handle
+    int effect_gfx_b;           // 0x230, particle/GFX effect handle
     int x234;                   // 0x234
-    int x238;                   // 0x238
-    int x23c;                   // 0x23c
-    int audio_prox;             // 0x240, 8005de3c returns this.
-    int audio_track;            // 0x244, stored @ 80256b5c when bouncing item sound plays
-    int audio_unk;              // 0x248
+    int effect_timer_a;         // 0x238, effect animation timer
+    int effect_timer_b;         // 0x23c, effect animation timer
+
+    // === Audio (0x240-0x24c) ===
+    int audio_source;           // 0x240, audio source ID, -1 = not allocated. Set by Item_AllocAudioSource
+    int audio_track;            // 0x244, audio track ID. Set by CityItem_AllocAudioTrack
+    int audio_timer;            // 0x248, countdown timer, decremented each frame. Audio freed at 0
     int bounce_num;             // 0x24c, incremented when bouncing @ 80255a70
-    TriggerData trigger;        // 0x250
+
+    // === Trigger (0x250-0x2b0) ===
+    TriggerData trigger;        // 0x250, item pickup/touch collision
     int x2b0;                   // 0x2b0
     int x2b4;                   // 0x2b4
     int x2b8;                   // 0x2b8
@@ -418,23 +455,32 @@ typedef struct ItemData
     int x31c;                   // 0x31c
     int x320;                   // 0x320
     int x324;                   // 0x324
-    int x328;                   // 0x328
-    int x32c;                   // 0x32c
-    int x330;                   // 0x330
-    int x334;                   // 0x334
-    int x338;                   // 0x338
-    int x33c;                   // 0x33c
+
+    // === State Callbacks (0x328-0x33c) ===
+    // Set from the current state entry (5 ints per entry: anim_idx, 4 callbacks)
+    void (*anim_callback)(GOBJ *); // 0x328, called each frame during AnimThink
+    void (*physics_callback)();    // 0x32c, called each frame during PhysicsThink
+    void (*envcoll_callback)();    // 0x330, called each frame during EnvColl
+    void (*state_callback_d)();    // 0x334, 4th state callback
+    int state_counter;          // 0x338, reset to 0 on each state change
+    void (*on_damage_callback)(GOBJ *, void *); // 0x33c, called in HitColl when item takes damage
     void *x340;                 // 0x340
     int x344;                   // 0x344
     int x348;                   // 0x348
     int x34c;                   // 0x34c
     int x350;                   // 0x350
-    int x354;                   // 0x354
+    float x354;                 // 0x354
+
+    // === Flags (0x358-0x35b) ===
     u8 x358;                    // 0x358
     u8 x359_f8 : 5;             // 0x359, 0xf8
-    u8 coll_kind : 3;           // 0x359, 0x07. not really sure, is set @ 80254368
-    int x35c;                   // 0x35c
-    int x360;                   // 0x360
+    u8 coll_kind : 3;           // 0x359, 0x07, collision kind from ItemDesc
+    u8 x35a;                    // 0x35a, various single-bit flags
+    u8 x35b;                    // 0x35b, various single-bit flags
+
+    // === Box Specific (0x35c-0x360) ===
+    int forced_item;            // 0x35c, predetermined ItemKind for box contents. -1 = random, -2 = no items
+    int break_timer;            // 0x360, set to 8 on Box_Break
     int x364;                   // 0x364
     int x368;                   // 0x368
     int x36c;                   // 0x36c
@@ -447,6 +493,9 @@ typedef struct ItemData
     int x388;                   // 0x388
     int x38c;                   // 0x38c
     int x390;                   // 0x390
+
+    // === Fields below 0x394 are near the allocation boundary (0x3a0) ===
+    // CityItem_Create allocates 0x3a0 bytes via HSD_ObjAlloc
     u16 time_seconds;           // 0x394
     u8 stadium_kind;            // 0x396
     u8 game_tempo : 2;          // 0x397, 0xC0 (1 = normal = 2 is slow)
@@ -458,8 +507,6 @@ typedef struct ItemData
     u8 x397_x01 : 1;            // 0x397, 0x01
     int x398;                   // 0x398
     int x39c;                   // 0x39c
-    int x3a0;                   // 0x3a0
-    int x3a4;                   // 0x3a4
     int x3a8;                   // 0x3a8
     int x3ac;                   // 0x3ac
     int x3b0;                   // 0x3b0
@@ -968,10 +1015,44 @@ typedef struct ItemParam2
 static ItemCommonParam **stc_item_param = (ItemCommonParam **)(0x805dd0e0 + 0x7E8);
 static ItemParam2 **stc_item_param2 = (ItemParam2 **)(0x805dd0e0 + 0x7EC);
 
-ItemKind Gm_GetRandomItem(BoxKind box_kind, ItemGroup group, int spawn_flags); // group: -1 = sky, 0 = blue box, 1 = green box, 2 = red box. r4 = -1 = everything, 0 = down only, 1 = up only. spawn_flags: 0x1 = ?, 0x2 = patch, 0x4 = box,
-GOBJ *Item_Create(ItemDesc *desc);
-void Item_InitDesc(ItemDesc *, ItemKind kind, float scale, int r5, Vec3 *pos, Vec3 *up, Vec3 *forward, int r9, int r10); // r5 is 0x20 of ItemData (can use 0). up and forward can be left as 0, will use defaults. r9 and r10 are usually both -1. 
-ItemCommonAttr *Item_GetCommonAttr(ItemKind kind);
+// === Item Creation & Initialization ===
+ItemKind Gm_GetRandomItem(BoxKind box_kind, ItemGroup group, int spawn_flags); // 0x800eb7e4. box_kind: -1=sky, 0-2=box color. group: -1=all, 0=bad, 1=good. spawn_flags: 0x2=patch, 0x4=box
+GOBJ *Item_Create(ItemDesc *desc);                    // 0x8024eef4. Creates item GObj, allocates ItemData, initializes all subsystems
+void Item_InitDesc(ItemDesc *, ItemKind kind, float scale, int r5, Vec3 *pos, Vec3 *up, Vec3 *forward, int r9, int r10); // 0x802509a0. r5=spawn_type (0 default). up/forward can be NULL. r9/r10 usually -1
+ItemCommonAttr *Item_GetCommonAttr(ItemKind kind);    // 0x802500b0. Returns attr from itData array
+itData *Item_GetItDataPtr(ItemKind kind);              // 0x80250038. Returns itData entry (0x18 bytes per kind)
+
+// === Item State & Behavior ===
+int CityItem_IsGoodPatch(ItemKind kind);              // 0x802540a8. Returns 1 if kind has ITGROUP_GOOD effect_info (returns 0 for NULL, ITGROUP_BAD, ITGROUP_FAKE)
+int CityItem_ProcessFakeItem(GOBJ *item_gobj, void *hurt_params); // 0x802542dc. Checks if fake event is active (DAT_805dd8cc+0x1C4 != 0); if so, fills hurt_params via Event_FakeItems_FillHurtParams. Returns 1 if active, 0 if not
+void CityItem_InitFakeEvent(void *event_data);        // 0x80254238. Sets fake event data at DAT_805dd8cc+0x1C4, sets flag bit 3 at DAT_805dd8cc+0x1AC, expires all existing items (sets lifetime to 1)
+void CityItem_ClearFakeEvent();                       // 0x80254290. Clears flag bit 3 at DAT_805dd8cc+0x1AC (does NOT clear the event data pointer at 0x1C4)
+void CityItem_CopyCommonAttr(GOBJ *item_gobj);        // 0x80251294. Copies ItemCommonAttr fields to ItemData runtime attributes (0x118-0x140), including effect_data. Then calls per-kind init function if exists
+int CityItem_CanCollect(GOBJ *item_gobj);             // 0x80252df0. Returns 1 if item can be collected (bits 5,6 of ItemData.x35a both clear), 0 otherwise
+void CityItem_ResetQueuedVelocity(ItemData *id);      // 0x80250340. Zeros both accel and vel vectors
+void CityItem_EnterExpire(GOBJ *gobj);                // 0x8025611c. Transitions item to expire/flicker state
+void CityItem_EnterFall(GOBJ *gobj);                  // 0x802578c8. Transitions item to falling state
+
+// === Box Functions ===
+void Box_Break(GOBJ *gobj);                            // 0x802582dc. Breaks box, spawns contents via OutcomeLogic
+void Box_EnterSpawn(GOBJ *gobj);                       // 0x80256ec0. Initial box spawn state (falling from sky)
+void Box_OnLandCallback(GOBJ *gobj);                   // 0x80257020. Called when box lands on ground
+
+// === Patch / Effect System ===
+void *Patch_GetEffectData(ItemData *id);               // 0x80252e90. Returns effect_data (entries + count), copies to output buffer
+int Patch_GetMaxValue();                               // 0x8000aaf0. Returns max patch stat value from gmGameParams
+int Patch_GetMinValue();                               // 0x8000ab1c. Returns min patch stat value from gmGameParams
+int Patch_GetPlySavedValue();                          // 0x8000ab48
+
+// === City Trial Events ===
+void *CityEvent_GetFakeItemData(void *event_struct);   // 0x800ee73c. Returns fake item data pointer from the current event entry. Used by event_fakeItems_start to get data for CityItem_InitFakeEvent
+void Event_FakeItems_FillHurtParams(void *fake_data, void *hurt_params); // 0x80111a60. Picks a random entry from fake_data, fills 0x34-byte hurt_params struct with damage/knockback values. fake_data: [0]=entries_ptr, [1]=count. Each entry is 0x14 bytes
+
+// === Item Spawning (City Trial) ===
+void CityItemSpawn_Create();                           // 0x800ec4cc. Creates item spawn system GObj
+void CityItemSpawn_Init();                             // 0x800ebf70. Initializes spawn parameters
+void CityItemSpawn_InitItemFallChances(int stadium_group); // 0x800eb374. Populates grBoxGeneObj spawn tables from item data
+void GrBoxGeneratorDetermine(int *box_color, int *box_size); // 0x800ebc04. Picks box color (BoxKind 0-2) and size (0-2) from weighted chance table
 
 AudioEmitter Item_AllocAudioEmitter(int index);
 #endif

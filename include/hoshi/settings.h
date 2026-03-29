@@ -8,6 +8,7 @@ typedef enum OptionKind
     OPTKIND_VALUE,
     OPTKIND_MENU,
     OPTKIND_SCENE,
+    OPTKIND_ACTION,
     OPTKIND_NUM,
 } OptionKind;
 
@@ -44,6 +45,10 @@ typedef struct OptionDesc
         struct
         {
             MajorKind major_idx;
+        };
+        struct
+        {
+            int (*on_action)();
         };
     };
 
