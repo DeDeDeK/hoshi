@@ -226,7 +226,7 @@ typedef struct MachineSpawnData
 typedef struct MachineData
 {
     GOBJ *gobj;                           // 0x0. points to the machines gobj
-    GOBJ *rider_cur;                      // 0x4. points to the rider currently on the machine. is 0 if machine is unoccupied.
+    GOBJ *rider_gobj;                     // 0x4. points to the rider GOBJ currently on the machine. is 0 if machine is unoccupied.
     GOBJ *rider_unk1;                     // 0x8
     GOBJ *rider_unk2;                     // 0xc
     int is_bike;                          // 0x10
@@ -426,7 +426,7 @@ typedef struct MachineData
     int x318;                             // 0x318
     int x31c;                             // 0x31c
     int x320;                             // 0x320
-    Vec3 x324;                            // 0x324 related to charge calculations?
+    Vec3 velocity;                        // 0x324 velocity vector, used in charge rate angle calculation
     int x330;                             // 0x330
     int x334;                             // 0x334
     int x338;                             // 0x338
@@ -515,8 +515,8 @@ typedef struct MachineData
     int x4a4;                             // 0x4a4
     int x4a8;                             // 0x4a8
     int x4ac;                             // 0x4ac
-    int x4b0;                             // 0x4b0
-    int x4b4;                             // 0x4b4
+    int charge_full_duration;              // 0x4b0 frame count loaded into charge_full_timer when charge hits 1.0
+    int charge_cooldown_duration;          // 0x4b4 frame count loaded into charge_cooldown_timer after auto-discharge
     int x4b8;                             // 0x4b8
     int x4bc;                             // 0x4bc
     int x4c0;                             // 0x4c0
@@ -634,7 +634,7 @@ typedef struct MachineData
     int x654;                             // 0x654
     int x658;                             // 0x658
     int x65c;                             // 0x65c
-    HurtData *hurt_data;                  // 0x660
+    HurtData *hurt_data;                  // 0x660, passed as first arg to Machine_ApplyHurt. Created by Machine_InitHurtData
     struct                                //
     {                                     //
         Vec2 stick;                       // 0x664
@@ -658,7 +658,7 @@ typedef struct MachineData
     int x6a0;                             // 0x6a0
     int x6a4;                             // 0x6a4
     int x6a8;                             // 0x6a8
-    int x6ac;                             // 0x6ac
+    float dmg_accumulator;                 // 0x6ac, cumulative damage taken, incremented by Machine_GiveDamage. Capped at a max value
     int x6b0;                             // 0x6b0
     int x6b4;                             // 0x6b4
     int x6b8;                             // 0x6b8
@@ -677,7 +677,7 @@ typedef struct MachineData
     int x6ec;                             // 0x6ec
     int x6f0;                             // 0x6f0
     int x6f4;                             // 0x6f4
-    void *x6f8;                           // 0x6f8
+    int surface_id;                       // 0x6f8, resolved to ground handle via Machine_GetGroundHandle for fall death
     int x6fc;                             // 0x6fc
     int x700;                             // 0x700
     int x704;                             // 0x704
@@ -714,10 +714,10 @@ typedef struct MachineData
     int x780;                             // 0x780
     int x784;                             // 0x784
     int x788;                             // 0x788
-    float charge_value;                   // 0x78c ranges from 0-1
-    int x790;                             // 0x790
-    int x794;                             // 0x794
-    int x798;                             // 0x798
+    float charge_value;                   // 0x78c current charge level, ranges 0.0-1.0
+    int charge_full_timer;                // 0x790 counts down from charge_full_duration when charge hits 1.0; auto-discharges at 0
+    int charge_cooldown_timer;            // 0x794 post-discharge cooldown; blocks charging while nonzero
+    float charge_display_value;           // 0x798 mirror of charge_value, written each frame for HUD display
     int x79c;                             // 0x79c
     int x7a0;                             // 0x7a0
     int x7a4;                             // 0x7a4
@@ -788,9 +788,7 @@ typedef struct MachineData
         int x8a0;                           // 0x8a0
         FGMInstance skid_fgm_instance;      // 0x8a4
     } audio;
-    int x8a8;                             // 0x8a8
-    int x8ac;                             // 0x8ac
-    int x8b0;                             // 0x8b0
+    float respawn_pos[3];                 // 0x8a8, checkpoint position used by Machine_SetFallDead
     int x8b4;                             // 0x8b4
     int x8b8;                             // 0x8b8
     int x8bc;                             // 0x8bc
@@ -1018,10 +1016,30 @@ int Machine_GetRiderPly(MachineData *md);
 void Machine_SetMaxHP(MachineData *md);
 void Machine_GiveIntangibility(MachineData *md, int time);
 void Machine_ApplyColAnim(MachineData *md, int col_anim, int unk);
+void Machine_ApplyStatClamped(float *stat_arr, int stat_idx, int delta); // 0x801e094c, adds delta to stat_arr[stat_idx] and clamps to [Patch_GetMinValue, Patch_GetMaxValue]
+void Machine_ApplyAllStatsClamped(float *stat_arr, int delta); // 0x801e096c, adds delta to all 9 stats and clamps each
+void Machine_UpdateAppearance(MachineData *md); // 0x801d6668, updates machine visual state: stat glow, candy, charge, invincibility, and vehicle-specific effects
+void Machine_AdjustAttributes(MachineData *md); // 0x801c7278, recalculates derived machine attributes from stats
 void Machine_GivePatch(MachineData *, PatchKind, int num);
 void Machine_GiveAllUp(MachineData *, int num);
 void Machine_OnTouchItem(MachineData *, ItemData *);
 int Machine_IsDead(MachineData *);
+void Machine_SetFallDead(MachineData *md, int ground_handle, float *respawn_pos); // 0x801e6520. Triggers fall-off-course death: sets fall dead flags, adjusts velocity, plays SFX. respawn_pos = float[3] checkpoint position (typically md+0x8A8)
+int Machine_GetGroundHandle(int surface_id); // 0x80247fac. Resolves surface ID (md->x6F8) to ground handle for Machine_SetFallDead
+void Machine_SetStatCap(MachineData *md, int stat_group_index); // types 13-19 handler, writes stat cap for kinds 21-26 (SPEEDMAX-CHARGENONE)
+void Machine_ModifyStatByKind(MachineData *md, int kind, float value); // type 22 handler, modifies a stat by item kind
+void Machine_GiveFood(MachineData *md, int flag, float amount); // heals HP, flag=1 triggers SFX
+int Machine_IsLowHP(MachineData *md); // returns 1 if hp < threshold * hp_max (health threshold check, NOT invincibility)
+void Machine_HealTick(MachineData *md); // fixed-amount heal, simplified variant of Machine_GiveFood
+void Machine_GiveCandy(MachineData *md, int duration); // applies candy visual effect (rainbow color anim), clears hurt data. duration param unused
+void Machine_GivePatchOrCandy(MachineData *md, int type, float amount); // dispatches type 27 = candy, types 21-24 = patches
+void Machine_PatchPickupEffect(MachineData *md, int patch_kind); // visual/SFX effect on patch pickup
+void Machine_ApplyHurt(void *hurt_subsystem, int index, HurtParams *hurt_params); // 0x8018d1a8. Applies hurt via HitColl system. hurt_subsystem = MachineData.hurt_data, index = 0, hurt_params = 0x34-byte struct from Trigger_ClearParameterStruct. Calls Trigger_InitParameters then HitColl_SetDamageLog
+void Machine_ApplyHurtFinal(void *hurt_data, void *hurt_entry, void *hitcoll_data, void *trigger_params); // 0x8018cf94. Alias for HitColl_SetDamageLog. Calculates damage via getDamageDealt, stores in collision log, applies knockback
+void Machine_GiveDamage(MachineData *md, float damage, GOBJ *source_gobj); // 0x801e1ee8. High-level damage: adds to dmg accumulator (MachineData+0x6AC), subtracts HP (MachineData+0xA18), triggers death if HP<=0, applies low-HP color anim. Checks Gm_IsDamageEnabled() before HP reduction. float is passed in f1. source_gobj is used by Machine_OnDamageVisual for hit spark direction (reads +0x20 as forward vector); must not be NULL in City Trial. Does NOT cause knockback/bounce
+void Machine_EnterHitReaction(MachineData *md);        // 0x801e05bc. Transitions machine to hit reaction state (state 5). Causes the "bounce up" animation. Checks if not already in state 5. Calls Machine_OnEnterHitReaction which triggers MachineStateChange to substate 9, plays hit reaction animation. Set HurtData.kb_mag before calling for knockback physics
+void Machine_InitHurtData(MachineData *md);            // 0x801d6e84. Creates HurtData for machine via HurtData_Create(HURTKIND_MACHINE), sets callback at HurtData+0x8C, configures hurt descriptors from itData
+HurtData *MachineGObj_GetHurtData(GOBJ *machine_gobj); // 0x801c8660. Returns *(MachineData+0x660) from GOBJ userdata
 
 AudioEmitter Machine_AllocAudioEmitter(int index);
 #endif
