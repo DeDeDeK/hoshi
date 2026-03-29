@@ -479,7 +479,7 @@ static Text **stc_text_first = (Text **)0x805de568;
 static TextCanvas **stc_textcanvas_first = (TextCanvas **)0x805de56c;
 
 // Sis Library
-static HSD_Archive **stc_sis_archives = (HSD_Archive **)0x00000000; // array of sis file archive pointers
-static SISData **stc_sis_data = (SISData **)0x00000000;             // array of currently loaded sis data, indexed by sis_id
+static HSD_Archive **stc_sis_archives = (HSD_Archive **)0x8059a848; // array of 5 sis file archive pointers
+static SISData **stc_sis_data = (SISData **)0x8059a85c;             // array of 5 currently loaded sis data, indexed by sis_id
 
 #endif

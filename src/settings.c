@@ -294,6 +294,18 @@ void Settings_Think()
             Mod_CopyAllToSave();
             KARPlusSave_Write();
         }
+        else if (opt_desc->kind == OPTKIND_ACTION && opt_desc->on_action)
+        {
+            if (opt_desc->on_action())
+            {
+                SFX_Play(FGMMENU_CS_KETTEI);
+                Settings_UpdateCurrentMenu();
+            }
+            else
+            {
+                SFX_Play(FGMMENU_CS_CANCEL);
+            }
+        }
     }
     else if (down & PAD_BUTTON_B)
     {
@@ -561,6 +573,7 @@ void Menu_CreateOptions(GOBJ *m)
         }
         case (OPTKIND_MENU):
         case (OPTKIND_SCENE):
+        case (OPTKIND_ACTION):
         {
             JObj_AddSetAnim(oj, (opt_idx == desc->cursor), this_opt_data->assets, 0, 1);
             break;
@@ -632,6 +645,7 @@ JOBJ *Option_Create(OptionDesc *desc, OptionData *op)
             break;
         case (OPTKIND_MENU):
         case (OPTKIND_SCENE):
+        case (OPTKIND_ACTION):
             set = stc_settings_data.ScMenSelruleFrame2_scene_models[0];
             break;
     }
@@ -687,6 +701,7 @@ JOBJ *Option_Create(OptionDesc *desc, OptionData *op)
     }
     case (OPTKIND_MENU):
     case (OPTKIND_SCENE):
+    case (OPTKIND_ACTION):
     {
         name_joint_idx = 11;
         break;

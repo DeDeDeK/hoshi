@@ -206,8 +206,8 @@ void Hook_PlayerSelectLoad()
 
     return;
 };
-CODEPATCH_HOOKCREATE(0x8003b48c, "", Hook_PlayerSelectLoad, "", 0)
-CODEPATCH_HOOKCREATE(0x8003c6e8, "", Hook_PlayerSelectLoad, "", 0)
+CODEPATCH_HOOKCREATE(0x8003b48c, "", Hook_PlayerSelectLoad, "", 0) // City Trial (CitySelect_MinorLoad)
+CODEPATCH_HOOKCREATE(0x8002a358, "", Hook_PlayerSelectLoad, "", 0) // Air Ride (CSS_airRide_ModeDispatch)
 
 // runs every tick
 void Hook_OnFrameStart()
@@ -351,7 +351,7 @@ void OnFileLoad(ModHeader *file)
     CODEPATCH_HOOKAPPLY(0x80014448);
     CODEPATCH_HOOKAPPLY(0x80014d3c);
     CODEPATCH_HOOKAPPLY(0x8003b48c);
-    CODEPATCH_HOOKAPPLY(0x8003c6e8);
+    CODEPATCH_HOOKAPPLY(0x8002a358);
     CODEPATCH_HOOKAPPLY(0x80041160);
     CODEPATCH_HOOKAPPLY(0x80041174);
     CODEPATCH_HOOKAPPLY(0x80113a30);
