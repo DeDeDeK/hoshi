@@ -65,8 +65,33 @@ static u8 *stc_stadium_option_to_kind = (u8 *)0x80535a9c;
 StadiumGroup Gm_GetStadiumGroupFromKind(StadiumKind st_kind);
 StadiumKind Gm_GetCurrentStadiumKind();
 StadiumGroup Gm_GetCurrentStadiumGroup();
-int Gm_StadiumIsDefaultUnlocked(StadiumKind kind);
-int Gm_StadiumIsUnlocked(StadiumKind kind);
+int Gm_StadiumIsDefaultUnlocked(StadiumKind kind);  // 8000C148
+int Gm_StadiumIsUnlocked(StadiumKind kind);          // 8000C17C
+int Gm_StadiumCheckUnlocked(StadiumKind kind);       // 80007EE4 — reads unlock bitfield (handles cache)
+void Gm_StadiumWriteUnlocked(StadiumKind kind, int unlock); // 80007F6C — writes unlock bitfield (handles cache)
+int Gm_StadiumCheckNewLabel(StadiumKind kind);        // 80008038 — reads new-label bitfield (handles cache)
+void Gm_StadiumWriteNewLabel(StadiumKind kind, int set);    // 800080C0 — writes new-label bitfield (handles cache)
 int Gm_StadiumRoundNum();
+
+// Direct bitfield writes — bypass the checklist cache.
+// Use these for permanent modifications (e.g., AP unlocks) that must
+// survive cache invalidation. The ROM Write/Check functions above
+// route through a temporary cache when the checklist menu is active,
+// and writes to the cache are discarded when the menu closes.
+static inline void Gm_StadiumSetUnlockedDirect(StadiumKind kind) {
+    *(volatile u32 *)0x80536EE8 |= (1 << kind);
+}
+
+static inline void Gm_StadiumClearUnlockedDirect(StadiumKind kind) {
+    *(volatile u32 *)0x80536EE8 &= ~(1 << kind);
+}
+
+static inline void Gm_StadiumSetNewLabelDirect(StadiumKind kind) {
+    *(volatile u32 *)0x80536EEC |= (1 << kind);
+}
+
+static inline void Gm_StadiumClearNewLabelDirect(StadiumKind kind) {
+    *(volatile u32 *)0x80536EEC &= ~(1 << kind);
+}
 
 #endif
