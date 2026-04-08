@@ -120,6 +120,7 @@ SECTIONS
   GObj_AddUserData = 0x80429D0C;
   GObj_Create = 0x80428F28;
   GObj_Destroy = 0x80428F64;
+  GObj_GetJObjIndex = 0x80055AF0;
   GOBJ_InitCamera = 0x80429728;
   GObj_RemoveProc = 0x80428AD8;
   GObj_UpdateAll = 0x80429ED4;
@@ -393,6 +394,7 @@ SECTIONS
   AirRide_CheckCharacterAvailable = 0x8002090c;
   Gm_StadiumIsDefaultUnlocked = 0x8000C148;
   Gm_StadiumIsUnlocked = 0x8000C17C;
+  Gm_StadiumIsAvailable = 0x8000C228;
   Gm_StadiumCheckUnlocked = 0x80007EE4;
   Gm_StadiumWriteUnlocked = 0x80007F6C;
   Gm_StadiumCheckNewLabel = 0x80008038;
@@ -406,6 +408,7 @@ SECTIONS
   Gm_GetCityMode = 0x8003F6CC;
   Gm_GetIntroState = 0x8000A958;
   Gm_IsInCity = 0x8000ACB0;
+  CityTrial_IsInStadium = 0x8000AD48;
   Gm_IsGrKindCity = 0x80262574;
   Gm_IsDestructionDerby = 0x80191900;
   Gr_StateChange = 0x800f5548;
@@ -607,10 +610,51 @@ SECTIONS
   EnemyActor_DistToPlayer = 0x801fffa4;
   EnemyActor_RumblePlayer = 0x801ff80c;
   EnemyPath_Init = 0x80206e2c;
+  Spline_GetCount = 0x800cf38c;
+  Spline_GetForward = 0x800cf3ac;
+  Spline_GetBackward = 0x800cf44c;
   splGetSplinePoint = 0x80414fc0;
   splArcLengthGetParameter = 0x80415758;
   splArcLengthPoint = 0x80415958;
   Gm_CheckEnemyEnabled = 0x8000a348;
+  EventActor_InitFromDesc = 0x801fb53c;
+  EventActor_SpawnChild = 0x801fcda0;
+  EventActor_StateMachine = 0x802017d0;
+  EventActor_StateCleanup = 0x801fe110;
+  EventActor_SharedUpdate = 0x801fd780;
+  EventActor_UpdateFacing = 0x801fd7bc;
+  EventActor_ShadowInit = 0x80200208;
+  EventActor_FinalizeInit = 0x802042fc;
+  EventActor_OnCapture = 0x802038c4;
+  EventActor_HurtDataCreate = 0x80201ee8;
+  EventActor_FollowParent = 0x80219eec;
+  EventActor_CopyParentState = 0x80219fd4;
+  EventActor_GObjDestroyHandler = 0x801fcca0;
+  EventActor_ProcResetDamage = 0x801fc670;
+  EventActor_ProcUpdate = 0x801fc698;
+  EventActor_ProcHitCollInit = 0x801fc8e8;
+  EventActor_ProcHitColl = 0x801fc8ec;
+  EventActor_ProcDamage = 0x801fc9f0;
+  EventActor_ProcFinal = 0x801fcabc;
+  Enemy_UnregisterFromSpawnSlot = 0x800f3b28;
+  Enemy_CopyParamBlock = 0x802006b4;
+  Enemy_GroundPhysicsVelocity = 0x80209104;
+  Enemy_GroundPhysicsSurface = 0x802096b4;
+  Enemy_GroundAttach = 0x8020a664;
+  Enemy_CheckPathFollow = 0x8020b01c;
+  Enemy_SetTerrainLocked = 0x8020ae54;
+  Enemy_ApplyKnockback = 0x8020b784;
+  Enemy_ClassifyDamageTier = 0x8020b740;
+  Enemy_ScaleDamage = 0x8020b71c;
+  giveEnemyDamage = 0x8020b680;
+  EnemyPath_Advance = 0x8020a040;
+  EnemyState_AnimEnter = 0x8020bd68;
+  EnemyState_AnimTick = 0x8020be1c;
+  EnemyState_AnimExit = 0x8020c558;
+  EnemyState_DeathEnter = 0x80203e60;
+  EnemyState_KnockbackEnter = 0x8020ddb4;
+  EnemyState_TransitionToLaunched = 0x8020e0bc;
+  EnemyState_TransitionToSliding = 0x8020e63c;
   Trigger_ClearParameterStruct = 0x8018a0c0;
   HurtData_Create = 0x8018c1c8;
   HurtData_GiveIntangibility = 0x8018cb5c;
@@ -676,4 +720,21 @@ SECTIONS
   Gm_Roll = 0x800db2b8;
   CityEvent_ShowHudText = 0x80113fb4;
   CityEvent_SetSisText = 0x801169fc;
+
+  /* Map collision (mpColl) system */
+  mpColl_Create = 0x80245b4c;
+  mpColl_Init = 0x80245c10;
+  mpColl_Reinit = 0x80245db0;
+  mpColl_Destroy = 0x80245ed0;
+  mpColl_Update = 0x80245f70;
+  mpColl_SetDefaultParams = 0x802460d4;
+  mpColl_UpdateShapeExtents = 0x8024625c;
+  mpColl_SetFlag = 0x80247e2c;
+  mpColl_GetFirstCollObj = 0x802414d4;
+
+  /* Raycast / ground collision */
+  EnvColl_Raycast = 0x800d1ac4;
+  PointCollision_EnsureIDValid = 0x800d1838;
+  PointCollision_GetNormalByID = 0x800d1860;
+  grGetGroundTypeFromTriangleID = 0x800cec28;
 }

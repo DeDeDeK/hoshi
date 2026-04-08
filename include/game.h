@@ -2442,8 +2442,8 @@ typedef struct grBoxGeneInfo // r13 + 0x610
             u16 chance_pilar;   // 0xA, busting the event pillar
             u16 chance_chamber; // 0xC, secret chamber,
             u16 chance_ufo;     // 0xE, ufo
-        } *x18;
-        int x18_num;                  // 0x1c
+        } *event_source_drop;
+        int event_source_drop_num;    // 0x1c
         int x20;                      // 0x20
         int x24;                      // 0x24
         int x28;                      // 0x28
@@ -2726,6 +2726,7 @@ void Gm_HidePauseHUD();
 void Gm_ShowHUD();
 
 int Gm_IsInCity();
+int CityTrial_IsInStadium();  // 0x8000ad48, checks if city_kind is a stadium (7-18)
 
 GmIntroState Gm_GetIntroState();
 CityMode Gm_GetCityMode();

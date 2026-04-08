@@ -861,6 +861,7 @@ int COBJ_IsPositionVisible(COBJ *cobj, Vec3 *pos, Vec3 *out, int check_scissor);
 Vec3 *COBJ_ProjectPoint(COBJ *cobj, Vec3 *pos, Vec3 *out, int unk); // returns the out vector, weird
 GOBJ *GObj_Create(int entity_class, int p_link, int p_priority);
 void GObj_Destroy(GOBJ *gobj);
+JOBJ *GObj_GetJObjIndex(GOBJ *gobj, int index); // 0x80055AF0, depth-first traversal to get Nth JOBJ from gobj->hsd_object
 void GObj_AddGXLink(GOBJ *gobj, void *cb, int gx_link, int gx_pri);
 void GObj_DestroyGXLink(GOBJ *gobj);
 void GObj_GXReorder(GOBJ *gobj, int unk);
