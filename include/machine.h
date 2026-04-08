@@ -126,7 +126,7 @@ typedef struct vcDataCommon
             float weight[11]; // first float is the X/305 chance for 1 additional machine to spawn, second float is the chance for 2 additional, etc....
             int machine_kinds[29]; // not sure exactly what these are but likely the machine kinds that spawn in the city
         } *max_spawn_weights; // 0x10
-    } *x20;
+    } *spawn_data;
 } vcDataCommon;
 
 typedef struct vcData
@@ -788,13 +788,9 @@ typedef struct MachineData
         int x8a0;                           // 0x8a0
         FGMInstance skid_fgm_instance;      // 0x8a4
     } audio;
-    float respawn_pos[3];                 // 0x8a8, checkpoint position used by Machine_SetFallDead
-    int x8b4;                             // 0x8b4
-    int x8b8;                             // 0x8b8
-    int x8bc;                             // 0x8bc
-    int x8c0;                             // 0x8c0
-    int x8c4;                             // 0x8c4
-    int x8c8;                             // 0x8c8
+    float respawn_pos[3];                 // 0x8a8, checkpoint as mpColl spline params: [0]=segment index (uint), [1]=progress (float), [2]=Y offset (float). Updated per-frame by Machine_UpdateCheckpoint. Initialized to {0xFFFFFFFF, 0.0, 0.0}.
+    float prev_respawn_pos[3];            // 0x8b4, previous frame's respawn_pos, used as intermediate by checkpoint update
+    float backup_respawn_pos[3];          // 0x8c0, last-known-good checkpoint, saved when spline lookup fails. Used by Machine_CheckFallDeath OOB-distance path when xc37 bit 6 is set.
     int x8cc;                             // 0x8cc
     int x8d0;                             // 0x8d0
     int x8d4;                             // 0x8d4
@@ -996,11 +992,11 @@ typedef struct MachineData
     int xc30_02 : 1;                      // 0xc30, 0x02
     int xc30_01 : 1;                      // 0xc30, 0x01
     u8 xc34;                              // 0xc34
-    u8 xc35_80 : 1;                       // 0xc35, 0x80
+    u8 is_fall_dead : 1;                   // 0xc35, 0x80, set by Machine_SetFallDead
     u8 xc35_40 : 1;                       // 0xc35, 0x40
     u8 is_dead : 1;                       // 0xc35, 0x20
     u8 xc36;                              // 0xc36
-    u8 xc37;                              // 0xc37
+    u8 xc37;                              // 0xc37. bit 7 (0x80): set by Machine_SetFallDead. bit 6 (0x40): use_backup_checkpoint — set when spline lookup fails, cleared on success. bit 4 (0x10): cleared by Machine_RespawnStateEntry. bit 0 (0x01): cleared by Machine_InitRuntimeState.
     int xc38;                             // 0xc38
     int xc3c;                             // 0xc3c
 
@@ -1024,7 +1020,7 @@ void Machine_GivePatch(MachineData *, PatchKind, int num);
 void Machine_GiveAllUp(MachineData *, int num);
 void Machine_OnTouchItem(MachineData *, ItemData *);
 int Machine_IsDead(MachineData *);
-void Machine_SetFallDead(MachineData *md, int ground_handle, float *respawn_pos); // 0x801e6520. Triggers fall-off-course death: sets fall dead flags, adjusts velocity, plays SFX. respawn_pos = float[3] checkpoint position (typically md+0x8A8)
+void Machine_SetFallDead(MachineData *md, int ground_handle, float *respawn_pos); // 0x801e6520. Triggers fall-off-course death: stores ground_handle at md+0x1B48, respawn_pos[3] at md+0x1B4C, timestamp at md+0x1B58. respawn_pos is mpColl spline params (not world XYZ). Vanilla callers: Machine_CheckFallDeath passes md->respawn_pos or md->backup_respawn_pos based on xc37 bit 6.
 int Machine_GetGroundHandle(int surface_id); // 0x80247fac. Resolves surface ID (md->x6F8) to ground handle for Machine_SetFallDead
 void Machine_SetStatCap(MachineData *md, int stat_group_index); // types 13-19 handler, writes stat cap for kinds 21-26 (SPEEDMAX-CHARGENONE)
 void Machine_ModifyStatByKind(MachineData *md, int kind, float value); // type 22 handler, modifies a stat by item kind

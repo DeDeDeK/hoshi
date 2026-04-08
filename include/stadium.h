@@ -67,6 +67,7 @@ StadiumKind Gm_GetCurrentStadiumKind();
 StadiumGroup Gm_GetCurrentStadiumGroup();
 int Gm_StadiumIsDefaultUnlocked(StadiumKind kind);  // 8000C148
 int Gm_StadiumIsUnlocked(StadiumKind kind);          // 8000C17C
+int Gm_StadiumIsAvailable(StadiumKind kind);          // 8000C228 — composite check (default + checklist + bitfield)
 int Gm_StadiumCheckUnlocked(StadiumKind kind);       // 80007EE4 — reads unlock bitfield (handles cache)
 void Gm_StadiumWriteUnlocked(StadiumKind kind, int unlock); // 80007F6C — writes unlock bitfield (handles cache)
 int Gm_StadiumCheckNewLabel(StadiumKind kind);        // 80008038 — reads new-label bitfield (handles cache)

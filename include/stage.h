@@ -47,12 +47,12 @@ typedef enum StageKind
 typedef enum AirRideCourse
 {
     AIRRIDE_FANTASY_MEADOWS,
-    AIRRIDE_CELESTIAL_VALLEY,
-    AIRRIDE_FROZEN_HILLSIDE,
     AIRRIDE_MAGMA_FLOWS,
-    AIRRIDE_BEANSTALK_PARK,
-    AIRRIDE_MACHINE_PASSAGE,
     AIRRIDE_SKY_SANDS,
+    AIRRIDE_FROZEN_HILLSIDE,
+    AIRRIDE_BEANSTALK_PARK,
+    AIRRIDE_CELESTIAL_VALLEY,
+    AIRRIDE_MACHINE_PASSAGE,
     AIRRIDE_CHECKER_KNIGHTS,
     AIRRIDE_NEBULA_BELT,
     AIRRIDE_NUM,
@@ -178,6 +178,19 @@ int Sky_GetPresetCount();                                // 0x800d5414 — total
 void Sky_TransitionGlobal(int preset_index);             // 0x800d5444 — transition via stc_grobj_ptr
 void Sky_RestoreGlobal(void);                            // 0x800d546c — restore default sky preset
 int Gm_Roll(int *weights, int count);                    // 0x800db2b8 — weighted random selection
+
+// Spline path system — enemy walking paths embedded in stage data.
+// Spline data is stored at GrObj+0x11C as a header {void *entries, int count}.
+// Each entry (stride 0x18) contains forward/backward HSD spline pointers.
+// Access via the functions below (they read from stc_grobj internally).
+int Spline_GetCount(void);                               // 0x800cf38c — number of spline segments in current stage
+void *Spline_GetForward(int segment);                    // 0x800cf3ac — forward HSD spline pointer for segment
+void *Spline_GetBackward(int segment);                   // 0x800cf44c — backward HSD spline pointer for segment
+
+// HSD spline evaluation. param is in [0.0, 1.0] range:
+// 0.0 = first control point, 1.0 = last control point.
+// Spline struct at spline_ptr has: u8 type (+0x0), s16 num_points (+0x2).
+// Already linked: splGetSplinePoint, splArcLengthGetParameter, splArcLengthPoint (see enemy.h)
 
 AudioEmitter Map_AllocAudioEmitter(int index);
 #endif

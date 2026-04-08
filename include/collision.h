@@ -9,21 +9,26 @@ typedef enum CollShapeKind
     Mp_CollShapeKind_Sphere,
 } CollShapeKind;
 
+// mpCollInfo — floor/wall/ceiling collision results sub-struct.
+// Allocated internally by mpColl_Create via mpColl_AllocCollInfo (0x802416cc).
+// Pointed to by CollData+0x44.
+typedef struct mpCollInfo mpCollInfo;
+
 typedef struct CollData
 {
-    struct CollData *next;         // 0x0
-    GOBJ *g;                       // 0x4
-    Vec3 pos1;                     // 0x8
-    Vec3 pos_delta;                // 0x14
-    Vec3 pos2;                     // 0x20
+    struct CollData *next;         // 0x0, linked list (head at r13+0x7E4 = 0x805DD8C4)
+    GOBJ *g;                       // 0x4, owner GObj
+    Vec3 pos;                      // 0x8, current world position
+    Vec3 pos_delta;                // 0x14, pos - prev_pos, computed by mpColl_Update
+    Vec3 prev_pos;                 // 0x20, previous frame position
     int x2c;                       // 0x2c
     int x30;                       // 0x30
     int x34;                       // 0x34
     int x38;                       // 0x38
     int x3c;                       // 0x3c
     int x40;                       // 0x40
-    int x44;                       // 0x44
-    int x48;                       // 0x48
+    mpCollInfo *coll_info;         // 0x44, floor/wall/ceiling collision results
+    mpCollInfo *coll_info2;        // 0x48, second collision info set (freed in mpColl_Destroy)
     int x4c;                       // 0x4c
     int x50;                       // 0x50
     int x54;                       // 0x54
@@ -215,56 +220,80 @@ typedef struct CollData
     CollShapeKind coll_shape_kind; // 0x33c
     struct CollShapeData           // 0x340
     {
-        u8 x0[0x30];
-        float radius; // 0x30
+        u8 x0[0xC];
+        Vec3 direction;  // 0x0C
+        u8 x18[0x18];
+        float radius;    // 0x30
+        int x34;         // 0x34
+        Vec3 scale;      // 0x38
     } *shape_data;
-    int x344; // 0x344
-    int x348; // 0x348
-    int x34c; // 0x34c
-    int x350; // 0x350
-    int x354; // 0x354
-    int x358; // 0x358
-    int x35c; // 0x35c
-    int x360; // 0x360
-    int x364; // 0x364
-    int x368; // 0x368
-    int x36c; // 0x36c
-    int x370; // 0x370
-    int x374; // 0x374
-    int x378; // 0x378
-    int x37c; // 0x37c
-    int x380; // 0x380
-    int x384; // 0x384
-    int x388; // 0x388
-    int x38c; // 0x38c
-    int x390; // 0x390
-    int x394; // 0x394
-    int x398; // 0x398
-    int x39c; // 0x39c
-    int x3a0; // 0x3a0
-    int x3a4; // 0x3a4
-    int x3a8; // 0x3a8
-    int x3ac; // 0x3ac
-    int x3b0; // 0x3b0
-    int x3b4; // 0x3b4
-    int x3b8; // 0x3b8
-    int x3bc; // 0x3bc
-    int x3c0; // 0x3c0
-    int x3c4; // 0x3c4
-    int x3c8; // 0x3c8
-    int x3cc; // 0x3cc
-    int x3d0; // 0x3d0
-    int x3d4; // 0x3d4
-    int x3d8; // 0x3d8
-    int x3dc; // 0x3dc
-    int x3e0; // 0x3e0
-    int x3e4; // 0x3e4
-    int x3e8; // 0x3e8
-    int x3ec; // 0x3ec
-    int x3f0; // 0x3f0
-    int x3f4; // 0x3f4
-    int x3f8; // 0x3f8
-    int x3fc; // 0x3fc
+    float radius;                  // 0x344, collision sphere radius
+    int param;                     // 0x348, mode/flag parameter from mpColl_Init
+    u8 flags;                      // 0x34c, bit 7 set by mpColl_SetFlag
+    u8 x34d;                       // 0x34d
+    u8 x34e;                       // 0x34e
+    u8 x34f;                       // 0x34f
+    int x350;                      // 0x350
+    int x354;                      // 0x354
+    int x358;                      // 0x358
+    int x35c;                      // 0x35c
+    int x360;                      // 0x360
+    int x364;                      // 0x364
+    int x368;                      // 0x368
+    int x36c;                      // 0x36c
+    int x370;                      // 0x370
+    int x374;                      // 0x374
+    int x378;                      // 0x378
+    int x37c;                      // 0x37c
+    int x380;                      // 0x380
+    int x384;                      // 0x384
+    int x388;                      // 0x388
+    int x38c;                      // 0x38c
+    int x390;                      // 0x390
+    int x394;                      // 0x394
+    int x398;                      // 0x398
+    int x39c;                      // 0x39c
+    int x3a0;                      // 0x3a0
+    int x3a4;                      // 0x3a4
+    int x3a8;                      // 0x3a8
+    int x3ac;                      // 0x3ac
+    int x3b0;                      // 0x3b0
+    int x3b4;                      // 0x3b4
+    int x3b8;                      // 0x3b8
+    int x3bc;                      // 0x3bc
+    int x3c0;                      // 0x3c0
+    int x3c4;                      // 0x3c4
+    int x3c8;                      // 0x3c8
+    int x3cc;                      // 0x3cc
+    int x3d0;                      // 0x3d0
+    int x3d4;                      // 0x3d4
+    int x3d8;                      // 0x3d8
+    int x3dc;                      // 0x3dc
+    int x3e0;                      // 0x3e0
+    int x3e4;                      // 0x3e4
+    int x3e8;                      // 0x3e8
+    int x3ec;                      // 0x3ec
+    int x3f0;                      // 0x3f0
+    int x3f4;                      // 0x3f4
+    int x3f8;                      // 0x3f8
+    int x3fc;                      // 0x3fc
 } CollData;
+
+// === mpColl Functions ===
+CollData *mpColl_Create(void);                    // 0x80245b4c. Allocates CollData from pool, links to global list, creates coll_info/shape_data
+void mpColl_Init(CollData *cd, int type, Vec3 *pos, Vec3 *dir, Vec3 *extents, int param, float radius, float f2); // 0x80245c10. Sets position/direction/scale, inits subsystems
+void mpColl_Reinit(CollData *cd, Vec3 *pos, Vec3 *dir); // 0x80245db0. Re-initializes with new position/direction
+void mpColl_Destroy(CollData *cd);                // 0x80245ed0. Frees coll_info, coll_info2, shape_data, unlinks from global list
+void mpColl_Update(CollData *cd, Vec3 *pos, Vec3 *dir, Vec3 *extents, int r7); // 0x80245f70. Per-frame: update pos, compute delta, update shape
+void mpColl_SetDefaultParams(CollData *cd);       // 0x802460d4. Sets default collision check parameters
+void mpColl_UpdateShapeExtents(CollData *cd, Vec3 *pos); // 0x8024625c. Updates shape extents from scale
+void mpColl_SetFlag(CollData *cd, int value);     // 0x80247e2c. Sets/clears bit 7 of flags byte at +0x34C
+CollData *mpColl_GetFirstCollObj(void);           // 0x802414d4. Returns head of global CollData linked list
+
+// === Raycast / Ground Functions ===
+int EnvColl_Raycast(Vec3 *start, Vec3 *end, Vec3 *out_pos); // 0x800d1ac4. Wrapper around Raycast_Do. Returns triangle ID
+int PointCollision_EnsureIDValid(int triangle_id); // 0x800d1838. Returns 0 if valid, 1 if invalid
+void PointCollision_GetNormalByID(int triangle_id, Vec3 *out_normal); // 0x800d1860. Looks up triangle normal (stride 0x40)
+int grGetGroundTypeFromTriangleID(int triangle_id); // 0x800cec28. Returns ground type from triangle ID
 
 #endif

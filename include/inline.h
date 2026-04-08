@@ -149,7 +149,8 @@ static int hashstr_32(char *str)
 }
 static u16 hashstr_16(char *str)
 {
-    return hashstr_32(str) >> 16; // Ensure the output is 16-bit
+    unsigned int h = (unsigned int)hashstr_32(str);
+    return (u16)((h >> 16) ^ h);
 }
 
 static void AOBJ_CheckEnded(AOBJ *a, int *is_done)

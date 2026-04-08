@@ -250,13 +250,13 @@ typedef struct ItemDesc // used to spawn an item
     Vec3 up;            // 0x24, [param] normalized up vector (can be NULL for defaults)
     float scale;        // 0x30, [param] item scale
     int exist_index;    // 0x34, [computed] City_GetItemExistNum(). This item is the nth to exist
-    int x38;            // 0x38, [param?] from stack param (r9). Maps to ItemData[0x34]. Usually -1
-    int x3c;            // 0x3C, [param?] from stack param (r9). Maps to ItemData[0x38]. Usually -1
-    int x40;            // 0x40, [param?] from stack param (r10). Maps to ItemData[0x3C]. Usually -1
-    int x44;            // 0x44, [param?] from stack param (r10). Maps to ItemData[0x40]. Usually -1
+    int x38;            // 0x38, [param] stack param 3 of Item_InitDesc. Maps to ItemData[0x34]. Usually -1
+    int x3c;            // 0x3C, [param] stack param 4 of Item_InitDesc. Maps to ItemData[0x38]. Usually -1
+    int x40;            // 0x40, [param] r9 of Item_InitDesc. Maps to ItemData[0x3C]. Usually -1
+    int x44;            // 0x44, [param] r10 of Item_InitDesc. Maps to ItemData[0x40]. Usually -1
     int lifetime;       // 0x48, [computed] HSD_Randi(variance) + min from ItemCommonParam
-    int coll_kind;      // 0x4C, [computed] from ItemCommonParam. Stored to ItemData[0x359]. Most items use 3
-    int is_airborne;    // 0x50, [param] if 0, will raycast and snap to the ground below it
+    int coll_kind;      // 0x4C, [param] stack param 2 of Item_InitDesc. Stored to ItemData[0x359] bits 2-4. 3=point coll (most items), 1=alloc CollData, 0=requires CollData
+    int is_airborne;    // 0x50, [param] stack param 1 of Item_InitDesc. -1=skip initial raycast, other=do raycast. Maps to ItemData[0x1D4]
     int x54;            // 0x54, [computed] always 0. Stored as bit flag in ItemData[0x35B]
     int flags;          // 0x58, [computed] based on item kind range and CityItem_GetUnkFlag(4). Maps to ItemData[0x48]
 } ItemDesc;
@@ -1015,10 +1015,30 @@ typedef struct ItemParam2
 static ItemCommonParam **stc_item_param = (ItemCommonParam **)(0x805dd0e0 + 0x7E8);
 static ItemParam2 **stc_item_param2 = (ItemParam2 **)(0x805dd0e0 + 0x7EC);
 
+// Top Ride ItemMgr — C++ singleton (RTTI name "ItemMgr"). Manages which items
+// can spawn during a Top Ride match. Initialized by TopRideItem_MgrInit (0x8034b5f4).
+typedef struct TopRideItemMgr
+{
+    void *vtable;               // 0x00
+    int stage_data;             // 0x04, pointer to stage config data
+    int timer;                  // 0x08
+    int archive_data;           // 0x0C
+    int x10;                    // 0x10
+    int x14;                    // 0x14
+    int x18;                    // 0x18
+    int x1c;                    // 0x1C
+    int x20;                    // 0x20
+    u32 enabled_mask;           // 0x24, bitmask of which items can spawn (bits 0-22)
+    float x28;                  // 0x28
+} TopRideItemMgr;
+
+// Top Ride ItemMgr singleton pointer (r13 + 0xAC4). Set during Top Ride 3D scene init.
+static TopRideItemMgr **stc_topride_itemmgr = (TopRideItemMgr **)(0x805dd0e0 + 0xAC4);
+
 // === Item Creation & Initialization ===
 ItemKind Gm_GetRandomItem(BoxKind box_kind, ItemGroup group, int spawn_flags); // 0x800eb7e4. box_kind: -1=sky, 0-2=box color. group: -1=all, 0=bad, 1=good. spawn_flags: 0x2=patch, 0x4=box
 GOBJ *Item_Create(ItemDesc *desc);                    // 0x8024eef4. Creates item GObj, allocates ItemData, initializes all subsystems
-void Item_InitDesc(ItemDesc *, ItemKind kind, float scale, int r5, Vec3 *pos, Vec3 *up, Vec3 *forward, int r9, int r10); // 0x802509a0. r5=spawn_type (0 default). up/forward can be NULL. r9/r10 usually -1
+void Item_InitDesc(ItemDesc *, ItemKind kind, float scale, int spawn_type, Vec3 *pos, Vec3 *up, Vec3 *forward, int x40, int x44, int is_airborne, int coll_kind, int x38, int x3c); // 0x802509a0. spawn_type=0 default. up/forward can be NULL. x40/x44/x38/x3c usually -1. is_airborne: -1=skip raycast, other=do raycast. coll_kind: 3=point collision (most items), 1=alloc CollData, 0=requires CollData (dangerous)
 ItemCommonAttr *Item_GetCommonAttr(ItemKind kind);    // 0x802500b0. Returns attr from itData array
 itData *Item_GetItDataPtr(ItemKind kind);              // 0x80250038. Returns itData entry (0x18 bytes per kind)
 
