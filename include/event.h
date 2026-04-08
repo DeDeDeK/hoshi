@@ -103,6 +103,14 @@ static int *stc_event_machineformation_loadnum = (int *)(0x805dd0e0 + 0x750); //
 static EventGlobal *stc_event_global = (EventGlobal *)0x80538088;
 static EventFunction (*stc_event_function)[EVKIND_NUM] = (void *)0x804a5410;
 
+// Event SIS ID lookup table. Indices 0-15 = vanilla event names, 16-38 = stadium name lookups
+// for prediction event (kind 10). Custom entries placed after stadium range.
+static int *stc_event_sis_id_table = (int *)0x804a7b98;
+
+// Event state handler dispatch table. 4 entries: [state0, state1, state2, state3].
+// Each is a function pointer: void (*)(EventCheckData *).
+static void (**stc_event_state_table)(EventCheckData *) = (void (**)(EventCheckData *))0x804a5604;
+
 // Meteor event globals (r13-relative). Used by BehaviorInit helpers to read zone/speed data.
 // stc_meteor_data is checked non-null as guard; stc_meteor_event_data holds zone table (+0x0C) and speed table (+0x04).
 static volatile int *stc_meteor_data = (volatile int *)(0x805dd0e0 + 0x650);              // 0x805dd730
