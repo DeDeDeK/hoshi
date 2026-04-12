@@ -33,6 +33,7 @@ typedef struct ModDesc
     void (*OnShowHUD)();
     void (*OnHideHUD)();
     void (*OnReset)();
+    void (*OnTopRideLoad)();                // executes after Top Ride gameplay is initialized (minor 19)
 } ModDesc;
 
 
