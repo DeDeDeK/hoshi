@@ -269,7 +269,7 @@ typedef struct RiderData
     int x2a4;                             // 0x2a4
     int x2a8;                             // 0x2a8
     int x2ac;                             // 0x2ac
-    int x2b0;                             // 0x2b0
+    void *ability_hat_model;              // 0x2b0, container for the current copy-ability hat model. NULL when no ability is active. spawnBomb/spawnGordo/spawnSensorBomb use (*ability_hat_model + 0x120) as the JObj for the projectile throw bone and assert if the pointer chain is null.
     int x2b4;                             // 0x2b4
     int x2b8;                             // 0x2b8
     int x2bc;                             // 0x2bc
@@ -832,6 +832,13 @@ int Rider_CheckCanReceivePowerUp(GOBJ *gobj); // returns 1 if rider can receive 
 int Rider_GivePowerUp(GOBJ *gobj, PowerUpKind kind); // gives rider a power-up if rider is Kirby, returns 1 on success
 int Rider_TryGivePowerUp(RiderData *rd, PowerUpKind kind); // checks unable, queues into x460 or calls Rider_GivePowerUpByKind
 int Rider_GivePowerUpByKind(RiderData *rd, PowerUpKind kind); // removes current ability and initializes power-up kind (0-3), returns 1 on success
+
+// Reads the machine's projectile inherit velocity via the rider's
+// machine_gobj, into *out. Thin wrapper around
+// MachineGObj_GetProjectileBaseVelocity. Used by the rider-side projectile
+// spawners declared in projectile.h.
+void Rider_GetProjectileBaseVelocity(RiderData *rd, Vec3 *out); // 0x8019407c
+
 void Rider_SetCandyTimer(GOBJ *gobj, int duration); // stores duration in rd->candy_duration, enters rider state 47 (countdown timer)
 
 AudioEmitter Rider_AllocAudioEmitter(int index);

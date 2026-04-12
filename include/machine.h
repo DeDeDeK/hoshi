@@ -436,7 +436,7 @@ typedef struct MachineData
     int x348;                             // 0x348
     int x34c;                             // 0x34c
     int x350;                             // 0x350
-    Vec3 displacement;                    // 0x354
+    Vec3 projectile_inherit_velocity;     // 0x354, base velocity inherited by projectiles spawned from this machine's rider (added to rider->self_vel in spawnBomb/spawnGordo/spawnSensorBomb). Read via Machine_GetProjectileBaseVelocity.
     int x360;                             // 0x360
     int x364;                             // 0x364
     int x368;                             // 0x368
@@ -529,7 +529,7 @@ typedef struct MachineData
     int x4dc;                             // 0x4dc
     int x4e0;                             // 0x4e0
     int x4e4;                             // 0x4e4
-    int x4e8;                             // 0x4e8
+    float projectile_charge_scale;        // 0x4e8, scalar multiplier for projectile velocity, likely tied to machine charge/boost state. Read via Machine_GetProjectileChargeScale.
     int x4ec;                             // 0x4ec
     float top_speed_ground;               // 0x4f0
     int x4f4;                             // 0x4f4
@@ -1036,6 +1036,17 @@ void Machine_GiveDamage(MachineData *md, float damage, GOBJ *source_gobj); // 0x
 void Machine_EnterHitReaction(MachineData *md);        // 0x801e05bc. Transitions machine to hit reaction state (state 5). Causes the "bounce up" animation. Checks if not already in state 5. Calls Machine_OnEnterHitReaction which triggers MachineStateChange to substate 9, plays hit reaction animation. Set HurtData.kb_mag before calling for knockback physics
 void Machine_InitHurtData(MachineData *md);            // 0x801d6e84. Creates HurtData for machine via HurtData_Create(HURTKIND_MACHINE), sets callback at HurtData+0x8C, configures hurt descriptors from itData
 HurtData *MachineGObj_GetHurtData(GOBJ *machine_gobj); // 0x801c8660. Returns *(MachineData+0x660) from GOBJ userdata
+
+// Reads the machine's projectile_inherit_velocity Vec3 (md+0x354) into *out.
+// Used by the rider-level projectile spawners (spawnBomb/spawnGordo/...) to
+// seed the projectile's initial velocity before adding rider self_vel.
+void MachineGObj_GetProjectileBaseVelocity(GOBJ *machine_gobj, Vec3 *out); // 0x801c7628
+
+// Returns the machine's projectile_charge_scale (md+0x4e8), multiplied by a
+// constant 1.0. Used by the rider-level projectile spawners to populate
+// ProjectileDesc.charge.
+float Machine_GetProjectileChargeScale(MachineData *md);                   // 0x801d7e28
+float MachineGObj_GetProjectileChargeScale(GOBJ *machine_gobj);            // 0x801c868c, unwraps gobj->userdata and calls Machine_GetProjectileChargeScale
 
 AudioEmitter Machine_AllocAudioEmitter(int index);
 #endif

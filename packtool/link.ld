@@ -305,6 +305,7 @@ SECTIONS
   SFX_Play = 0x800615F0;
   SFX_PlayMenuSFX = 0x80061620;
   SFX_PlayRaw = 0x80442A10;
+  SFX_PlayFullVolume = 0x8006176C;
   FGM_PauseKind = 0x80444CC4;
   FGM_ResumeKind = 0x80444FE0;
   FGM_LoadInGameBanks = 0x8005A348;
@@ -389,6 +390,16 @@ SECTIONS
   Gm_GetCurrentGrKind = 0x80261ECC;
   Gm_GetGrKindFromStageKind = 0x80261ce8;
   TopRide_GetSelectedCourse = 0x8000b2b8;
+  TopRide_SetSelectedCourse = 0x8000b2dc;
+  TopRide_SetCourseValid = 0x8000b5ac;
+  TopRide_SetExtraUnlocks = 0x8000b5dc;
+  TopRide_GetMode = 0x8003ea9c;
+  TopRide_GetTimeAttackPlayerSlot = 0x8003eaf0;
+  TopRide_GetStats = 0x80287040;
+  TopRideItem_SpawnAtPosition = 0x8034bf50;
+  ClearChecker_ResetAllData = 0x8000c604;
+  ClearChecker_ShouldShowNewUnlocks = 0x8000c6f0;
+  ClearChecker_MarkNewUnlocksShown = 0x8000c734;
   AirRide_CheckCourseUnlocked = 0x8000c0e0;
   AirRide_CheckMachineUnlocked = 0x8000c364;
   AirRide_CheckCharacterAvailable = 0x8002090c;
@@ -567,6 +578,14 @@ SECTIONS
   Rider_RecordCopyAbility = 0x8022ee00;
   Rider_MarkCopyAbilityObtained = 0x8022f150;
   randomAbility_giveAbility = 0x801a61d4;
+  spawnBomb = 0x801a9410;
+  spawnSensorBomb = 0x801a9e78;
+  spawnGordo = 0x801aa028;
+  Projectile_Create = 0x8021f428;
+  Rider_GetProjectileBaseVelocity = 0x8019407c;
+  MachineGObj_GetProjectileBaseVelocity = 0x801c7628;
+  MachineGObj_GetProjectileChargeScale = 0x801c868c;
+  Machine_GetProjectileChargeScale = 0x801d7e28;
   Rider_StartCopyWheel = 0x801ae550;
   Rider_StartRandomCopyWheel = 0x801ae4ec;
   Rider_GiveRandomAbility = 0x80191fb8;
@@ -676,6 +695,7 @@ SECTIONS
   ClearChecker_CheckUnlocked = 0x80049E24;
   ClearChecker_GetRewardFromClearKind = 0x80049EC4;
   ClearChecker_SetNewUnlock = 0x8004A054;
+  ClearChecker_GetFrameIndex = 0x80005CE0;
   ClearChecker_GetKindClear = 0x8004A130;
   ClearChecker_CheckForNewUnlocks = 0x8004A1A4;
   Checklist_IsCacheValid = 0x8007B650;

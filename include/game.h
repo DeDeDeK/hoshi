@@ -90,6 +90,13 @@ typedef enum CityMode
     CITYMODE_FREERUN,
 } CityMode;
 
+typedef enum TopRideMode
+{
+    TOPRIDEMODE_RACE,
+    TOPRIDEMODE_TIME,
+    TOPRIDEMODE_FREE,
+} TopRideMode;
+
 typedef enum GameMode
 {
     GMMODE_AIRRIDE,
@@ -769,7 +776,9 @@ typedef struct GameData // 805359d8
     u8 x37c;                         // 0x37c
     u8 topride_course_valid;         // 0x37d, result of course unlock check
     u8 topride_extra_unlocks[3];     // 0x37e-0x380, booleans from clear_kinds 8, 9, 10
-    u8 x381[3];                      // 0x381-0x383, padding
+    TopRideMode topride_mode : 8;    // 0x381, 0=Race, 1=Time Attack, 2=Free Run
+    u8 x382;                         // 0x382
+    u8 x383;                         // 0x383
     int x384;                        // 0x384
     int x388;                        // 0x388
     int x38c;                        // 0x38c
@@ -2271,7 +2280,7 @@ typedef struct TopRideStats // 0x34 = 52 bytes. see gmGetClearcheckerType1_2Ptr
 typedef struct GameClearData // 0xF4 bytes per mode. see gmGetClearcheckerTypeP
 {
     u8 new_unlock_flag;     // 0x00, nonzero when new unlocks exist requiring visual update
-    u8 x1;                  // 0x01
+    u8 display_state;       // 0x01, high nibble = pending new unlocks, low nibble bit 0 = shown/acknowledged
     u8 checkbox_filler_num;      // 0x02, number of checkbox fillers available to use
     u8 checkbox_filler_list_len; // 0x03, length of filler list shown in checklist UI (max 5)
     u8 grid_mapping[120];   // 0x04, grid_mapping[clear_kind] = visual_position (0-119, col = pos%12, row = pos/12)
@@ -2703,6 +2712,7 @@ static grBoxGeneInfo **stc_grBoxGeneInfo = (grBoxGeneInfo **)(0x805dd0e0 + 0x610
 static itCommonDataAll **stc_it_common_data = (itCommonDataAll **)(0x805dd0e0 + 0x7f0);
 static cmMainParamCommon **stc_cm_main_param = (cmMainParamCommon **)0x8055747c;
 static gmDataAll **stc_gmdataall = (gmDataAll **)(0x805dd0e0 + 0x494);
+static int *stc_clearchecker_sfx_last_frame = (int *)(0x805dd0e0 + 0x4B0); // 0x805dd590, last frame ClearChecker_SetNewUnlock played its SFX (one-frame cooldown)
 static int *stc_city_machine_num = (int *)(0x805dd0e0 + 0x754); //
 static u8 *stc_city_starting_machine = (u8 *)0x80495816;
 static PlayerData *stc_playerdata = (PlayerData *)0x8055a9f0; // 4 of these
@@ -2760,6 +2770,7 @@ u8 Checklist_GetRewardNum(GameMode gm);                                // 80049c
 u8 Checklist_GetClearKindFromRewardIndex(GameMode gm, u8 reward_index); // 80049c84, returns clear_kind for a reward index
 int ClearChecker_CheckUnlocked(GameMode gm, u8 reward_index);          // 80049e24, checks has_reward bit for a reward index's clear_kind
 void ClearChecker_SetNewUnlock(GameMode gm, u8 clear_kind);            // 8004a054, marks clear_kind as newly completed
+int ClearChecker_GetFrameIndex(void);                                   // 80005ce0, returns current frame index used for SFX cooldown in SetNewUnlock
 u8 ClearChecker_GetKindClear(GameMode gm, u8 clear_kind);              // 8004a130, returns status byte for a clear_kind
 int ClearChecker_CheckForNewUnlocks(GameMode gm);                      // 8004a1a4, scans for is_new && !is_unlocked
 void Checklist_SetRewardFlagOnUnlocks();                                // 8017df5c, sets has_reward on unlocked slots, rebuilds grid
@@ -2771,6 +2782,9 @@ GameClearData *gmGetClearcheckerTypeP(GameMode mode);                   // 80007
 GameClearData *gmGetClearcheckerP();                                    // 80006c20, returns base ClearCheckerData (Air Ride)
 u8 Gm_GetClearChecker();                                                // 8017cf14, returns ClearChecker UI state byte
 void ClearChecker_GetRewardFromClearKind(GameMode gm, u8 clear_kind, u8 *out_reward_index, u8 *out_reward_param); // 80049ec4, reverse lookup: clear_kind → reward_index + reward_param
+void ClearChecker_ResetAllData(void);                                    // 8000c604, resets all clear data for all 3 modes (erase menu)
+int ClearChecker_ShouldShowNewUnlocks(GameMode gm);                      // 8000c6f0, returns 1 if mode has new unlocks pending display
+void ClearChecker_MarkNewUnlocksShown(GameMode gm);                      // 8000c734, marks new unlocks as displayed for mode
 
 // Grant a checkbox filler for the given mode. checkbox_filler_num is uncapped (u8, max 255).
 // checkbox_filler_list_len controls the displayed filler icons in the UI (capped at 5).
@@ -2782,8 +2796,16 @@ static inline void Checklist_GrantFiller(GameMode mode) {
     }
 }
 
-// Top Ride pre-game
+// Top Ride
 s8 TopRide_GetSelectedCourse(void);                                      // 8000b2b8, returns currently selected Top Ride course index (0-6)
+void TopRide_SetSelectedCourse(int course);                              // 8000b2dc, sets selected Top Ride course index
+void TopRide_SetCourseValid(int valid);                                  // 8000b5ac, sets GameData.topride_course_valid
+void TopRide_SetExtraUnlocks(int unlock0, int unlock1, int unlock2);     // 8000b5dc, sets GameData.topride_extra_unlocks[0..2]
+TopRideMode TopRide_GetMode(void);                                       // 8003ea9c, returns Top Ride mode (0=Race, 1=Time, 2=Free)
+int TopRide_GetTimeAttackPlayerSlot(void);                               // 8003eaf0, returns active player slot for Top Ride Time Attack
+TopRideStats *TopRide_GetStats(void);                                    // 80287040, returns TopRideStats pointer (via gmGetClearcheckerType1_2Ptr)
+
+// Top Ride Kirby (player) structs and globals — see topride.h
 
 // Clear Checker reward query callers
 int AirRide_CheckCourseUnlocked(s8 input);                              // 8000c0e0, checks reward index 34 (Nebula Belt) when input==8

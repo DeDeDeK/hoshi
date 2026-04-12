@@ -681,6 +681,7 @@ static BGMKind *stc_bgmkind_cur_playing = (BGMKind *)0x8054f508;         //
 int SFX_Play(int sfxID);                                                        // will play a sound effect with max priority (works when game is paused)
 int SFX_PlayMenuSFX(int sfxID);                                                 //
 int SFX_PlayRaw(int sfx, int volume, int pan, int audio_track, int sg);         // sg is 0x42 of AudioEmitterData any audio_track other than 0 will remember the current instance and destroy it if another is requested to play with that slot
+int SFX_PlayFullVolume(int sfxID);                                              // 8006176c, plays a sound effect at full volume
 int SFX_PlayCommon(int sfxID);
 int SFX_PlayCrowd(int sfxID);
 void SFX_StopCrowd();
