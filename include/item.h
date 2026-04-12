@@ -1015,6 +1015,35 @@ typedef struct ItemParam2
 static ItemCommonParam **stc_item_param = (ItemCommonParam **)(0x805dd0e0 + 0x7E8);
 static ItemParam2 **stc_item_param2 = (ItemParam2 **)(0x805dd0e0 + 0x7EC);
 
+// Top Ride item kinds — bitmask indices for TopRideItemMgr.enabled_mask (+0x24).
+// Mystery (a2dIT21 "?") is NOT in the bitmask — it's always available as the roulette item.
+typedef enum TopRideItemKind
+{
+    TRITEM_HAMMER,          // 0  a2dIT1e AC_hammer
+    TRITEM_GROW,            // 1  a2dIT01 AC_macron
+    TRITEM_SPEEDUP,         // 2  a2dIT02 AC_speedUp
+    TRITEM_SPEEDDOWN,       // 3  a2dIT03 AC_speedDown
+    TRITEM_BOOST_SAW,       // 4  a2dIT04 AC_BoostUp_Missile (charge saw attack)
+    TRITEM_CHARGEBOOST,     // 5  a2dIT0c AC_chargeUp
+    TRITEM_INVINCIBLE,      // 6  a2dIT0d AC_muteki
+    TRITEM_BUZZSAW,         // 7  a2dIT0a AC_Sdrill_kusudama
+    TRITEM_SPEAR,           // 8  a2dIT05 AC_FrontSpeer
+    TRITEM_FREEZE,          // 9  a2dIT1b AC_ice
+    TRITEM_MISSILE,         // 10 a2dIT07 AC_BoostUp_Missile (projectile missile)
+    TRITEM_FIRE,            // 11 a2dIT06 AC_AfterFlame
+    TRITEM_NEEDLE,          // 12 a2dIT0b AC_Sdrill_kusudama
+    TRITEM_BOMB,            // 13 a2dIT08 AC_bomb
+    TRITEM_LANDMINE,        // 14 a2dIT10 AC_landbomb
+    TRITEM_SENSORBOMB,      // 15 a2dIT11 AC_lanthanum
+    TRITEM_MIKE,            // 16 a2dIT16 AC_mike
+    TRITEM_CRACKER,         // 17 a2dIT12 AC_clakko
+    TRITEM_METAKNIGHT,      // 18 a2dIT13 AC_meta
+    TRITEM_SMOKESCREEN,     // 19 a2dIT17 AC_kemuron
+    TRITEM_DIZZY,           // 20 a2dIT18 AC_piyo
+    TRITEM_BACKWARD,        // 21 a2dIT20 AC_usiro
+    TRITEM_NUM,
+} TopRideItemKind;
+
 // Top Ride ItemMgr — C++ singleton (RTTI name "ItemMgr"). Manages which items
 // can spawn during a Top Ride match. Initialized by TopRideItem_MgrInit (0x8034b5f4).
 typedef struct TopRideItemMgr
@@ -1034,6 +1063,14 @@ typedef struct TopRideItemMgr
 
 // Top Ride ItemMgr singleton pointer (r13 + 0xAC4). Set during Top Ride 3D scene init.
 static TopRideItemMgr **stc_topride_itemmgr = (TopRideItemMgr **)(0x805dd0e0 + 0xAC4);
+
+// Spawns a Top Ride item GObj in the world at a given position. Internally
+// calls TopRideItem_Create (0x8034ad08) then links the new item into the
+// ItemMgr's active list. The item then behaves like any other spawned TR item
+// and is collected on kirby collision.
+// Callers: 22 per-item widget handlers (0x802b0b88..0x802b357c) and an enemy
+// drop handler (0x802d8ac8). Pattern from widget handler 0: flag1=0, flag2=1.
+void TopRideItem_SpawnAtPosition(TopRideItemMgr *mgr, int item_kind, Vec3 *pos, Vec3 *orient, uint flag1, uint flag2); // 0x8034bf50
 
 // === Item Creation & Initialization ===
 ItemKind Gm_GetRandomItem(BoxKind box_kind, ItemGroup group, int spawn_flags); // 0x800eb7e4. box_kind: -1=sky, 0-2=box color. group: -1=all, 0=bad, 1=good. spawn_flags: 0x2=patch, 0x4=box
