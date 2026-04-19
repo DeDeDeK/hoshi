@@ -397,6 +397,7 @@ SECTIONS
   TopRide_GetTimeAttackPlayerSlot = 0x8003eaf0;
   TopRide_GetStats = 0x80287040;
   TopRideItem_SpawnAtPosition = 0x8034bf50;
+  TopRideItem_GetDataByIndex = 0x8034d204;
   ClearChecker_ResetAllData = 0x8000c604;
   ClearChecker_ShouldShowNewUnlocks = 0x8000c6f0;
   ClearChecker_MarkNewUnlocksShown = 0x8000c734;
@@ -419,6 +420,7 @@ SECTIONS
   Gm_GetCityMode = 0x8003F6CC;
   Gm_GetIntroState = 0x8000A958;
   Gm_IsInCity = 0x8000ACB0;
+  Item_CheckIsLoaded = 0x80250098;
   CityTrial_IsInStadium = 0x8000AD48;
   Gm_IsGrKindCity = 0x80262574;
   Gm_IsDestructionDerby = 0x80191900;
@@ -582,6 +584,21 @@ SECTIONS
   spawnSensorBomb = 0x801a9e78;
   spawnGordo = 0x801aa028;
   Projectile_Create = 0x8021f428;
+  Projectile_SetState = 0x8021f7dc;
+  Projectile_GetOwnerGObj = 0x8022312c;
+  Projectile_Despawn = 0x80220364;
+  Rider_TryThrowBomb = 0x801a9580;
+  Rider_TryThrowSensorBomb = 0x801a9fe8;
+  Rider_IsGordoThrowable = 0x801aa008;
+  spawnStarBullet = 0x801a8c80;
+  spawnStarBullet_charged = 0x801a8df8;
+  spawnFireBullet = 0x801a8f68;
+  spawnFireAura = 0x801a9178;
+  spawnPlasmaBullet = 0x801a95a0;
+  spawnPlasmaSpread = 0x801a9870;
+  spawnSpikeAura = 0x801a9a54;
+  spawnIceAura = 0x801a9b84;
+  spawnCrackerBullet = 0x801a9cb4;
   Rider_GetProjectileBaseVelocity = 0x8019407c;
   MachineGObj_GetProjectileBaseVelocity = 0x801c7628;
   MachineGObj_GetProjectileChargeScale = 0x801c868c;

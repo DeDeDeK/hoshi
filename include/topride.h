@@ -41,7 +41,7 @@ typedef struct TopRideKirby
     u8 x0F;                             // 0x0F
     u8 is_active;                       // 0x10
     u8 x11[0x3B];                       // 0x11
-    Vec3 position;                      // 0x4C
+    Vec3 position;                      // 0x4C, spawn / default pos — NOT tracked per frame. For actual in-world position use charge.position (0x88).
     Vec3 target_pos;                    // 0x58
     int angles[3];                      // 0x64
     u8 x70[0x0C];                       // 0x70

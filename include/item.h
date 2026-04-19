@@ -1072,12 +1072,20 @@ static TopRideItemMgr **stc_topride_itemmgr = (TopRideItemMgr **)(0x805dd0e0 + 0
 // drop handler (0x802d8ac8). Pattern from widget handler 0: flag1=0, flag2=1.
 void TopRideItem_SpawnAtPosition(TopRideItemMgr *mgr, int item_kind, Vec3 *pos, Vec3 *orient, uint flag1, uint flag2); // 0x8034bf50
 
+// Returns a pointer to the per-item data blob for a TopRide item kind (0..21).
+// Offset +0x10 of the returned struct is the float spawn weight used by the
+// weighted-random pickers in TopRideItem_SpawnTimed and the cracker burst.
+// Out-of-range kinds fall through to `return kind` (invalid pointer), so only
+// call with 0..TRITEM_NUM-1.
+const void *TopRideItem_GetDataByIndex(int kind); // 0x8034d204
+
 // === Item Creation & Initialization ===
 ItemKind Gm_GetRandomItem(BoxKind box_kind, ItemGroup group, int spawn_flags); // 0x800eb7e4. box_kind: -1=sky, 0-2=box color. group: -1=all, 0=bad, 1=good. spawn_flags: 0x2=patch, 0x4=box
 GOBJ *Item_Create(ItemDesc *desc);                    // 0x8024eef4. Creates item GObj, allocates ItemData, initializes all subsystems
 void Item_InitDesc(ItemDesc *, ItemKind kind, float scale, int spawn_type, Vec3 *pos, Vec3 *up, Vec3 *forward, int x40, int x44, int is_airborne, int coll_kind, int x38, int x3c); // 0x802509a0. spawn_type=0 default. up/forward can be NULL. x40/x44/x38/x3c usually -1. is_airborne: -1=skip raycast, other=do raycast. coll_kind: 3=point collision (most items), 1=alloc CollData, 0=requires CollData (dangerous)
 ItemCommonAttr *Item_GetCommonAttr(ItemKind kind);    // 0x802500b0. Returns attr from itData array
 itData *Item_GetItDataPtr(ItemKind kind);              // 0x80250038. Returns itData entry (0x18 bytes per kind)
+int Item_CheckIsLoaded();                              // 0x80250098. Returns 1 if per-kind itData is loaded, 0 otherwise (e.g. AR, CT Free Run, possibly stadiums)
 
 // === Item State & Behavior ===
 int CityItem_IsGoodPatch(ItemKind kind);              // 0x802540a8. Returns 1 if kind has ITGROUP_GOOD effect_info (returns 0 for NULL, ITGROUP_BAD, ITGROUP_FAKE)
