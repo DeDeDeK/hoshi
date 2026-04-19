@@ -63,21 +63,234 @@ typedef struct ProjectileDesc
     float charge;           // 0x48: vanilla reads md->projectile_charge_scale
 } ProjectileDesc;
 
+// Per-kind state machine indices. The argument to Projectile_SetState is the
+// entry INDEX into the kind's state table, not the state_id field; where two
+// table entries share a state_id (SENSORBOMB, GORDO, FIRE_BULLET) the index
+// is the only disambiguator.
+//
+// For single-state kinds, Projectile_Create already leaves the projectile in
+// its one flying state — no Projectile_SetState call is needed.
+
+typedef enum BombState {
+    BOMB_STATE_HELD      = 0, // pinned to rider hand; no physics, no detonate
+    BOMB_STATE_THROWN    = 1, // flies under physics; detonates on env collision
+    BOMB_STATE_EXPLODING = 2, // hitbox active; short timer before fade
+    BOMB_STATE_FADE      = 3, // alpha fades to 0, then GObj_Destroy
+} BombState;
+
+typedef enum SensorBombState {
+    SENSOR_BOMB_STATE_HELD             = 0,
+    SENSOR_BOMB_STATE_ARMED_FLYING     = 1, // thrown, physics + proximity scan
+    SENSOR_BOMB_STATE_ARMED_STATIONARY = 2, // landed, waiting; short-range sensor
+    SENSOR_BOMB_STATE_EXPLODING        = 3,
+    SENSOR_BOMB_STATE_FADE             = 4, // state_id duplicates index 2
+} SensorBombState;
+
+typedef enum GordoState {
+    GORDO_STATE_HELD             = 0,
+    GORDO_STATE_THROWN_ASCENDING = 1, // state_id=1, scales up while flying
+    GORDO_STATE_THROWN_TIMED     = 2, // state_id=1 again, self-despawn timer
+    GORDO_STATE_DESPAWN          = 3, // sentinel (-1); fn0 runs particle burst
+} GordoState;
+
+typedef enum FireBulletState {
+    FIRE_BULLET_STATE_THROWN    = 0,
+    FIRE_BULLET_STATE_HIT_PAUSE = 1, // all-blr anim pad, likely hit-flash freeze
+    FIRE_BULLET_STATE_DESPAWN   = 2, // sentinel (-1) with cleanup-watchdog fn0
+} FireBulletState;
+
+// Auras share structure across fire/spike/ice: IDLE re-snaps to the rider
+// hand every frame; FIRING is per-kind (spike differs only in anim flags,
+// ice runs real per-frame work, fire has a watchdog fn0). SETTLED is a
+// plausibility label — could equally be "idle2" or "retract".
+typedef enum FireAuraState {
+    FIRE_AURA_STATE_IDLE    = 0,
+    FIRE_AURA_STATE_FIRING  = 1,
+    FIRE_AURA_STATE_COOLING = 2,
+} FireAuraState;
+
+typedef enum SpikeAuraState {
+    SPIKE_AURA_STATE_IDLE     = 0,
+    SPIKE_AURA_STATE_DEPLOYED = 1,
+    SPIKE_AURA_STATE_SETTLED  = 2,
+} SpikeAuraState;
+
+typedef enum IceAuraState {
+    ICE_AURA_STATE_IDLE     = 0,
+    ICE_AURA_STATE_EMITTING = 1,
+    ICE_AURA_STATE_SETTLED  = 2,
+} IceAuraState;
+
+// Plasma A/B share a state table; C and D each have their own.
+typedef enum PlasmaState {
+    PLASMA_STATE_FLYING   = 0,
+    PLASMA_STATE_ABSORBED = 1, // merged with rider/charger; rider-alive watchdog
+} PlasmaState;
+
+typedef enum FirecrackerState {
+    FIRECRACKER_STATE_FLYING   = 0, // physics + timer + trail emitter
+    FIRECRACKER_STATE_ABSORBED = 1,
+} FirecrackerState;
+
+// Plasma D has two active entries — initial shot and trail fragment.
+// Plausible naming; could instead be split-phase.
+typedef enum PlasmaDState {
+    PLASMA_D_STATE_FLYING   = 0,
+    PLASMA_D_STATE_TRAILING = 1,
+} PlasmaDState;
+
+// Single-state kinds (SWORD_STAR_A/B/CHARGED, PLASMA_SPREAD_MID/SIDE) all
+// map index 0 to their only flying state. No enum provided — just pass 0.
+
+// 24-byte state-table entry. Each kind's state table is an array of these;
+// Projectile_SetState indexes it by entry index and copies fn0..fn3 into
+// proj+0x150..0x15c for per-frame dispatch.
+//
+// All four fn slots are per-frame. They run in priority order during the
+// projectile proc update: fn0 at prio 1, fn1 at prio 4, fn2 at prio 5,
+// fn3 at prio 6. State transitions are driven by SetState calls from inside
+// these callbacks; there is NO entry-level on-enter/on-exit slot. For
+// once-per-create init, use the per-kind vtable's init / postInit (see
+// ProjKindVTable).
+typedef struct ProjectileStateEntry
+{
+    s32   state_id;                // 0x00: written to proj+0x2c. 0xffffffff = sentinel/terminator
+    u32   flags;                   // 0x04: anim class (upper byte) + per-state bits
+    void (*fn0)(void *proj);       // 0x08: prio-1 tick (early AI, timers)
+    void (*fn1)(void *proj);       // 0x0c: prio-4 tick (pre-physics velocity update)
+    void (*fn2)(void *proj);       // 0x10: prio-5 tick (main state tick, collision response)
+    void (*fn3)(void *proj);       // 0x14: prio-6 tick (post-collision, aura re-snap)
+} ProjectileStateEntry;
+
+// Per-kind vtable at *(0x804b4338 + kind*4). One vtable per ProjectileKind;
+// two kind pairs (5/6, 7/8) alias to the same vtable.
+typedef struct ProjKindVTable
+{
+    const ProjectileStateEntry *state_table; // 0x00: per-kind state entries
+    void                       *reserved04;  // 0x04: always 0
+    void                      (*init)(void *proj);          // 0x08: one-shot at create
+    void                      (*refresh_xfm_a)(void *proj); // 0x0c: per-frame JObj mtx refresh
+    void                      (*refresh_xfm_b)(void *proj); // 0x10: identical to refresh_xfm_a in every vanilla kind
+    void                      (*aux_a)(void *proj);         // 0x14: state-exit cleanup; NULL for some kinds
+    void                      (*post_init)(void *proj);     // 0x18: one-shot at create, after proc registration
+    void                      (*aux_b)(void *proj);         // 0x1c: per-frame kind-specific hook; NULL for some kinds
+} ProjKindVTable;
+
+// Inner projectile data — 0x220 bytes, allocated by Projectile_Create from
+// the HSD object pool at 0x8055a8f8 and reached via *(handle + 0x2c). Known
+// fields only; unknown regions are padding. See `docs/projectile-system.md`
+// for the complete offset map and field confidence levels.
+typedef struct ProjectileData
+{
+    void          *gobj;                 // 0x00: back-pointer to outer GObj
+    ProjectileKind kind;                 // 0x04
+    void          *owner_gobj;           // 0x08: self-hit exclusion key
+    int            owner_unk2;           // 0x0c: duplicate owner id for hit attribution
+    u8             pad_10[4];            // 0x10: text/vfx slot ptr (internal)
+    u8             owner_byte;           // 0x14: usually 0
+    u8             pad_15[0x20 - 0x15];  // 0x15..0x1f
+    void          *kind_data;            // 0x20: per-kind scenario data (0x8055a9a8[kind])
+    int            state_index;          // 0x24: arg of Projectile_SetState
+    int            state_table_size;     // 0x28: primary vs overflow cutoff
+    s32            state_id;             // 0x2c: table entry's state_id field
+    const ProjectileStateEntry *state_table_prim; // 0x30: primary table
+    const ProjectileStateEntry *state_table_over; // 0x34: overflow table (unused in vanilla)
+    const ProjectileStateEntry *state_entry;      // 0x38: current entry
+    u8             pad_3c[0x70 - 0x3c];  // 0x3c..0x6f: anim accumulator + sub-vtable refs (internal)
+    float          velocity_scale;       // 0x70: desc.velocity_scale copy
+    float          cur_scale;            // 0x74
+    int            type_flag;            // 0x78: desc.type_flag copy
+    u8             pad_7c[0x88 - 0x7c];  // 0x7c..0x87: linear accel (per-frame integrated)
+    Vec3           spawn_velocity;       // 0x88: desc.velocity snapshot (read-only after create)
+    Vec3           velocity;             // 0x94: live physics velocity
+    u8             pad_a0[0xac - 0xa0];  // 0xa0
+    Vec3           position;             // 0xac: live world position
+    Vec3           position_prev;        // 0xb8: previous frame (used by swept collision)
+    Vec3           position_init;        // 0xc4: spawn position (collision anchor)
+    u8             pad_d0[0x108 - 0xd0]; // 0xd0..0x107: rotation basis, sub-object refs (internal)
+    void          *hurt_data;            // 0x108: HurtData allocated by Projectile_InitHurtData
+    int            lifetime;             // 0x10c: frames remaining; prio-1 decrements
+    int            frame_counter;        // 0x110: monotonic, incremented by prio-0
+    void          *audio_voice_a;        // 0x114
+    void          *audio_voice_b;        // 0x118
+    u8             pad_11c[0x14c - 0x11c]; // 0x11c..0x14b
+    float          charge;               // 0x14c: desc.charge copy
+    void         (*state_fn0)(void *p);  // 0x150: copied from state entry by Projectile_SetState
+    void         (*state_fn1)(void *p);  // 0x154
+    void         (*state_fn2)(void *p);  // 0x158
+    void         (*state_fn3)(void *p);  // 0x15c
+    void         (*user_hook_0)(void *p);     // 0x160: per-state hook, invoked at prio 0
+    void         (*user_hook_1)(void *p);     // 0x164: per-state hook, invoked at prio 7
+    void         (*user_hook_2)(void *p);     // 0x168
+    int          (*user_hook_on_hit)(void *p);// 0x16c: prio-10 on-hit callback; return non-zero to request state transition
+    u8             pad_170[0x1b4 - 0x170]; // 0x170..0x1b3: hit sub-struct (internal)
+    u8             flag_a;               // 0x1b4: bit 0 = allow-self-hit (default 0)
+    u8             flag_b;               // 0x1b5: bit 0 = env-colliding this frame; bit 2 = alive marker (always on)
+    u8             flag_c;               // 0x1b6: audio + anim-dirty bits
+    u8             pad_1b7;              // 0x1b7
+    u8             kind_scratch[0x218 - 0x1b8]; // 0x1b8..0x217: per-kind scratch (owner info Vec3 / audio handles / timers)
+    u8             flag_d;               // 0x218: subproc-gating; bit 0 always set
+    u8             pad_219[0x220 - 0x219]; // 0x219..0x21f
+} ProjectileData;
+// _Static_assert(sizeof(ProjectileData) == 0x220, "ProjectileData size mismatch");
+
 // Creates a projectile from a pre-filled descriptor. Does not touch rider
 // bones or rider state — takes everything it needs from the desc. The
 // `kind` field indexes global tables at 0x8055a9a8 and 0x804b4338, so
 // only kinds in 0..PROJKIND_NUM-1 are valid.
-int Projectile_Create(ProjectileDesc *desc); // 0x8021f428
+//
+// Returns an opaque proc handle. Use Projectile_GetData() to reach the inner
+// struct. Post-init leaves the projectile in state index 0; for bomb/sensor
+// bomb/gordo that state is "held in the rider's hand" and requires a separate
+// state transition before physics/detonation logic runs — see
+// Projectile_SetState and the recipe in docs/projectile-system.md.
+void *Projectile_Create(ProjectileDesc *desc); // 0x8021f428
 
-// Rider-side projectile spawn helpers used by copy abilities. Each one
-// reads the rider's ability_hat_model chain at (*rd->ability_hat_model +
-// 0x120) to get the throw bone and calls Projectile_Create with a kind-
-// specific ID. spawnBomb is called by the Bomb copy ability; spawnGordo
-// is called by Phan Phan's throw AI; spawnSensorBomb is the sensor bomb
-// variant of the Bomb ability. These require ability_hat_model to be
-// non-null (Bomb hat loaded) or they assert.
-void spawnBomb(RiderData *rd);         // 0x801a9410, PROJKIND_BOMB
-void spawnSensorBomb(RiderData *rd);   // 0x801a9e78, PROJKIND_SENSORBOMB
-void spawnGordo(RiderData *rd);        // 0x801aa028, PROJKIND_GORDO
+// Transitions a projectile (inner data pointer) to the given state entry
+// index. Copies the entry's fn0..fn3 into proj+0x150..0x15c, writes
+// proj+0x24 = state_index and proj+0x2c = state_id.
+//
+// Does NOT touch physics velocity at proj+0x94..0x9c — set that yourself
+// before calling, mirroring vanilla throw() ordering. `f_blend_a`/`f_blend_b`
+// are animation blend params (vanilla passes 1.0 for both). `flags` bit 0
+// set skips a rider-attached cleanup path (vanilla throw passes 1 for
+// THROWN transitions; post-init passes 0 for initial HELD setup).
+void Projectile_SetState(void *proj, int state_index,
+                         float f_blend_a, float f_blend_b, int flags); // 0x8021f7dc
+
+// Trivial 3-instruction accessor at 0x8022312c: returns proj->owner_gobj.
+// Used by every victim-side hit-check for self-hit exclusion.
+void *Projectile_GetOwnerGObj(void *projGObj); // 0x8022312c
+
+// Convenience: return the inner ProjectileData from the outer handle.
+// Implemented by callers as `*(ProjectileData **)((u8 *)handle + 0x2c)`;
+// not a vanilla symbol, exposed here only as a documented pattern.
+static inline ProjectileData *Projectile_GetData(void *handle) {
+    return *(ProjectileData **)((u8 *)handle + 0x2c);
+}
+
+// Rider-side projectile spawn helpers used by copy abilities. All require
+// the rider to have the matching ability hat/model loaded; they assert on
+// rd->ability_hat_model being non-null. Position/forward/up are read from
+// the rider's hand bone; velocity from the machine's
+// projectile_inherit_velocity plus rider->self_vel.
+void spawnStarBullet(RiderData *rd, int flag);            // 0x801a8c80, PROJKIND_SWORD_STAR_{A,B}
+void spawnStarBullet_charged(RiderData *rd);              // 0x801a8df8, PROJKIND_SWORD_STAR_CHARGED
+void spawnFireBullet(RiderData *rd, Vec3 *pos);           // 0x801a8f68, PROJKIND_FIRE_BULLET
+void spawnFireAura(RiderData *rd, int kind_variant);      // 0x801a9178, PROJKIND_FIRE_AURA
+void spawnBomb(RiderData *rd);                            // 0x801a9410, PROJKIND_BOMB
+void spawnPlasmaBullet(RiderData *rd, int charge_mode);   // 0x801a95a0, PROJKIND_PLASMA_{A,B,C,D}
+void spawnPlasmaSpread(RiderData *rd, int which);         // 0x801a9870, PROJKIND_PLASMA_SPREAD_{MID,SIDE}
+void spawnSpikeAura(RiderData *rd);                       // 0x801a9a54, PROJKIND_SPIKE_AURA
+void spawnIceAura(RiderData *rd);                         // 0x801a9b84, PROJKIND_ICE_AURA
+void spawnCrackerBullet(RiderData *rd, Vec3 *pos, Vec3 *forward); // 0x801a9cb4, PROJKIND_FIRECRACKER
+void spawnSensorBomb(RiderData *rd);                      // 0x801a9e78, PROJKIND_SENSORBOMB
+void spawnGordo(RiderData *rd);                           // 0x801aa028, PROJKIND_GORDO
+
+// Throw / transition wrappers. These act on an already-created projectile
+// (returned by one of the spawn* helpers above), mutating it in place.
+void Rider_TryThrowBomb(void *projGObj, Vec3 *unused, Vec3 *velocity); // 0x801a9580 → 0x80225824
+void Rider_TryThrowSensorBomb(void *projGObj, Vec3 *velocity);         // 0x801a9fe8 → 0x80228f08
+int  Rider_IsGordoThrowable(void *projGObj);                           // 0x801aa008 → 0x8022a244 (PREDICATE, not a throw)
 
 #endif // KAR_H_PROJECTILE
