@@ -620,7 +620,7 @@ struct ScMenuCommon
     int xec4;                    // 0xec4
     int xec8;                    // 0xec8
     int xecc;                    // 0xecc
-    int xed0;                    // 0xed0
+    GOBJ *clearchecker_gobj;     // 0xed0, set while a checklist minor scene is active
     int xed4;                    // 0xed4
     int xed8;                    // 0xed8
     int xedc;                    // 0xedc

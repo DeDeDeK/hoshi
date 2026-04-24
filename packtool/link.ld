@@ -587,6 +587,8 @@ SECTIONS
   Projectile_SetState = 0x8021f7dc;
   Projectile_GetOwnerGObj = 0x8022312c;
   Projectile_Despawn = 0x80220364;
+  Projectile_DespawnGObj = 0x802230a0;
+  Projectile_AssignStateFlags = 0x80222298;
   Rider_TryThrowBomb = 0x801a9580;
   Rider_TryThrowSensorBomb = 0x801a9fe8;
   Rider_IsGordoThrowable = 0x801aa008;

@@ -2719,6 +2719,7 @@ static PlayerData *stc_playerdata = (PlayerData *)0x8055a9f0; // 4 of these
 static u8 *stc_clear_num = (u8 *)0x805d51d0;                          // array indexed by GMMODE, stores clear count per mode
 static RewardEntry **stc_reward_table_ptrs = (RewardEntry **)0x8049755C; // 3 pointers to per-mode reward tables. Indexed by GMMODE
 static u8 *stc_special_rewards = (u8 *)0x804AD270;                     // 5 special reward indices per mode (15 bytes total)
+static u8 **stc_audio_preview_tables = (u8 **)0x804AD2EC;              // 3 pointers to per-mode checklist audio preview tables ({reward_index, song_id} pairs, 0xFF-terminated). Indexed by GMMODE
 
 static BGMDesc *stc_bgm_desc = (BGMDesc *)0x80498750;
 
