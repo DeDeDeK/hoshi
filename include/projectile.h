@@ -59,7 +59,10 @@ typedef struct ProjectileDesc
     Vec3 up;                // 0x28: up unit vector
     float velocity_scale;   // 0x34: scalar multiplier, vanilla passes 1.0 (FLOAT_805e1348)
     Vec3 velocity;          // 0x38: initial velocity (vanilla: md->projectile_inherit_velocity + rider->self_vel)
-    int type_flag;          // 0x44: vanilla passes 1
+    int type_flag;          // 0x44: every traced vanilla spawner passes 1 (BOMB confirmed via disasm).
+                            //       Copied verbatim to proj+0x78; no routing into per-frame branches has been found.
+                            //       Older notes that called out a 1/3/4 aura/directed/thrown enum were speculation
+                            //       and are contradicted by BOMB writing 1 — treat values >1 as uncharted.
     float charge;           // 0x48: vanilla reads md->projectile_charge_scale
 } ProjectileDesc;
 
@@ -162,6 +165,36 @@ typedef struct ProjectileStateEntry
     void (*fn3)(void *proj);       // 0x14: prio-6 tick (post-collision, aura re-snap)
 } ProjectileStateEntry;
 
+// Per-kind data struct at *(0x8055a9a8 + kind*4). The table itself is NULL
+// in the main-menu memory dump — it's populated at stage load (writers live
+// in .data, not executable code, so they don't appear in disassembly). The
+// unload-side clearer is at 0x8022011c (zeroes all 17 slots). Field layout
+// from traced reads across Projectile_Create, Projectile_SetState, and
+// Projectile_InitHurtData:
+//
+//   +0x00: ProjectileStateEntry * state_table      (Solid; vtable[0] copy)
+//   +0x04: always NULL                             (Solid)
+//   +0x08: pointer, purpose unknown                (Plausible: read by
+//          Projectile_Create as a struct whose first two words land at
+//          proj+0x18 and proj+0x1c — model-data candidates)
+//   +0x0c: void * state_anim_spec_array            (Solid; 16-byte stride,
+//          indexed by state_id, result at proj+0x38)
+//   +0x10: void * hurt_region_spec                 (Solid; 0x18-byte stride
+//          per region, used by Projectile_InitHurtData at 0x80221440)
+//   +0x14..0x30: per-kind scalars (damage / knockback / radius / timers).
+//          Explosion-class kinds (BOMB, SENSORBOMB) read from this range;
+//          exact per-offset mapping has not been fully traced since the
+//          table is unpopulated in the main-menu dump.
+typedef struct ProjKindData
+{
+    const ProjectileStateEntry *state_table;           // +0x00
+    void                       *reserved_04;            // +0x04: always NULL
+    void                       *unknown_08;             // +0x08: model-data candidate
+    const void                 *state_anim_spec_array;  // +0x0c: 16-byte stride by state_id
+    const void                 *hurt_region_spec;       // +0x10: 0x18-byte stride HurtData regions
+    // +0x14 onward: per-kind scalars, untyped here until a runtime dump lands.
+} ProjKindData;
+
 // Per-kind vtable at *(0x804b4338 + kind*4). One vtable per ProjectileKind;
 // two kind pairs (5/6, 7/8) alias to the same vtable.
 typedef struct ProjKindVTable
@@ -191,11 +224,23 @@ typedef struct ProjectileData
     u8             pad_15[0x20 - 0x15];  // 0x15..0x1f
     void          *kind_data;            // 0x20: per-kind scenario data (0x8055a9a8[kind])
     int            state_index;          // 0x24: arg of Projectile_SetState
-    int            state_table_size;     // 0x28: primary vs overflow cutoff
-    s32            state_id;             // 0x2c: table entry's state_id field
-    const ProjectileStateEntry *state_table_prim; // 0x30: primary table
-    const ProjectileStateEntry *state_table_over; // 0x34: overflow table (unused in vanilla)
-    const ProjectileStateEntry *state_entry;      // 0x38: current entry
+    int            state_table_split;    // 0x28: cutoff for the two-table switch in Projectile_SetState:
+                                         //       if state_index < split, use proj+0x30; else use proj+0x34.
+                                         //       Projectile_Create hardcodes this to 0, and no vanilla code
+                                         //       rewrites it, so the proj+0x30 branch is dead — every state
+                                         //       transition falls into the proj+0x34 branch. Left as a field
+                                         //       in case a future caller wants an extension table at +0x30.
+    s32            state_id;             // 0x2c: table entry's state_id field, written by Projectile_SetState
+    const ProjectileStateEntry *state_table_ext;  // 0x30: extension state table. Never written by vanilla
+                                         //       (stays at its memset-0 default) and never read thanks to
+                                         //       proj+0x28 being 0. Intended for future/mod extension sets.
+    const ProjectileStateEntry *state_table;      // 0x34: primary state table, loaded by Projectile_Create
+                                         //       from kind_data+0x00 (which is vtable[0].state_table).
+                                         //       Every vanilla SetState dispatch reads from here.
+    void          *state_anim_spec;      // 0x38: per-state animation/blend data, written by Projectile_SetState
+                                         //       as `kind_data[0x0C] + state_id*16` — a 16-byte array indexed by
+                                         //       state_id. Not the 24-byte state_table entry; the entry itself
+                                         //       is used transiently and not stored back on proj.
     u8             pad_3c[0x70 - 0x3c];  // 0x3c..0x6f: anim accumulator + sub-vtable refs (internal)
     float          velocity_scale;       // 0x70: desc.velocity_scale copy
     float          cur_scale;            // 0x74
@@ -261,6 +306,20 @@ void Projectile_SetState(void *proj, int state_index,
 // Trivial 3-instruction accessor at 0x8022312c: returns proj->owner_gobj.
 // Used by every victim-side hit-check for self-hit exclusion.
 void *Projectile_GetOwnerGObj(void *projGObj); // 0x8022312c
+
+// Despawn a projectile given its outer GObj handle. Thin wrapper: loads the
+// inner ProjectileData from gobj+0x2c then tail-calls Projectile_Despawn, so
+// the per-kind aux_a vtable slot still runs before GObj_Destroy. Vanilla uses
+// this from the copy-ability LoseAbility handlers (Fire / Spike / Ice) to
+// destroy the held aura stored at rider+0x3F0.
+void Projectile_DespawnGObj(void *projGObj); // 0x802230a0
+
+// Writes the state-entry flags word into the projectile's per-state animation
+// bytes (proj+0x17c / 0x184 / 0x18a / 0x18b). Called by Projectile_SetState
+// every time a new entry is selected; not something mod code normally calls
+// directly, but listed here because it's the site where flags semantics are
+// finally consumed — useful when investigating animation-class behavior.
+void Projectile_AssignStateFlags(void *proj, int flags); // 0x80222298
 
 // Convenience: return the inner ProjectileData from the outer handle.
 // Implemented by callers as `*(ProjectileData **)((u8 *)handle + 0x2c)`;

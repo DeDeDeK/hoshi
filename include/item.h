@@ -1034,12 +1034,12 @@ typedef enum TopRideItemKind
     TRITEM_NEEDLE,          // 12 a2dIT0b AC_Sdrill_kusudama
     TRITEM_BOMB,            // 13 a2dIT08 AC_bomb
     TRITEM_LANDMINE,        // 14 a2dIT10 AC_landbomb
-    TRITEM_SENSORBOMB,      // 15 a2dIT11 AC_lanthanum
+    TRITEM_LANTERN,         // 15 a2dIT11 AC_lanthanum — "New Item: Lantern" (TR checklist reward 10)
     TRITEM_MIKE,            // 16 a2dIT16 AC_mike
     TRITEM_CRACKER,         // 17 a2dIT12 AC_clakko
-    TRITEM_METAKNIGHT,      // 18 a2dIT13 AC_meta
+    TRITEM_WHO_PAINT,       // 18 a2dIT13 AC_meta — "New Item: Who? Paint" (TR checklist reward 9)
     TRITEM_SMOKESCREEN,     // 19 a2dIT17 AC_kemuron
-    TRITEM_DIZZY,           // 20 a2dIT18 AC_piyo
+    TRITEM_CHICKIE,         // 20 a2dIT18 AC_piyo — "New Item: Chickie" (TR checklist reward 8)
     TRITEM_BACKWARD,        // 21 a2dIT20 AC_usiro
     TRITEM_NUM,
 } TopRideItemKind;
