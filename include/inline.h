@@ -10,6 +10,9 @@
 #include "scene.h"
 #include "preload.h"
 #include "ip.h"
+#include "item.h"
+#include "machine.h"
+#include "game.h"
 
 #include <string.h>
 #include <stdio.h>
@@ -908,5 +911,55 @@ static char* SOInetNtoP(int af, void* src, char* dst, u32 len) {
     return NULL;
 }
 
+// Spawn an item at the given player's machine position.
+//
+// For most ItemKinds we drive Machine_OnTouchItem(md, id) immediately so the
+// pickup happens on the same frame -- the effect-id switch in
+// Machine_OnTouchItem (0x801db550) dispatches direct calls to
+// Machine_GivePatch / Machine_GiveAbility / Stadium_GiveAbility / etc. for
+// regular patches, ALL-UP, copy abilities, food, and stat traps, all of
+// which apply atomically in-place.
+//
+// ITKIND_*FAKE is the exception. Effect 37 in the same switch reaches
+// CityItem_ProcessFakeItem -> Machine_ApplyHurt -> HitColl_SetDamageLog,
+// and the log entry only takes effect once HitColl_ActOnCollision +
+// Machine_ActOnHitCollision run later in Machine_UpdateHitColl. Calling
+// Machine_OnTouchItem outside of a natural collision frame writes the log
+// entry but the next HitColl_Init clears it before any actuation runs, so
+// the fake-patch hit silently drops. For fake items we skip the manual
+// pickup and let the natural per-frame collision pass catch the spawned
+// item next frame -- the spawn is at md->pos so the catch is reliable.
+//
+// Caller must guarantee item data tables are loaded (Item_CheckIsLoaded()).
+// Crashes inside Item_GetItDataPtr in AR / CT Free Run / stadium modes
+// otherwise.
+static inline void SpawnItemPlayer(int ply, ItemKind kind)
+{
+    GOBJ *mg = Ply_GetMachineGObj(ply);
+    if (!mg) return;
+    MachineData *md = mg->userdata;
+    ItemDesc desc;
+    Item_InitDesc(&desc, kind, 1.0f, 0, &md->pos, &md->up, &md->forward,
+                  -1, -1, 1, 3, -1, -1);
+    GOBJ *item_gobj = Item_Create(&desc);
+    if (!item_gobj) return;
+
+    if (kind < ITKIND_ACCELFAKE || kind > ITKIND_WEIGHTFAKE)
+    {
+        ItemData *id = item_gobj->userdata;
+        Machine_OnTouchItem(md, id);
+    }
+}
+
+// Spawn the given item for every human player. See SpawnItemPlayer for
+// caller invariants.
+static inline void SpawnItemHumans(ItemKind kind)
+{
+    for (int i = 0; i < 5; i++)
+    {
+        if (Ply_GetPKind(i) == PKIND_HMN)
+            SpawnItemPlayer(i, kind);
+    }
+}
 
 #endif

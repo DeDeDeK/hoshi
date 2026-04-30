@@ -610,8 +610,12 @@ typedef struct GameData // 805359d8
     int xec;                           // 0xec
     int xf0;                           // 0xf0
     int xf4;                           // 0xf4
-    int xf8;                           // 0xf8
-    int xfc;                           // 0xfc
+    struct
+    {
+        u8 cursor;             // 0xf8, current grid cursor on the Top Ride course-select screen (0-6 = course, 7 = random)
+        u8 xf9[5];             // 0xf9-0xfd
+        u16 used_history_mask; // 0xfe, bitmask of recently-picked courses (vanilla anti-repeat for the random button)
+    } topride_course_select;           // 0xf8
     int x100;                          // 0x100
     int x104;                          // 0x104
     struct
@@ -1223,19 +1227,7 @@ typedef struct GameData // 805359d8
     int xabc;                        // 0xabc
     int xac0;                        // 0xac0
     int xac4;                        // 0xac4
-    PlayerDesc ply_desc[4];          // 0xac8
-    int xb88;                        // 0xb88
-    int xb8c;                        // 0xb8c
-    int xb90;                        // 0xb90
-    int xb94;                        // 0xb94
-    int xb98;                        // 0xb98
-    int xb9c;                        // 0xb9c
-    int xba0;                        // 0xba0
-    int xba4;                        // 0xba4
-    int xba8;                        // 0xba8
-    int xbac;                        // 0xbac
-    int xbb0;                        // 0xbb0
-    int xbb4;                        // 0xbb4
+    PlayerDesc ply_desc[5];          // 0xac8 — gameplay loops iterate < 5; controller-bound loops (rumble, view) iterate < 4. Slot 4 is allocated and managed but appears unused by vanilla code paths (vestigial over-allocation, parallels stc_playerdata[5]).
     struct                           // 0xbb8
     {
         s8 ply;                      // 0x0
@@ -1433,6 +1425,22 @@ typedef struct GameData // 805359d8
     // actual size is 0x1518
 } GameData;
 
+// Per-mode tuning block for the patch-drop pipeline. Three of these live in
+// Game3dData at 0x1d4 / 0x1ec / 0x204, one per `patch_drop_mode` (0/1/2).
+// Sub-handlers (Rider_TickDropAllUp, Rider_SpawnDropPatchSeq) interpolate
+// between the (lo, hi) pairs with a uniform random factor; pair C scales
+// the spawn velocity vector, pairs A/B feed two scalar args to SpawnItem
+// (semantics not fully nailed down — see docs/patch-drop-system.md).
+typedef struct PatchDropModeParams
+{
+    f32 lo_a;  // 0x00
+    f32 hi_a;  // 0x04
+    f32 lo_b;  // 0x08
+    f32 hi_b;  // 0x0c
+    f32 lo_c;  // 0x10
+    f32 hi_c;  // 0x14
+} PatchDropModeParams;
+
 typedef struct Game3dData
 {
     u8 plyview_num;                               // 0x0
@@ -1524,33 +1532,21 @@ typedef struct Game3dData
     int x1b0;                                     // 0x1b0
     int x1b4;                                     // 0x1b4
     int x1b8;                                     // 0x1b8
-    int x1bc;                                     // 0x1bc
-    int x1c0;                                     // 0x1c0
-    int x1c4;                                     // 0x1c4
-    int x1c8;                                     // 0x1c8
-    int x1cc;                                     // 0x1cc
+    // --- patch-drop pipeline tuning block (0x1bc..0x224) ---
+    // See Rider_DropPatches / Rider_TickDropPatches and docs/patch-drop-system.md.
+    int patch_drop_mode0_count;                   // 0x1bc, fixed drop count when caller passes 0 with mode 0
+    int patch_drop_spawn_arg7;                    // 0x1c0, passed verbatim as r7 (4th int arg) to SpawnItem (0x80253ce4)
+    f32 patch_drop_spawn_y_bias;                  // 0x1c4, added to spawn position Y in both sub-handlers
+    f32 patch_drop_mode2_factor;                  // 0x1c8, multiplied with sum-of-positive-stats to size mode-2 drops
+    f32 patch_drop_mode1_factor;                  // 0x1cc, multiplied with sum-of-positive-stats to size mode-1 drops
     int x1d0;                                     // 0x1d0
-    int x1d4;                                     // 0x1d4
-    int x1d8;                                     // 0x1d8
-    int x1dc;                                     // 0x1dc
-    int x1e0;                                     // 0x1e0
-    int x1e4;                                     // 0x1e4
-    int x1e8;                                     // 0x1e8
-    int x1ec;                                     // 0x1ec
-    int x1f0;                                     // 0x1f0
-    int x1f4;                                     // 0x1f4
-    int x1f8;                                     // 0x1f8
-    int x1fc;                                     // 0x1fc
-    int x200;                                     // 0x200
-    int x204;                                     // 0x204
-    int x208;                                     // 0x208
-    int x20c;                                     // 0x20c
-    int x210;                                     // 0x210
-    int x214;                                     // 0x214
-    int x218;                                     // 0x218
-    int x21c;                                     // 0x21c
-    int x220;                                     // 0x220
-    int x224;                                     // 0x224
+    PatchDropModeParams patch_drop_mode0_params;  // 0x1d4
+    PatchDropModeParams patch_drop_mode1_params;  // 0x1ec
+    PatchDropModeParams patch_drop_mode2_params;  // 0x204
+    int patch_drop_cooldown_init;                 // 0x21c, frames until the next spawn after a successful one
+    int patch_drop_burst_threshold;               // 0x220, when patch_drop_progress reaches this, switch from sequential to burst
+    int patch_drop_allup_rng_max;                 // 0x224, mode-0 only: HSD_Randi ceiling for the all-up RNG roll
+    // --- end patch-drop tuning block ---
     int x228;                                     // 0x228
     int x22c;                                     // 0x22c
     int x230;                                     // 0x230
@@ -2262,6 +2258,55 @@ typedef struct RewardEntry
     u8 clear_kind;      // 0x02, which ClearKind (0-119) this reward maps to
 } RewardEntry;
 
+// Indexed by RewardType. Returns "?" for unrecognized values.
+static inline const char *Reward_TypeName(u8 rtype)
+{
+    static const char *kRewardTypeNames[] = {
+        [REWARD_FILLER]                  = "Filler",
+        [REWARD_BONUS_MOVIE]             = "BonusMovie",
+        [REWARD_EXTRA_RULE]              = "ExtraRule",
+        [REWARD_STADIUM]                 = "Stadium",
+        [REWARD_SOUND_TEST]              = "SoundTest",
+        [REWARD_MUSIC]                   = "Music",
+        [REWARD_ENDING]                  = "Ending",
+        [REWARD_COURSE]                  = "Course",
+        [REWARD_PAUSE_POWERUPS]          = "PausePowerups",
+        [REWARD_MACHINE_WINGED_STAR]     = "Machine:WingedStar",
+        [REWARD_MACHINE_WAGON_STAR]      = "Machine:WagonStar",
+        [REWARD_MACHINE_SWERVE_STAR]     = "Machine:SwerveStar",
+        [REWARD_MACHINE_BULK_STAR]       = "Machine:BulkStar",
+        [REWARD_MACHINE_WHEELIE_BIKE]    = "Machine:WheelieBike",
+        [REWARD_MACHINE_SLICK_STAR]      = "Machine:SlickStar",
+        [REWARD_MACHINE_FORMULA_STAR]    = "Machine:FormulaStar",
+        [REWARD_MACHINE_SHADOW_STAR]     = "Machine:ShadowStar",
+        [REWARD_MACHINE_WHEELIE_SCOOTER] = "Machine:WheelieScooter",
+        [REWARD_MACHINE_ROCKET_STAR]     = "Machine:RocketStar",
+        [REWARD_MACHINE_TURBO_STAR]      = "Machine:TurboStar",
+        [REWARD_MACHINE_JET_STAR]        = "Machine:JetStar",
+        [REWARD_MACHINE_REX_WHEELIE]     = "Machine:RexWheelie",
+        [REWARD_KING_DEDEDE]             = "Char:KingDedede",
+        [REWARD_META_KNIGHT]             = "Char:MetaKnight",
+        [REWARD_DRAGOON]                 = "Dragoon",
+        [REWARD_HYDRA]                   = "Hydra",
+        [REWARD_DRAGOON_PART_A]          = "DragoonPartA",
+        [REWARD_DRAGOON_PART_B]          = "DragoonPartB",
+        [REWARD_DRAGOON_PART_C]          = "DragoonPartC",
+        [REWARD_HYDRA_PART_X]            = "HydraPartX",
+        [REWARD_HYDRA_PART_Y]            = "HydraPartY",
+        [REWARD_HYDRA_PART_Z]            = "HydraPartZ",
+        [REWARD_COLOR_GREEN]             = "Color:Green",
+        [REWARD_COLOR_PURPLE]            = "Color:Purple",
+        [REWARD_COLOR_BROWN]             = "Color:Brown",
+        [REWARD_COLOR_WHITE]             = "Color:White",
+        [REWARD_ITEM_CHICKIE]            = "Item:Chickie",
+        [REWARD_ITEM_WHO_PAINT]          = "Item:WhoPaint",
+        [REWARD_ITEM_LANTERN]            = "Item:Lantern",
+    };
+    if (rtype < (sizeof(kRewardTypeNames) / sizeof(kRewardTypeNames[0])) && kRewardTypeNames[rtype])
+        return kRewardTypeNames[rtype];
+    return "?";
+}
+
 typedef struct TopRideStats // 0x34 = 52 bytes. see gmGetClearcheckerType1_2Ptr
 {
     u8 x0;                  // 0x00, unknown
@@ -2445,11 +2490,11 @@ typedef struct grBoxGeneInfo // r13 + 0x610
         struct               // 0x18
         {
             int it_kind;        // 0x0
-            u16 chance_misc;    // 0x4, volcano walls, breaking the star pole, dyna blade (hitting and leaving)
-            u16 chance_tac;     // 0x6, hitting tac
-            u16 chance_meteor;  // 0x8, drops after a meteor explodes
-            u16 chance_pilar;   // 0xA, busting the event pillar
-            u16 chance_chamber; // 0xC, secret chamber,
+            u16 chance_dyna;         // 0x4, dyna blade hits/exits (patches-only pool; possibly other rare misc sources untested)
+            u16 chance_tac;          // 0x6, hitting tac
+            u16 chance_meteor;       // 0x8, drops after a meteor explodes
+            u16 chance_destructible; // 0xA, yaku-break objects: star pole (gryakubreakcoral.c), event pillar + volcano walls (gryakubreakrock.c), houses (gryakubreakhouse.c)
+            u16 chance_chamber; // 0xC, secret chamber
             u16 chance_ufo;     // 0xE, ufo
         } *event_source_drop;
         int event_source_drop_num;    // 0x1c
@@ -2490,8 +2535,8 @@ typedef struct grBoxGeneInfo // r13 + 0x610
     int x14;                          // 0x14, referred to as item lots data @ 800ec068?
     int x18;                          // 0x18
     int item_area_pos_num;            // 0x1c, number of item areas
-    int cur_max_items;                // 0x20
-    int x24;                          // 0x24
+    int cur_num_items;                // 0x20, current count of items spawned. Inc/dec by CityItemSpawn_IncrementNum/DecrementNum. The actual cap is ItemFallDesc.item_max.
+    int total_spawn_count;            // 0x24, lifetime cumulative spawn count (only increments, written by CityItemSpawn_IncrementNum on positive deltas)
     int total_num;                    // 0x28
     int spawn_timer;                  // 0x2c
     int x30;                          // 0x30
@@ -2715,7 +2760,7 @@ static gmDataAll **stc_gmdataall = (gmDataAll **)(0x805dd0e0 + 0x494);
 static int *stc_clearchecker_sfx_last_frame = (int *)(0x805dd0e0 + 0x4B0); // 0x805dd590, last frame ClearChecker_SetNewUnlock played its SFX (one-frame cooldown)
 static int *stc_city_machine_num = (int *)(0x805dd0e0 + 0x754); //
 static u8 *stc_city_starting_machine = (u8 *)0x80495816;
-static PlayerData *stc_playerdata = (PlayerData *)0x8055a9f0; // 4 of these
+static PlayerData *stc_playerdata = (PlayerData *)0x8055a9f0; // 5 of these (slots 0-4). Vanilla iterates < 5; unused slots are set to PKIND_NONE via plSetPlayerKind. Slot 4 has no direct xrefs anywhere in the binary — it is allocated/iterated/zeroed but appears to be dead over-allocation (PKIND_DEMO is used by title screen, menu radar, and TR results, but always targets slots 0-3).
 static u8 *stc_clear_num = (u8 *)0x805d51d0;                          // array indexed by GMMODE, stores clear count per mode
 static RewardEntry **stc_reward_table_ptrs = (RewardEntry **)0x8049755C; // 3 pointers to per-mode reward tables. Indexed by GMMODE
 static u8 *stc_special_rewards = (u8 *)0x804AD270;                     // 5 special reward indices per mode (15 bytes total)
@@ -2853,6 +2898,34 @@ void Ply_UpdateHydraCollection(int ply, int piece_bits);                    // 8
 void Ply_OnLegendaryPieceCollect(int ply, int piece_count);                // 8027a4e8, plays SFX based on piece collection progress
 void Ply_MarkLegendaryMachineAssembled(int ply, int machine_index);        // 80231198, marks legendary machine as assembled (0=Dragoon, 1=Hydra)
 void Ply_PlayFGM(int fgm_id, int ply, int param_3);                       // 80277c84, plays a positional sound effect for a player
+
+// Source enum passed to CityItem_GetEventItem; dispatched through a 13-entry
+// jump table at 0x804a5290. Inputs 4-8, 10, 11 are unmapped (return -1).
+typedef enum EventDropSource
+{
+    EVDROP_DYNA          = 0,  // Dyna Blade hits/exits
+    EVDROP_TAC           = 1,  // Tac (cat enemy)
+    EVDROP_METEOR        = 2,  // Meteor explosion
+    EVDROP_DESTRUCTIBLE  = 3,  // yaku-break objects (rock/house/coral). Reached only via City_SpawnMiscItems descriptor, never as a literal.
+    EVDROP_CHAMBER       = 9,  // Secret Chamber
+    EVDROP_UFO           = 12, // UFO
+} EventDropSource;
+
+ItemKind CityItem_GetEventItem(EventDropSource source);                    // 80254114, weighted random pick from event_source_drop[] using the source's column. Returns -1 if no item.
+ItemKind _CityItem_GetEventItem(EventDropSource source);                   // 800ebe44, internal — public CityItem_GetEventItem just tail-calls this.
+void City_SpawnMiscItems(int *desc, ...);                                  // 80104db0, public dispatch: desc[8]==1 → directed cone (shootPowerUps_); desc[8]==0 → omnidirectional (_City_SpawnMiscItems). desc[7] = drop_source (-1 → fall back to CityEvent_GetRandomItem).
+
+// Spawn one item with a randomized throw velocity. Builds a spawn descriptor
+// (CityItemSpawn_CalculateLifetime → CityItem_Create), validates the throw
+// direction (asserts in itlib.c:853-856), and writes velocity + flags onto
+// the resulting item. Used by the patch-drop pipeline (spawn_group=3) and
+// yakumono-break helpers (spawn_group=4/5/6). See docs/patch-drop-system.md.
+void CityItem_Throw(ItemKind item_kind, int spawn_group, Vec3 *position, Vec3 *velocity, int item_flags, f32 scalar_a, f32 scalar_b); // 80253ce4
+
+// Yaku-break (destructible object) drop handlers. All three feed into City_SpawnMiscItems.
+void GrYakuBreakRock_DropItems(int param);   // 8010203c, gryakubreakrock.c — volcano walls + event pillars
+void GrYakuBreakHouse_DropItems(int param);  // 80102794, gryakubreakhouse.c — destructible houses
+void GrYakuBreakCoral_DropItems(int param);  // 801040fc, gryakubreakcoral.c — "BigStar" / star pole
 
 // Legendary Machine Assembly
 typedef struct LegendaryAssemblyParams

@@ -300,7 +300,7 @@ void Settings_Think()
         }
         else if (opt_desc->kind == OPTKIND_ACTION && opt_desc->on_action)
         {
-            if (opt_desc->on_action())
+            if (opt_desc->on_action(opt_desc))
             {
                 SFX_Play(FGMMENU_CS_KETTEI);
                 Settings_UpdateCurrentMenu();

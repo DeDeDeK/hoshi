@@ -51,6 +51,47 @@ typedef enum CopyKind
     COPYKIND_NUM,
 } CopyKind;
 
+static const char *const CopyKind_Names[COPYKIND_NUM] = {
+    [COPYKIND_FIRE]    = "Fire",
+    [COPYKIND_WHEEL]   = "Wheel",
+    [COPYKIND_SLEEP]   = "Sleep",
+    [COPYKIND_SWORD]   = "Sword",
+    [COPYKIND_BOMB]    = "Bomb",
+    [COPYKIND_PLASMA]  = "Plasma",
+    [COPYKIND_NEEDLE]  = "Needle",
+    [COPYKIND_MIC]     = "Mic",
+    [COPYKIND_ICE]     = "Ice",
+    [COPYKIND_TORNADO] = "Tornado",
+    [COPYKIND_BIRD]    = "Wing",
+};
+
+// Direct byte values stored in RiderData.color_idx and player-select color[]
+// arrays. Order is the game's: 0-3 are default (P1-P4), 4-7 are checklist
+// unlocks (matches reward labels in docs/checklist-mappings.csv).
+typedef enum KirbyColor
+{
+    KIRBYCOLOR_PINK   = 0,
+    KIRBYCOLOR_YELLOW = 1,
+    KIRBYCOLOR_BLUE   = 2,
+    KIRBYCOLOR_RED    = 3,
+    KIRBYCOLOR_GREEN  = 4,
+    KIRBYCOLOR_PURPLE = 5,
+    KIRBYCOLOR_BROWN  = 6,
+    KIRBYCOLOR_WHITE  = 7,
+    KIRBYCOLOR_NUM    = 8,
+} KirbyColor;
+
+static const char *const KirbyColor_Names[KIRBYCOLOR_NUM] = {
+    [KIRBYCOLOR_PINK]   = "Pink",
+    [KIRBYCOLOR_YELLOW] = "Yellow",
+    [KIRBYCOLOR_BLUE]   = "Blue",
+    [KIRBYCOLOR_RED]    = "Red",
+    [KIRBYCOLOR_GREEN]  = "Green",
+    [KIRBYCOLOR_PURPLE] = "Purple",
+    [KIRBYCOLOR_BROWN]  = "Brown",
+    [KIRBYCOLOR_WHITE]  = "White",
+};
+
 typedef enum PowerUpKind
 {
     POWERUPKIND_NONE = -1,
@@ -291,9 +332,11 @@ typedef struct RiderData
     int x30c;                             // 0x30c
     int x310;                             // 0x310
     int x314;                             // 0x314
-    int x318;                             // 0x318
-    int x31c;                             // 0x31c
-    int x320;                             // 0x320
+    Vec3 hand_bone_pos;                   // 0x318, world-space anchor read by Rider_GetHandBonePos.
+                                          // Used by Bomb_State0_SnapToHand for the bomb HELD-state position
+                                          // and by spawnFireAura/spawnSpikeAura/spawnIceAura as the aura
+                                          // spawn position. Conventionally the rider's hand bone, though
+                                          // not directly verified against the bone table.
     Vec3 forward;                         // 0x324, forward movement vector
     Vec3 up;                              // 0x330, up vector
     Vec3 x33c;                            // 0x33c
@@ -447,12 +490,12 @@ typedef struct RiderData
     int x584;                  // 0x584
     int candy_duration;        // 0x588
     int x58c;                  // 0x58c
-    int x590;                  // 0x590
-    int x594;                  // 0x594
-    int x598;                  // 0x598
-    int x59c;                  // 0x59c
+    int patch_drop_cooldown;   // 0x590, per-spawn cooldown ticked by Rider_TickDropPatches; reset to game_singleton[0x21c] after each spawn. Reset to 0 on a fresh Rider_DropPatches session
+    int patch_drop_progress;   // 0x594, drops dispatched this session; while < game_singleton[0x220], sub-handler uses sequential spawn (zz_8019ce50_); once >= threshold, switches to burst path (random one stat, or all-stats if count >= 9 and all are positive). Reset to 0 on a fresh Rider_DropPatches session
+    int patch_drop_count;      // 0x598, queued patch-item count for the per-frame drop consumer; written by Rider_DropPatches
+    int patch_drop_mode;       // 0x59c, drop_mode argument from the most recent Rider_DropPatches call. Sub-handlers negate the velocity vector at +0x324..+0x32c when mode == 1 (drops land behind the rider); mode 0/2 leave the vector positive (drops land in front)
     int x5a0;                  // 0x5a0
-    int x5a4;                  // 0x5a4
+    int allups_dropped;        // 0x5a4, running count of all-ups extracted by Rider_DropPatches; capped at Ply_GetHydraCollection + Ply_GetDragoonCollection
     int x5a8;                  // 0x5a8
     int x5ac;                  // 0x5ac
     int x5b0;                  // 0x5b0
@@ -819,7 +862,7 @@ void Rider_GiveInvincibility(RiderData *, int time);
 int RiderGObj_GetPly(GOBJ *gobj); // 0x8019203c, returns player index from a rider GOBJ
 int Rider_IsOnMachine(RiderData *);
 int Rider_IsMachineDead(RiderData *);       // can only be called between the RDPRI_HITCOLL and RDPRI_DMGAPPLY priority.
-void Rider_DropPatches(RiderData *, float stat_array[9], int drop_mode); // drop_mode=0,1,2 mode 0 drops a random individual patch, mode 1 drop many patches behind the player, mode 2 drops many patches in front of the player. Mode 1/2 drop all ups if stats are high enough
+void Rider_DropPatches(RiderData *, float stat_array[9], int drop_mode); // 0x8019d330. Enqueues a stat-patch drop event onto RiderData (patch_drop_count/_mode/_progress/_cooldown); Rider_TickDropPatches drains the queue per-frame. drop_mode 0=forward, small fixed count, probabilistic all-up; 1=behind, count scaled by stats, no all-ups; 2=forward, count scaled by stats, all remaining all-ups. See docs/patch-drop-system.md.
 int Rider_CheckCanReceiveAbility(GOBJ *gobj); // returns 1 if rider can receive a copy ability
 int Rider_CheckAndGiveAbility(GOBJ *gobj, int kind); // checks rider is Kirby, then gives copy ability, returns 1 on success
 void Rider_RecordCopyAbility(int ply, int copy_kind); // 0x8022ee00, records ability in history buffer, checks achievement sequences, increments per-ability counters
@@ -838,6 +881,16 @@ int Rider_GivePowerUpByKind(RiderData *rd, PowerUpKind kind); // removes current
 // MachineGObj_GetProjectileBaseVelocity. Used by the rider-side projectile
 // spawners declared in projectile.h.
 void Rider_GetProjectileBaseVelocity(RiderData *rd, Vec3 *out); // 0x8019407c
+
+// 8-instruction Vec3 readers — `gobj` is the rider GObj, `out` is filled with
+// the corresponding RiderData field. Used by HELD-state projectile snap
+// (Bomb_State0_SnapToHand reads hand-bone pos; Gordo_EnterThrownState reads
+// forward + up to derive the throw orientation). The "hand bone" naming for
+// rd+0x318 reflects observed usage by both bomb HELD-snap and the fire/spike/
+// ice aura spawn helpers — the field is not directly named in the struct.
+void Rider_GetHandBonePos(GOBJ *gobj, Vec3 *out); // 0x80191ffc, reads rd[0x318..0x320]
+void Rider_GetForward(GOBJ *gobj, Vec3 *out);     // 0x80191ef8, reads rd->forward (rd+0x324)
+void Rider_GetUp(GOBJ *gobj, Vec3 *out);          // 0x80191f18, reads rd->up      (rd+0x330)
 
 void Rider_SetCandyTimer(GOBJ *gobj, int duration); // stores duration in rd->candy_duration, enters rider state 47 (countdown timer)
 

@@ -4,6 +4,7 @@
 #include "datatypes.h"
 #include "obj.h"
 #include "scene.h"
+#include "machine.h"
 
 typedef enum MainMenuTopMenuKind
 {
@@ -109,5 +110,16 @@ MenuElementData *MenuElement_AddData(GOBJ *menu_element_gobj, int element_kind);
 
 CharacterKind SelIcon_GetCKind(int row_idx, int col_idx);
 CharacterDesc *Character_GetDesc(CharacterKind ckind);
+
+// Resolve a CharacterDesc's machine_kind field to its absolute MachineKind
+// (VCKIND). For non-bikes, machine_kind is the VCKIND directly. For bikes,
+// machine_kind is a bike-relative index and the actual VCKIND is
+// VCKIND_WHEELNORMAL + machine_kind.
+static inline MachineKind CharacterDesc_GetMachineKind(CharacterDesc *desc)
+{
+    if (desc->is_bike)
+        return VCKIND_WHEELNORMAL + desc->machine_kind;
+    return desc->machine_kind;
+}
 
 #endif
