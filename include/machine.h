@@ -39,6 +39,35 @@ typedef enum MachineKind
     VCKIND_NUM,
 } MachineKind;
 
+static const char *const MachineKind_Names[VCKIND_NUM] = {
+    [VCKIND_WARP]           = "Warp Star",
+    [VCKIND_COMPACT]        = "Compact Star",
+    [VCKIND_WINGED]         = "Winged Star",
+    [VCKIND_SHADOW]         = "Shadow Star",
+    [VCKIND_HYDRA]          = "Hydra",
+    [VCKIND_BULK]           = "Bulk Star",
+    [VCKIND_SLICK]          = "Slick Star",
+    [VCKIND_FORMULA]        = "Formula Star",
+    [VCKIND_DRAGOON]        = "Dragoon",
+    [VCKIND_WAGON]          = "Wagon Star",
+    [VCKIND_ROCKET]         = "Rocket Star",
+    [VCKIND_SWERVE]         = "Swerve Star",
+    [VCKIND_TURBO]          = "Turbo Star",
+    [VCKIND_JET]            = "Jet Star",
+    [VCKIND_FLIGHT]         = "Flight Warp Star",
+    [VCKIND_FREE]           = "Free Star",
+    [VCKIND_STEER]          = "Steer Star",
+    [VCKIND_WINGKIRBY]      = "Wing Kirby",
+    [VCKIND_WINGMETAKNIGHT] = "Wing Meta Knight",
+    [VCKIND_WHEELNORMAL]    = "Wheel",
+    [VCKIND_WHEELKIRBY]     = "Wheel Kirby",
+    [VCKIND_WHEELIEBIKE]    = "Wheelie Bike",
+    [VCKIND_REXWHEELIE]     = "Rex Wheelie",
+    [VCKIND_WHEELIESCOOTER] = "Wheelie Scooter",
+    [VCKIND_WHEELDEDEDE]    = "Dedede Wheelie",
+    [VCKIND_WHEELVSDEDEDE]  = "VS Dedede Wheelie",
+};
+
 typedef struct vcStarCommonAttr
 {
     float x0;        // 0x0
@@ -1015,7 +1044,15 @@ void Machine_ApplyColAnim(MachineData *md, int col_anim, int unk);
 void Machine_ApplyStatClamped(float *stat_arr, int stat_idx, int delta); // 0x801e094c, adds delta to stat_arr[stat_idx] and clamps to [Patch_GetMinValue, Patch_GetMaxValue]
 void Machine_ApplyAllStatsClamped(float *stat_arr, int delta); // 0x801e096c, adds delta to all 9 stats and clamps each
 void Machine_UpdateAppearance(MachineData *md); // 0x801d6668, updates machine visual state: stat glow, candy, charge, invincibility, and vehicle-specific effects
-void Machine_AdjustAttributes(MachineData *md); // 0x801c7278, recalculates derived machine attributes from stats
+void Machine_AdjustAttributes(MachineData *md); // 0x801c7278, recalculates derived machine attributes from stats. Dispatches per-vehicle via vcDataCommon+0x1c (attribute memcpy) and +0x20 (Machine_AdjustAttributes{Star,Bike})
+float Machine_GetStatRatio(MachineData *md, int stat_idx);  // 0x801caa8c, returns sum(per-source stat contributions at md+0x94C/+0x970/+0x994/+0x9B8/+0x9E8) / Patch_GetMaxValue() as a float ratio
+float Machine_GetStatRatio2(MachineData *md, int stat_idx); // 0x801cabd4, sibling of Machine_GetStatRatio; same inputs, variant tail math (exact difference TBD)
+float Machine_ScaleFromRatio(float *low_high_pair, float ratio);  // 0x801cab4c, bipolar interpolator: ratio>0 -> 1 + ratio*(high-1); ratio<0 -> 1 + (-ratio)*(low-1); ratio==0 -> 1.0
+float Machine_ScaleFromRatio2(float *low_high_pair, float ratio); // 0x801cab94, sibling of Machine_ScaleFromRatio (near-identical structure, variant TBD)
+void Machine_ApplyStarStatScaling(MachineData *md); // 0x801e81e4, per-stat scaling loop for star machines; calls Machine_GetStatRatio then Machine_ScaleFromRatio against attribute pairs in vcDataKindStar
+void Machine_ApplyBikeStatScaling(MachineData *md); // 0x801f3d44, per-stat scaling loop for wheelie bikes; same pattern, bike-specific attribute offsets
+void Machine_AdjustAttributesStar(MachineData *md); // 0x801e906c, vcDataCommon+0x20 callback for star machines; wraps Machine_ApplyStarStatScaling + post-adjustments
+void Machine_AdjustAttributesBike(MachineData *md); // 0x801f4dac, vcDataCommon+0x20 callback for wheelie bikes; wraps Machine_ApplyBikeStatScaling + post-adjustments
 void Machine_GivePatch(MachineData *, PatchKind, int num);
 void Machine_GiveAllUp(MachineData *, int num);
 void Machine_OnTouchItem(MachineData *, ItemData *);
@@ -1034,6 +1071,7 @@ void Machine_ApplyHurt(void *hurt_subsystem, int index, HurtParams *hurt_params)
 void Machine_ApplyHurtFinal(void *hurt_data, void *hurt_entry, void *hitcoll_data, void *trigger_params); // 0x8018cf94. Alias for HitColl_SetDamageLog. Calculates damage via getDamageDealt, stores in collision log, applies knockback
 void Machine_GiveDamage(MachineData *md, float damage, GOBJ *source_gobj); // 0x801e1ee8. High-level damage: adds to dmg accumulator (MachineData+0x6AC), subtracts HP (MachineData+0xA18), triggers death if HP<=0, applies low-HP color anim. Checks Gm_IsDamageEnabled() before HP reduction. float is passed in f1. source_gobj is used by Machine_OnDamageVisual for hit spark direction (reads +0x20 as forward vector); must not be NULL in City Trial. Does NOT cause knockback/bounce
 void Machine_EnterHitReaction(MachineData *md);        // 0x801e05bc. Transitions machine to hit reaction state (state 5). Causes the "bounce up" animation. Checks if not already in state 5. Calls Machine_OnEnterHitReaction which triggers MachineStateChange to substate 9, plays hit reaction animation. Set HurtData.kb_mag before calling for knockback physics
+void Machine_ActOnHitCollision(MachineData *md);       // 0x801d7308. Per-frame post-collision step inside Machine_UpdateHitColl. Runs after HitColl_ActOnCollision: reads HurtData.kb_mag (offset 0x24); if 0, returns immediately. Otherwise looks up the strongest log entry via HurtData.hitcoll_log_idx (0x1C), then dispatches by attacker kind (cmplwi r0,6 / jump table at 0x804b0d30) into the actual damage / knockback / state-transition handlers (HP loss, Machine_EnterHitReaction, etc.). This — not Machine_EnterHitReaction alone — is what fully consumes a logged hit.
 void Machine_InitHurtData(MachineData *md);            // 0x801d6e84. Creates HurtData for machine via HurtData_Create(HURTKIND_MACHINE), sets callback at HurtData+0x8C, configures hurt descriptors from itData
 HurtData *MachineGObj_GetHurtData(GOBJ *machine_gobj); // 0x801c8660. Returns *(MachineData+0x660) from GOBJ userdata
 

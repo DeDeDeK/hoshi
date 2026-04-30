@@ -22,8 +22,9 @@ typedef enum MenuPriority
 } MenuPriority;
 
 typedef struct MenuDesc MenuDesc;
+typedef struct OptionDesc OptionDesc;
 
-typedef struct OptionDesc
+struct OptionDesc
 {
     char *name;
     char *description;
@@ -48,11 +49,12 @@ typedef struct OptionDesc
         };
         struct
         {
-            int (*on_action)();
+            int (*on_action)(OptionDesc *self);
+            void *user_data;
         };
     };
 
-} OptionDesc;
+};
 
 struct MenuDesc
 {

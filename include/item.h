@@ -32,6 +32,12 @@ typedef enum BoxKind
     BOXKIND_NUM,
 } BoxKind;
 
+static const char *const BoxKind_Names[BOXKIND_NUM] = {
+    [BOXKIND_BLUE]  = "Blue Box",
+    [BOXKIND_GREEN] = "Green Box",
+    [BOXKIND_RED]   = "Red Box",
+};
+
 typedef enum BoxSize
 {
     BOXSIZE_SMALL,  // spawns 1 item @ 80250bcc
@@ -131,6 +137,78 @@ typedef enum ItemKind
     ITKIND_NUM,
 } ItemKind;
 
+static const char *const ItemKind_Names[ITKIND_NUM] = {
+    [ITKIND_BOXBLUE]         = "Blue Box",
+    [ITKIND_BOXGREEN]        = "Green Box",
+    [ITKIND_BOXRED]          = "Red Box",
+    [ITKIND_ACCEL]           = "Boost",
+    [ITKIND_ACCELDOWN]       = "Boost Down",
+    [ITKIND_TOPSPEED]        = "Top Speed",
+    [ITKIND_TOPSPEEDDOWN]    = "Top Speed Down",
+    [ITKIND_OFFENSE]         = "Offense",
+    [ITKIND_OFFENSEDOWN]     = "Offense Down",
+    [ITKIND_DEFENSE]         = "Defense",
+    [ITKIND_DEFENSEDOWN]     = "Defense Down",
+    [ITKIND_TURN]            = "Turn",
+    [ITKIND_TURNDOWN]        = "Turn Down",
+    [ITKIND_GLIDE]           = "Glide",
+    [ITKIND_GLIDEDOWN]       = "Glide Down",
+    [ITKIND_CHARGE]          = "Charge",
+    [ITKIND_CHARGEDOWN]      = "Charge Down",
+    [ITKIND_WEIGHT]          = "Weight",
+    [ITKIND_WEIGHTDOWN]      = "Weight Down",
+    [ITKIND_HP]              = "HP",
+    [ITKIND_ALLUP]           = "All Up",
+    [ITKIND_SPEEDMAX]        = "Speed Max",
+    [ITKIND_SPEEDMIN]        = "Speed Min",
+    [ITKIND_OFFENSEMAX]      = "Offense Max",
+    [ITKIND_DEFENSEMAX]      = "Defense Max",
+    [ITKIND_CHARGEMAX]       = "Charge Max",
+    [ITKIND_CHARGENONE]      = "No Charge",
+    [ITKIND_CANDY]           = "Candy",
+    [ITKIND_COPYBOMB]        = "Bomb",
+    [ITKIND_COPYFIRE]        = "Fire",
+    [ITKIND_COPYICE]         = "Ice",
+    [ITKIND_COPYSLEEP]       = "Sleep",
+    [ITKIND_COPYTIRE]        = "Wheel",
+    [ITKIND_COPYBIRD]        = "Wing",
+    [ITKIND_COPYPLASMA]      = "Plasma",
+    [ITKIND_COPYTORNADO]     = "Tornado",
+    [ITKIND_COPYSWORD]       = "Sword",
+    [ITKIND_COPYSPIKE]       = "Needle",
+    [ITKIND_COPYMIC]         = "Mic",
+    [ITKIND_FOODMAXIMTOMATO] = "Maxim Tomato",
+    [ITKIND_FOODENERGYDRINK] = "Energy Drink",
+    [ITKIND_FOODICECREAM]    = "Ice Cream",
+    [ITKIND_FOODRICEBALL]    = "Rice Ball",
+    [ITKIND_FOODCHICKEN]     = "Chicken",
+    [ITKIND_FOODCURRY]       = "Curry",
+    [ITKIND_FOODRAMEN]       = "Ramen",
+    [ITKIND_FOODOMELET]      = "Omelet",
+    [ITKIND_FOODHAMBURGER]   = "Hamburger",
+    [ITKIND_FOODSUSHI]       = "Sushi",
+    [ITKIND_FOODHOTDOG]      = "Hot Dog",
+    [ITKIND_FOODAPPLE]       = "Apple",
+    [ITKIND_FIREWORKS]       = "Fireworks",
+    [ITKIND_PANICSPIN]       = "Panic Spin",
+    [ITKIND_TIMEBOMB]        = "Time Bomb",
+    [ITKIND_GORDO]           = "Gordo",
+    [ITKIND_HYDRA1]          = "Hydra Piece 1",
+    [ITKIND_HYDRA2]          = "Hydra Piece 2",
+    [ITKIND_HYDRA3]          = "Hydra Piece 3",
+    [ITKIND_DRAGOON1]        = "Dragoon Piece 1",
+    [ITKIND_DRAGOON2]        = "Dragoon Piece 2",
+    [ITKIND_DRAGOON3]        = "Dragoon Piece 3",
+    [ITKIND_ACCELFAKE]       = "Boost Fake",
+    [ITKIND_TOPSPEEDFAKE]    = "Top Speed Fake",
+    [ITKIND_OFFENSEFAKE]     = "Offense Fake",
+    [ITKIND_DEFENSEFAKE]     = "Defense Fake",
+    [ITKIND_TURNFAKE]        = "Turn Fake",
+    [ITKIND_GLIDEFAKE]       = "Glide Fake",
+    [ITKIND_CHARGEFAKE]      = "Charge Fake",
+    [ITKIND_WEIGHTFAKE]      = "Weight Fake",
+};
+
 typedef enum PatchKind
 {
     PATCHKIND_WEIGHT,
@@ -145,37 +223,86 @@ typedef enum PatchKind
     PATCHKIND_NUM,
 } PatchKind;
 
+static const char *const PatchKind_Names[PATCHKIND_NUM] = {
+    [PATCHKIND_WEIGHT]   = "Weight",
+    [PATCHKIND_ACCEL]    = "Boost",
+    [PATCHKIND_TOPSPEED] = "Top Speed",
+    [PATCHKIND_TURN]     = "Turn",
+    [PATCHKIND_CHARGE]   = "Charge",
+    [PATCHKIND_GLIDE]    = "Glide",
+    [PATCHKIND_OFFENSE]  = "Offense",
+    [PATCHKIND_DEFENSE]  = "Defense",
+    [PATCHKIND_HP]       = "HP",
+};
+
+// Per-kind static effect-info: list of stat changes a patch grants on pickup.
+// NULL for non-patch items. The `group` field here (BAD/GOOD/FAKE) is the
+// authoritative ItemGroup for the kind — not the dead mirror at ItemCommonAttr.x24.
+typedef struct PatchEffectInfo
+{
+    struct
+    {
+        int type;           // 0x0, effect type: 0-8 = PatchKind, 9 = AllUp, 0xb-0x25 = special
+        float value;        // 0x4, effect value (e.g. 1.0 for +1 stat)
+    } *entries;             // 0x0
+    int count;              // 0x4, number of entries
+    ItemGroup group;        // 0x8, BAD=0, GOOD=1, FAKE=2
+} PatchEffectInfo;
+
+// Per-kind static attribute table loaded from ItCommon.dat. Most fields are
+// dead in retail (written by CityItem_CopyCommonAttr to ItemData+0x118 mirror,
+// never read). Only scale_factor, cull_distance, land_offset, box_kind, and
+// effect_info are actually consumed.
 typedef struct ItemCommonAttr
 {
-    float scale_factor;     // 0x0, multiplied with ItemData.scale for rendering
-    int x4;                 // 0x4
-    int x8;                 // 0x8
-    float land_offset;      // 0xc, factor for item offset from ground surface on landing
-    int x10;                // 0x10
-    int x14;                // 0x14
-    int x18;                // 0x18
-    BoxKind box_kind;       // 0x1c, type of box this item spawns from
-    int x20;                // 0x20, overridden to -1 by most per-kind init functions
-    int x24;                // 0x24
-    struct                  // 0x28, effect data for patches (NULL for non-patch items)
-    {
-        struct
-        {
-            int type;       // effect type: 0-8 = PatchKind, 9 = AllUp, 0xb+ = special
-            float value;    // effect value (e.g. 1.0 for +1 stat)
-        } *entries;         // 0x0, pointer to array of effect entries
-        int count;          // 0x4, number of entries
-        ItemGroup group;    // 0x8
-    } *effect_info;         // 0x28
+    float scale_factor;     // 0x00, multiplied with ItemData.scale for rendering
+    int x4;                 // 0x04, dead — no readers
+    float cull_distance;    // 0x08, used by Item_GX shadow-cull test (zz_80255fc4_)
+    float land_offset;      // 0x0c, vertical offset above ground surface on landing/raycast
+    int x10;                // 0x10, dead — no readers
+    int x14;                // 0x14, dead — no readers
+    int x18;                // 0x18, dead — no readers
+    BoxKind box_kind;       // 0x1c, which color box pool this item spawns from (live)
+    int x20;                // 0x20, dead — no readers
+    int x24;                // 0x24, dead — real ItemGroup lives in effect_info->group
+    PatchEffectInfo *effect_info; // 0x28, NULL for non-patch items
 } ItemCommonAttr;
+
+// Per-kind tail data, copied at runtime into ItemData.x144 by the per-kind
+// init function (state-table slot +0xC). The buffer is allocated by
+// CityItem_AllocUniqueAttr from the pool descriptor at 0x8055dddc with a
+// fixed 0x38-byte stride — the box family maximum.
+//
+// Of the 68 ItemKinds, 53 share a copy-1-int template that's never read back
+// (dead carry-over from the box family's init template). The 3 box kinds
+// (BOXBLUE/GREEN/RED) actually populate structured fields. Only the box layout
+// is documented here.
+typedef union ItemUniqueAttr
+{
+    struct                      // BOXBLUE / BOXGREEN / BOXRED only — sizeof = 0x38
+    {
+        float x00;              // 0x00, copied to buffer (no readers found)
+        float x04;              // 0x04, copied to buffer (no readers found)
+        float rotation_rate;    // 0x08, applied to ItemData.x394 in box rotation update (0x80257a20)
+        float x0c;              // 0x0c, copied to buffer (no readers found)
+        int   timer_min;        // 0x10, used DIRECT in box pre_init for ItemData.x364 seed
+        int   timer_max;        // 0x14, used DIRECT in box pre_init
+        float wrap_accumulator; // 0x18, summed into ItemData.x15c at 0x802576ac
+        float x1c;              // 0x1c
+        float x20;              // 0x20
+        float x24;              // 0x24
+        float x28;              // 0x28
+        float x2c;              // 0x2c
+        float x30;              // 0x30
+        float effect_scale;     // 0x34, scaled into effect-spawn position at 0x8025710c
+    } box;
+    int x00;                    // all other 53 kinds — single int copied to ItemData.x144 + 0x00; never read back
+} ItemUniqueAttr;
 
 typedef struct itData
 {
     ItemCommonAttr *attr;       // 0x0
-    struct
-    {
-        int x0;
-    } *unique_attr;             // 0x4
+    ItemUniqueAttr *unique_attr; // 0x4, per-kind tail data — only the box family is structured
     struct
     {
         JOBJ *j;
@@ -196,37 +323,66 @@ typedef struct itData
     TriggerDesc *trigger;       // 0x14
 } itData;
 
+// Patch-toss physics descriptor (24 bytes). Two of these live inside
+// ItemCommonParam (offsets 0x5C and 0x80) — one for "good" tosses, one for
+// "bad". Consumed by CityItem_BeginPatchToss (0x80256254) when a machine
+// hits/touches a patch and the patch is ejected from the box.
+typedef struct PatchTossDesc
+{
+    float speed_min;       // 0x00, lower bound of horizontal toss-speed range
+    float speed_max;       // 0x04, upper bound (range = max - min)
+    float horiz_vel_scale; // 0x08, multiplier on rider direction → toss horizontal velocity
+    float drift_accel;     // 0x0c, per-frame horizontal drift acceleration
+    int initial_state;     // 0x10, state-machine kind written to ItemData+0x82
+    float vert_vel_scale;  // 0x14, multiplier on vertical component (sign flipped between good/bad)
+    int initial_timer;     // 0x18, frames-in-state seed for ItemData+0x85
+    float anim_rate_div;   // 0x1c, divisor for animation rate
+} PatchTossDesc;
+
+// Global City Trial item parameters loaded from files/ItCommon.dat (root
+// symbol "itCommonDataAll", first member). Single instance; pointed to by
+// stc_item_param. Fields beyond 0xA4 form a variable-length table indexed by
+// PatchKind × history-position used by the patch-toss flight code.
 typedef struct ItemCommonParam
 {
-    float scale;           // 0x0
-    float x4;              // 0x4
-    float x8;              // 0x8
-    float shadow_scale;    // 0xc
-    float x10;             // 0x10
-    float x14;             // 0x14
-    float x18;             // 0x18
-    float x1c;             // 0x1c
-    int x20;               // 0x20
-    int lifetime_min;      // 0x24
-    int lifetime_variance; // 0x28, added onto lifetime_min
-    int x2c;               // 0x2c
-    int x30;               // 0x30
-    int x34;               // 0x34
-    int x38;               // 0x38
-    int x3c;               // 0x3c
-    int x40;               // 0x40
-    int x44;                // 0x44
-    int x48;               // 0x48
+    float scale;                   // 0x00, global scale multiplier on every spawned item
+    float hardmode_scale_mult;     // 0x04, secondary multiplier when difficulty/checklist gate is active
+    float shadow_scale_alt;        // 0x08, shadow-size multiplier when ItemData.x24 != 0
+    float shadow_scale;            // 0x0c, default shadow-size multiplier
+    // 0x10..0x1c: dead padding — populated from ItCommon.dat at boot but never
+    // read by any code path (verified by exhaustive xref scan; no direct, indirect,
+    // memcpy'd, or address-of access). Not aliased by another SDA pointer.
+    float x10;                     // 0x10
+    float x14;                     // 0x14
+    float x18;                     // 0x18
+    float x1c;                     // 0x1c
+    int box_hit_intangibility_frames; // 0x20, post-hit invuln frames applied to a box's HurtData
+    int lifetime_min;              // 0x24, base item lifetime (frames)
+    int lifetime_variance;         // 0x28, HSD_Randi(variance) added to lifetime_min
+    int child_item_lifetime;       // 0x2c, lifetime assigned to items popped out of a broken box
+    float box_spawn_offset_min_h;  // 0x30, horizontal scatter range min (Box_OutcomeLogic)
+    float box_spawn_offset_max_h;  // 0x34, horizontal scatter range max
+    float box_spawn_offset_min_v;  // 0x38, vertical scatter range min (all-up multi-spawn)
+    float box_spawn_offset_max_v;  // 0x3c, vertical scatter range max
+    float box_spawn_yaw_range;     // 0x40, max yaw rotation (passed to fctiwz → HSD_Randi → RotateVecAroundAxis)
+    float gravity;                 // 0x44, downward acceleration applied to falling items
+    float terminal_fall_speed;     // 0x48, max fall speed enforced via Item_LimitFallSpeed
+    float bounce_tangential_damping;  // 0x4c, friction along surface during bounce
+    float bounce_min_speed_threshold; // 0x50, below this post-damping speed, item stops bouncing
+    float bounce_normal_blend_amount; // 0x54, blend toward surface normal on bounce
+    float enter_fall_initial_grav_scale; // 0x58, single-purpose float consumed by zz_802579d4_
+    PatchTossDesc patch_toss_good; // 0x5c, toss params when CityItem_IsGoodPatch() returns 1
+    PatchTossDesc patch_toss_bad;  // 0x80, toss params when CityItem_IsGoodPatch() returns 0
+    float patch_kind_throw_table[1][4]; // 0xa4, [PatchKind-1][history_idx 0..3] flight perturbation
 } ItemCommonParam;
 
+// Wrapper struct loaded from ItCommon.dat / "itCommonDataAll" symbol.
+// stc_item_param, stc_it_common_data point at this and its first member.
 typedef struct itCommonDataAll
 {
-    ItemCommonParam *param;
-    struct
-    {
-        float x0;
-    } *x4;              // placed at runtime
-    itData *itData;     // placed at runtime
+    ItemCommonParam *param;     // 0x0, copied to stc_item_param at boot
+    void *x4;                   // 0x4, secondary table — purpose unverified
+    itData *itData;             // 0x8, per-kind data array (0x18-byte stride)
 } itCommonDataAll;
 
 typedef struct ItemFallDesc
@@ -331,27 +487,20 @@ typedef struct ItemData
     Vec3 up;                    // 0x10c, normalized up direction
 
     // === Common Attributes Copy (0x118-0x140) ===
-    // Runtime copy of ItemCommonAttr fields, may be overridden by per-kind init
-    float attr_scale;           // 0x118, from ItemCommonAttr.scale_factor, render scale multiplier
-    int attr_x04;               // 0x11c, from ItemCommonAttr.x4
-    int attr_x08;               // 0x120, from ItemCommonAttr.x8
+    // Runtime copy of ItemCommonAttr fields, written by CityItem_CopyCommonAttr.
+    // Most are dead mirrors — listed for offset accuracy, not for use.
+    float attr_scale;           // 0x118, from ItemCommonAttr.scale_factor, used by transform helpers
+    int attr_x04;               // 0x11c, dead mirror
+    float attr_cull_distance;   // 0x120, from ItemCommonAttr.cull_distance, used in Item_GX shadow-cull test
     float attr_land_offset;     // 0x124, from ItemCommonAttr.land_offset, surface offset on landing
-    int attr_x10;               // 0x128, from ItemCommonAttr.x10
-    int attr_x14;               // 0x12c, from ItemCommonAttr.x14
-    int attr_x18;               // 0x130, from ItemCommonAttr.x18
-    int attr_box_kind;          // 0x134, from ItemCommonAttr.box_kind
-    int attr_x20;               // 0x138, from ItemCommonAttr.x20, overridden to -1 by per-kind init
-    int item_group;             // 0x13c, ItemGroup (ITGROUP_FAKE=2 for fake patches, -1 for non-patches). from ItemCommonAttr.x24
-    struct                      // 0x140, effect data used by Patch_GetEffectData / Machine_OnTouchItem. NULL for non-patch items
-    {
-        struct
-        {
-            int type;           // effect type: 0-8 = PatchKind, 9 = AllUp, 0xb-0x25 = special effects
-            float value;        // effect value (e.g. 1.0 for +1 stat)
-        } *entries;             // 0x0, pointer to array of effect entries
-        int count;              // 0x4, number of entries
-    } *effect_data;             // 0x140
-    void *x144;                 // 0x144, allocated from separate object pool
+    int attr_x10;               // 0x128, dead mirror
+    int attr_x14;               // 0x12c, dead mirror
+    int attr_x18;               // 0x130, dead mirror
+    int attr_box_kind;          // 0x134, dead mirror — box_kind is read directly via Item_GetCommonAttr
+    int attr_x20;               // 0x138, dead mirror
+    int attr_x24;               // 0x13c, dead mirror — real ItemGroup is read from effect_data->group when needed
+    PatchEffectInfo *effect_data; // 0x140, NULL for non-patch items; consumed by Patch_GetEffectData / Machine_OnTouchItem
+    void *x144;                 // 0x144, per-kind unique_attr buffer — allocated by CityItem_AllocUnkData and populated by per-kind init
     // === Hurt / Damage (0x148-0x1a0) ===
     HurtData *hurt_data;        // 0x148, created by HurtData_Create during CityItem_InitHurtData
     int x14c;                   // 0x14c
@@ -409,7 +558,7 @@ typedef struct ItemData
     int x218;                   // 0x218
     int x21c;                   // 0x21c
     int x220;                   // 0x220
-    int damage_processed;       // 0x224, cleared after damage processing in HitColl
+    int damage_processed;       // 0x224, "damage taken this frame" latch — cleared at end of CityItem_ApplyDamageFromHurtData (proc priority 10)
     int x228;                   // 0x228
     int effect_gfx_a;           // 0x22c, particle/GFX effect handle
     int effect_gfx_b;           // 0x230, particle/GFX effect handle
@@ -420,7 +569,7 @@ typedef struct ItemData
     // === Audio (0x240-0x24c) ===
     int audio_source;           // 0x240, audio source ID, -1 = not allocated. Set by Item_AllocAudioSource
     int audio_track;            // 0x244, audio track ID. Set by CityItem_AllocAudioTrack
-    int audio_timer;            // 0x248, countdown timer, decremented each frame. Audio freed at 0
+    int audio_timer;            // 0x248, decrement-each-frame timer paired with x35a bit 6. When it hits 0, CityItem_FrameStartTick clears the pickup-lock bit and frees audio
     int bounce_num;             // 0x24c, incremented when bouncing @ 80255a70
 
     // === Trigger (0x250-0x2b0) ===
@@ -472,11 +621,23 @@ typedef struct ItemData
     float x354;                 // 0x354
 
     // === Flags (0x358-0x35b) ===
-    u8 x358;                    // 0x358
+    u8 x358;                    // 0x358, bit 5 (0x20) = visible_this_frame (set by Item_GX cull test)
     u8 x359_f8 : 5;             // 0x359, 0xf8
     u8 coll_kind : 3;           // 0x359, 0x07, collision kind from ItemDesc
-    u8 x35a;                    // 0x35a, various single-bit flags
-    u8 x35b;                    // 0x35b, various single-bit flags
+    // x35a bits, decoded so far:
+    //   bit 0 (0x01) = spawned-from-sky (set by CityItem_MarkAsSkySpawned, used by power-up handlers)
+    //   bit 4 (0x10) = is_grounded (set when item lands; cleared on state change)
+    //   bit 5 (0x20) = persistent pickup-lock — "this is a box, never collectible" (set by box init)
+    //   bit 6 (0x40) = temporary pickup-lock — spawn-anim or audio busy (paired with audio_timer)
+    //   bit 7 (0x80) = cleared on every state change; gates trigger/coll debug overlay in Item_GX
+    // CityItem_CanCollect returns 1 iff bits 5 AND 6 are both clear.
+    u8 x35a;                    // 0x35a
+    // x35b bits, decoded so far:
+    //   bit 5 (0x20) = model_hidden (mirrors JOBJ_HIDDEN on the rendered jobj)
+    //   bit 6 (0x40) = caller-supplied init flag from ItemDesc (purpose unclear)
+    //   bit 7 (0x80) = settled / no-further-state-work — set by CityItem_SetX35bBit7
+    //                  from per-state-kind callbacks at end-of-state (suspected: rest state)
+    u8 x35b;                    // 0x35b
 
     // === Box Specific (0x35c-0x360) ===
     int forced_item;            // 0x35c, predetermined ItemKind for box contents. -1 = random, -2 = no items
@@ -1007,13 +1168,40 @@ typedef struct ItemData
     int xb60;                   // 0xb60
 } ItemData;
 
-typedef struct ItemParam2
+// City Trial event-mode flag bits (CityItemMgr.flags). Each bit has paired
+// set/clear functions at 0x80254144..0x802542C0; setters are called from the
+// matching event_*_start handler and clearers from the corresponding _end.
+typedef enum CityEventSpawnFlag
 {
-    int max_items; // 0x0
-} ItemParam2;
+    CTEVF_DYNABLADE     = 1 << 0, // event_dynablade_start  → SetDynabladeEventFlag
+    CTEVF_METEOR        = 1 << 1, // event_meteor_start     → SetMeteorEventFlag
+    CTEVF_LOCATOR       = 1 << 2, // event_rubberyItems_start → InitLocatorEvent (also sets loc_pos/params)
+    CTEVF_FAKEITEMS     = 1 << 3, // event_fakeItems_start  → InitFakeEvent
+    CTEVF_SAMEITEMS     = 1 << 4, // event_sameItems_start  → SetSameItemsEventFlag
+} CityEventSpawnFlag;
 
-static ItemCommonParam **stc_item_param = (ItemCommonParam **)(0x805dd0e0 + 0x7E8);
-static ItemParam2 **stc_item_param2 = (ItemParam2 **)(0x805dd0e0 + 0x7EC);
+// City Trial item manager (0x1c8 bytes). Allocated once at boot by Item_InitObj
+// (0x8024e918) via HSD_ObjAlloc on the arena at 0x8055dd00; the lone store to
+// 0x805dd8cc is at 0x8024e994. Holds CT-wide item bookkeeping: live count,
+// lifetime spawn counter, per-event flag word, and locator/fake-event payloads.
+typedef struct CityItemMgr
+{
+    s32 live_item_count;        // 0x000  ++ in CityItem_Create, -- on destruction (cap = 100)
+    s32 lifetime_spawn_count;   // 0x004  ++ only, read by City_GetItemSpawnNumber
+    u8 _scaffold[0x1A4];        // 0x008  5 × 84-byte structures, each a doubly-linked chain of four
+                                //         16-byte chunks plus a self-ptr at +0x40 and 16 reserved
+                                //         bytes. Initialized by Item_InitObj but never read elsewhere
+                                //         in retail (vestigial / scaffolded subsystem).
+    u32 flags;                  // 0x1ac  CityEventSpawnFlag bitmask of currently-active CT events
+    Vec3 loc_pos;               // 0x1b0  locator-event spawn position; valid iff flags & CTEVF_LOCATOR
+    f32 loc_param0;             // 0x1bc  locator-event aux (valid iff flags & CTEVF_LOCATOR)
+    f32 loc_param1;             // 0x1c0  locator-event aux (valid iff flags & CTEVF_LOCATOR)
+    void *fake_event_data;      // 0x1c4  set by CityItem_InitFakeEvent; sticky (not cleared by ClearFakeEvent)
+} CityItemMgr;
+
+static ItemCommonParam **stc_item_param      = (ItemCommonParam **)(0x805dd0e0 + 0x7E8); // 0x805dd8c8
+static CityItemMgr     **stc_city_item_mgr   = (CityItemMgr **)(0x805dd0e0 + 0x7EC);     // 0x805dd8cc
+// stc_it_common_data (0x805dd0e0 + 0x7F0 = 0x805dd8d0, set by Gm_LoadItCommon) is declared in game.h
 
 // Top Ride item kinds — bitmask indices for TopRideItemMgr.enabled_mask (+0x24).
 // Mystery (a2dIT21 "?") is NOT in the bitmask — it's always available as the roulette item.
@@ -1043,6 +1231,31 @@ typedef enum TopRideItemKind
     TRITEM_BACKWARD,        // 21 a2dIT20 AC_usiro
     TRITEM_NUM,
 } TopRideItemKind;
+
+static const char *const TopRideItemKind_Names[TRITEM_NUM] = {
+    [TRITEM_HAMMER]      = "Hammer",
+    [TRITEM_GROW]        = "Grow",
+    [TRITEM_SPEEDUP]     = "Speed Up",
+    [TRITEM_SPEEDDOWN]   = "Speed Down",
+    [TRITEM_BOOST_SAW]   = "Boost Saw",
+    [TRITEM_CHARGEBOOST] = "Charge Boost",
+    [TRITEM_INVINCIBLE]  = "Invincible Candy",
+    [TRITEM_BUZZSAW]     = "Buzz Saw",
+    [TRITEM_SPEAR]       = "Spear",
+    [TRITEM_FREEZE]      = "Freeze",
+    [TRITEM_MISSILE]     = "Missile",
+    [TRITEM_FIRE]        = "Fire",
+    [TRITEM_NEEDLE]      = "Needle",
+    [TRITEM_BOMB]        = "Bomb",
+    [TRITEM_LANDMINE]    = "Land Mine",
+    [TRITEM_LANTERN]     = "Lantern",
+    [TRITEM_MIKE]        = "Mike",
+    [TRITEM_CRACKER]     = "Cracker",
+    [TRITEM_WHO_PAINT]   = "Who? Paint",
+    [TRITEM_SMOKESCREEN] = "Smoke Screen",
+    [TRITEM_CHICKIE]     = "Chickie",
+    [TRITEM_BACKWARD]    = "Backward",
+};
 
 // Top Ride ItemMgr — C++ singleton (RTTI name "ItemMgr"). Manages which items
 // can spawn during a Top Ride match. Initialized by TopRideItem_MgrInit (0x8034b5f4).
@@ -1083,20 +1296,34 @@ const void *TopRideItem_GetDataByIndex(int kind); // 0x8034d204
 ItemKind Gm_GetRandomItem(BoxKind box_kind, ItemGroup group, int spawn_flags); // 0x800eb7e4. box_kind: -1=sky, 0-2=box color. group: -1=all, 0=bad, 1=good. spawn_flags: 0x2=patch, 0x4=box
 GOBJ *Item_Create(ItemDesc *desc);                    // 0x8024eef4. Creates item GObj, allocates ItemData, initializes all subsystems
 void Item_InitDesc(ItemDesc *, ItemKind kind, float scale, int spawn_type, Vec3 *pos, Vec3 *up, Vec3 *forward, int x40, int x44, int is_airborne, int coll_kind, int x38, int x3c); // 0x802509a0. spawn_type=0 default. up/forward can be NULL. x40/x44/x38/x3c usually -1. is_airborne: -1=skip raycast, other=do raycast. coll_kind: 3=point collision (most items), 1=alloc CollData, 0=requires CollData (dangerous)
-ItemCommonAttr *Item_GetCommonAttr(ItemKind kind);    // 0x802500b0. Returns attr from itData array
-itData *Item_GetItDataPtr(ItemKind kind);              // 0x80250038. Returns itData entry (0x18 bytes per kind)
-int Item_CheckIsLoaded();                              // 0x80250098. Returns 1 if per-kind itData is loaded, 0 otherwise (e.g. AR, CT Free Run, possibly stadiums)
+ItemCommonAttr *Item_GetCommonAttr(ItemKind kind);    // 0x802500b0. Returns itData[kind].attr
+PatchEffectInfo *Item_GetEffectInfo(ItemKind kind);   // 0x80250114. Returns itData[kind].attr->effect_info (NULL for non-patch kinds)
+itData *Item_GetItDataPtr(ItemKind kind);             // 0x80250038. Returns itData entry (0x18 bytes per kind)
+int Item_CheckIsLoaded();                             // 0x80250098. Returns 1 if per-kind itData is loaded, 0 otherwise (e.g. AR, CT Free Run, possibly stadiums)
+ItemGroup Gm_GetItemGroup(ItemKind kind);             // 0x802540f0. Returns attr->effect_info->group (BAD/GOOD/FAKE) for the kind
+int CityItem_IsGoodPatch(ItemKind kind);              // 0x802540a8. Returns 1 iff group == ITGROUP_GOOD (returns 0 for NULL, BAD, FAKE)
 
 // === Item State & Behavior ===
-int CityItem_IsGoodPatch(ItemKind kind);              // 0x802540a8. Returns 1 if kind has ITGROUP_GOOD effect_info (returns 0 for NULL, ITGROUP_BAD, ITGROUP_FAKE)
-int CityItem_ProcessFakeItem(GOBJ *item_gobj, void *hurt_params); // 0x802542dc. Checks if fake event is active (DAT_805dd8cc+0x1C4 != 0); if so, fills hurt_params via Event_FakeItems_FillHurtParams. Returns 1 if active, 0 if not
-void CityItem_InitFakeEvent(void *event_data);        // 0x80254238. Sets fake event data at DAT_805dd8cc+0x1C4, sets flag bit 3 at DAT_805dd8cc+0x1AC, expires all existing items (sets lifetime to 1)
-void CityItem_ClearFakeEvent();                       // 0x80254290. Clears flag bit 3 at DAT_805dd8cc+0x1AC (does NOT clear the event data pointer at 0x1C4)
-void CityItem_CopyCommonAttr(GOBJ *item_gobj);        // 0x80251294. Copies ItemCommonAttr fields to ItemData runtime attributes (0x118-0x140), including effect_data. Then calls per-kind init function if exists
-int CityItem_CanCollect(GOBJ *item_gobj);             // 0x80252df0. Returns 1 if item can be collected (bits 5,6 of ItemData.x35a both clear), 0 otherwise
+int CityItem_ProcessFakeItem(GOBJ *item_gobj, void *hurt_params); // 0x802542dc. If CTEVF_FAKEITEMS active, fills hurt_params via Event_FakeItems_FillHurtParams. Returns 1 if active, 0 if not
+void CityItem_CopyCommonAttr(GOBJ *item_gobj);        // 0x80251294. Copies ItemCommonAttr fields to ItemData (0x118-0x140), then calls per-kind init
+int CityItem_CanCollect(GOBJ *item_gobj);             // 0x80252df0. Returns 1 iff bits 5 and 6 of ItemData.x35a are both clear
 void CityItem_ResetQueuedVelocity(ItemData *id);      // 0x80250340. Zeros both accel and vel vectors
 void CityItem_EnterExpire(GOBJ *gobj);                // 0x8025611c. Transitions item to expire/flicker state
 void CityItem_EnterFall(GOBJ *gobj);                  // 0x802578c8. Transitions item to falling state
+void CityItem_BeginPatchToss(GOBJ *gobj, ItemKind kind, int param); // 0x80256254. Ejects a patch from a box on machine touch; selects patch_toss_good vs patch_toss_bad based on CityItem_IsGoodPatch.
+
+// === City Trial event-mode flags (CityItemMgr.flags @ +0x1AC) ===
+u32  CityItem_TestEventFlag(u32 mask);                // 0x80254134. Returns mgr->flags & mask
+void CityItem_SetDynabladeEventFlag();                // 0x80254144 — bit 0 (called from event_dynablade_start)
+void CityItem_ClearDynabladeEventFlag();              // 0x80254158
+void CityItem_SetMeteorEventFlag();                   // 0x80254174 — bit 1 (called from event_meteor_start)
+void CityItem_ClearMeteorEventFlag();                 // 0x80254188
+void CityItem_InitLocatorEvent(Vec3 *pos, float p0, float p1); // 0x802541a4 — bit 2 + writes loc_pos/params (called from event_rubberyItems_start)
+void CityItem_ClearLocatorEvent();                    // 0x8025421c
+void CityItem_InitFakeEvent(void *event_data);        // 0x80254238 — bit 3 + sticky fake_event_data (called from event_fakeItems_start)
+void CityItem_ClearFakeEvent();                       // 0x80254290 — clears bit 3 only; fake_event_data stays
+void CityItem_SetSameItemsEventFlag();                // 0x802542ac — bit 4 (called from event_sameItems_start)
+void CityItem_ClearSameItemsEventFlag();              // 0x802542c0
 
 // === Box Functions ===
 void Box_Break(GOBJ *gobj);                            // 0x802582dc. Breaks box, spawns contents via OutcomeLogic

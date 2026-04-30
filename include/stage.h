@@ -5,6 +5,7 @@
 #include "obj.h"
 #include "hurt.h"
 #include "collision.h"
+#include "yakumono.h"
 
 #define GRSTATECHANGE_NOANIM (1 << 2)
 
@@ -58,6 +59,18 @@ typedef enum AirRideCourse
     AIRRIDE_NUM,
 } AirRideCourse;
 
+static const char *const AirRideCourse_Names[AIRRIDE_NUM] = {
+    [AIRRIDE_FANTASY_MEADOWS]  = "Fantasy Meadows",
+    [AIRRIDE_MAGMA_FLOWS]      = "Magma Flows",
+    [AIRRIDE_SKY_SANDS]        = "Sky Sands",
+    [AIRRIDE_FROZEN_HILLSIDE]  = "Frozen Hillside",
+    [AIRRIDE_BEANSTALK_PARK]   = "Beanstalk Park",
+    [AIRRIDE_CELESTIAL_VALLEY] = "Celestial Valley",
+    [AIRRIDE_MACHINE_PASSAGE]  = "Machine Passage",
+    [AIRRIDE_CHECKER_KNIGHTS]  = "Checker Knights",
+    [AIRRIDE_NEBULA_BELT]      = "Nebula Belt",
+};
+
 // Top Ride course indices (0-6), stored in GameData[0x374]
 typedef enum TopRideCourse
 {
@@ -71,38 +84,21 @@ typedef enum TopRideCourse
     TOPRIDE_NUM,
 } TopRideCourse;
 
-typedef struct YakumonoParam
-{
-    union
-    {
-        struct
-        {
-            int joint_idx;
-            int x4;
-            int x8;
-            int xc;
-            int x10;
-            int start_anim_idx;    // 0x14
-            int active_anim_idx;   // 0x18
-            int end_anim_idx;      // 0x1c
-            int inactive_anim_idx; // 0x20
-        } *lighthouse;
-        struct
-        {
-            int x0;
-            int x4;
-        } *other;
-    };
-} YakumonoParam;
+static const char *const TopRideCourse_Names[TOPRIDE_NUM] = {
+    [TOPRIDE_GRASS] = "Grass",
+    [TOPRIDE_SAND]  = "Sand",
+    [TOPRIDE_SKY]   = "Sky",
+    [TOPRIDE_FIRE]  = "Fire",
+    [TOPRIDE_LIGHT] = "Light",
+    [TOPRIDE_WATER] = "Water",
+    [TOPRIDE_METAL] = "Metal",
+};
 
-typedef struct YakumonoData
-{
-    GOBJ *gobj;           // 0x0
-    int kind;             // 0x4
-    YakumonoParam *param; // 0x8
-    u8 xc[0x68];          // 0xc
-    int state;            // 0x74
-} YakumonoData;
+// YakumonoParam and YakumonoData are defined in yakumono.h.
+// The minimal forward-style fields used to live here; the comprehensive
+// definitions (with full proc-callback offsets, HurtData pointer, audio,
+// etc.) now live alongside the rest of the yakumono framework. See
+// docs/yakumono-system.md for the architecture overview.
 
 typedef struct GrModelMotionAnim
 {
@@ -144,11 +140,7 @@ typedef struct GrData // exists in the stage file
     int x34;               // 0x1c
     int x38;               // 0x1c
     int x3c;               // 0x1c
-    struct
-    {
-        YakumonoParam *data;
-        int num;
-    } *yakumono; // 0x40
+    YakumonoTable *yakumono; // 0x40 — per-stage yakumono manifest (see yakumono.h)
 } GrData;        //
 
 typedef struct GrObj
@@ -165,7 +157,7 @@ StageKind Gm_GetCurrentStageKind();
 GroundKind Gm_GetCurrentGrKind();
 GroundKind Gm_GetGrKindFromStageKind(StageKind stage_kind);
 
-void Gr_StateChange(YakumonoData *yp, int state_idx, int anim_idx, int joint_idx, int flags, float start_frame, float anim_rate, float blend_rate);
+// Gr_StateChange and other yakumono framework APIs are declared in yakumono.h.
 
 // Sky/lighting system — operates on GrObj, presets loaded from stage file
 void Sky_Init(GrObj *grobj);                            // 0x8010f114 — initial sky setup per stage
