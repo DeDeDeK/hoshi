@@ -269,8 +269,15 @@ typedef struct ProjectileData
     void         (*user_hook_2)(void *p);     // 0x168
     int          (*user_hook_on_hit)(void *p);// 0x16c: prio-10 on-hit callback; return non-zero to request state transition
     u8             pad_170[0x1b4 - 0x170]; // 0x170..0x1b3: hit sub-struct (internal)
-    u8             flag_a;               // 0x1b4: bit 0 = allow-self-hit (default 0)
-    u8             flag_b;               // 0x1b5: bit 0 = env-colliding this frame; bit 2 = alive marker (always on)
+    u8             flag_a;               // 0x1b4: bit 0 = allow-self-hit (inbound-scan side; default 0).
+                                          //        Other bits set during damage logging.
+                                          //        See PROJ_ALLOW_SELF_HIT_INBOUND below.
+    u8             flag_b;               // 0x1b5: bit 0 = env-colliding this frame (set/cleared by mpColl tick);
+                                          //        bit 2 = alive marker (always on);
+                                          //        bit 4 = allow-self-hit (outbound-scan side; default 0).
+                                          //        Inbound and outbound scans are gated by *separate* flags;
+                                          //        a projectile that needs to damage its own owner-player must
+                                          //        set both. See PROJ_ALLOW_SELF_HIT_OUTBOUND below.
     u8             flag_c;               // 0x1b6: audio + anim-dirty bits
     u8             pad_1b7;              // 0x1b7
     u8             kind_scratch[0x218 - 0x1b8]; // 0x1b8..0x217: per-kind scratch (owner info Vec3 / audio handles / timers)
@@ -278,6 +285,26 @@ typedef struct ProjectileData
     u8             pad_219[0x220 - 0x219]; // 0x219..0x21f
 } ProjectileData;
 // _Static_assert(sizeof(ProjectileData) == 0x220, "ProjectileData size mismatch");
+
+// Self-hit allow flags. The hit pipeline runs two scans every frame: an
+// outbound one where the projectile walks the rider/machine/box lists, and
+// an inbound one where each victim walks the projectile global list. Each
+// scan gates owner-exclusion on a *different* flag bit, so a projectile
+// that needs to damage its own owner-player has to set both — setting only
+// PROJ_ALLOW_SELF_HIT_INBOUND can drop the hit if the outbound scan
+// resolves it first, and vice versa. Custom-spawned trap projectiles
+// (where owner = the trapped player) are the most common case for this.
+//
+// Inbound side (rider-side scan, e.g. Rider_CheckProjectileHit @ 0x801963c8)
+// reads proj+0x1b4 bit 0. Sensor bomb's post_init sets this bit by default;
+// bomb and gordo do not.
+//
+// Outbound side (Projectile_CheckRiderCollision @ 0x802215a4) reads
+// proj+0x1b5 bit 4. Vanilla never sets this bit on bomb / sensor bomb /
+// gordo at create time — vanilla projectiles target *other* players, so
+// the default exclusion is what they want.
+#define PROJ_ALLOW_SELF_HIT_INBOUND  0x01  // OR into proj->flag_a (proj+0x1b4)
+#define PROJ_ALLOW_SELF_HIT_OUTBOUND 0x10  // OR into proj->flag_b (proj+0x1b5)
 
 // Creates a projectile from a pre-filled descriptor. Does not touch rider
 // bones or rider state — takes everything it needs from the desc. The
@@ -351,5 +378,19 @@ void spawnGordo(RiderData *rd);                           // 0x801aa028, PROJKIN
 void Rider_TryThrowBomb(void *projGObj, Vec3 *unused, Vec3 *velocity); // 0x801a9580 → 0x80225824
 void Rider_TryThrowSensorBomb(void *projGObj, Vec3 *velocity);         // 0x801a9fe8 → 0x80228f08
 int  Rider_IsGordoThrowable(void *projGObj);                           // 0x801aa008 → 0x8022a244 (PREDICATE, not a throw)
+
+// Gordo HELD→THROWN_ASCENDING transition. Unlike Rider_TryThrowBomb (which
+// reads pos/forward/up from `*(proj+0x6c)+8`, a hand-bone matrix that only
+// exists when a rider is actively holding the projectile), this function
+// reads orientation directly from `proj->owner_gobj`'s rider data fields
+// (rd+0x324, rd+0x330) — so it works as long as owner_gobj is a valid rider
+// GObj, even when no Phan-Phan ability has been initialised. Beyond the
+// state transition it sets up all per-kind scratch (proj+0x1d8 = 2,
+// proj+0x1e0..0x1e8 = velocity, proj+0x1dc = randomized angular velocity,
+// proj+0x7c..0x84 = velocity-derived accel from kind_data, proj+0x10c =
+// lifetime) that gordo state 1 fn1 reads each frame. Calling
+// `Projectile_SetState(proj, 1, ...)` directly leaves all of that at zero
+// and the gordo never spins, never decays, and never gets a real impulse.
+void Gordo_EnterThrownState(void *projGObj, Vec3 *velocity, Vec3 *position); // 0x8022a544
 
 #endif // KAR_H_PROJECTILE

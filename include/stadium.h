@@ -32,6 +32,33 @@ typedef enum StadiumKind
     STKIND_NUM,
 } StadiumKind;
 
+static const char *const StadiumKind_Names[STKIND_NUM] = {
+    [STKIND_DRAG1]         = "Drag Race 1",
+    [STKIND_DRAG2]         = "Drag Race 2",
+    [STKIND_DRAG3]         = "Drag Race 3",
+    [STKIND_DRAG4]         = "Drag Race 4",
+    [STKIND_AIRGLIDER]     = "Air Glider",
+    [STKIND_TARGETFLIGHT]  = "Target Flight",
+    [STKIND_HIGHJUMP]      = "High Jump",
+    [STKIND_MELEE1]        = "Kirby Melee 1",
+    [STKIND_MELEE2]        = "Kirby Melee 2",
+    [STKIND_DESTRUCTION1]  = "Destruction Derby 1",
+    [STKIND_DESTRUCTION2]  = "Destruction Derby 2",
+    [STKIND_DESTRUCTION3]  = "Destruction Derby 3",
+    [STKIND_DESTRUCTION4]  = "Destruction Derby 4",
+    [STKIND_DESTRUCTION5]  = "Destruction Derby 5",
+    [STKIND_SINGLERACE1]   = "Single Race 1",
+    [STKIND_SINGLERACE2]   = "Single Race 2",
+    [STKIND_SINGLERACE3]   = "Single Race 3",
+    [STKIND_SINGLERACE4]   = "Single Race 4",
+    [STKIND_SINGLERACE5]   = "Single Race 5",
+    [STKIND_SINGLERACE6]   = "Single Race 6",
+    [STKIND_SINGLERACE7]   = "Single Race 7",
+    [STKIND_SINGLERACE8]   = "Single Race 8",
+    [STKIND_SINGLERACE9]   = "Single Race: Nebula Belt",
+    [STKIND_VSKINGDEDEDE]  = "Vs. King Dedede",
+};
+
 typedef enum StadiumGroup
 {
     STGROUP_DRAGRACE,

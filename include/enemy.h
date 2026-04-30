@@ -956,10 +956,39 @@ void EnemyActor_FindNearestPlayerFOV(EnemyData *ed); // 0x801ff8d8, targeting wi
 // Archive root pointers: pointer per data_index (22 entries)
 #define stc_archive_root_pointers ((void **)0x8055a228) // 0x8055a228
 
-// Enemy spawn data pointer (r13 + 0x630). Points to per-stage spawn config.
-// Per-entry layout (Air Ride / mode 1): +0x1e = short enemy_ids[4], +0x26 = short weights[4] (-1 terminated).
-// Config at +0x10 has mode short at config+0x28.
-static char **stc_enemy_spawn_data = (char **)(0x805dd0e0 + 0x630);
+// Per-stage enemy spawn data, pointed to by r13 + 0x630.
+// NULL when the per-stage "enemies enabled" flag (GameData+0xAA6 bit 4) is off
+// (City Trial city map, Top Ride, and stadiums without enemies like Air Glider /
+// Destruction Derby / Single Race). Populated by Enemy_InitPositionData.
+//
+// secondary_table is a pointer-array indexed by meta-enemy ID (0x50-0x5E offset
+// by -0x50). Each entry points to a sub-table of {enemy_id, weight} short pairs,
+// -1 terminated. May be NULL.
+//
+// Per-entry layout differs by config.mode and is parsed as raw bytes off
+// spawn_entries (stride 0x38):
+//   mode 1 (Air Ride courses):    short ids[4] at +0x1E, short weights[4] at +0x26
+//   mode 2 (STKIND_MELEE1):       short enemy_id at +0x06, short weight_columns[N] at +0x08
+//                                 (two-stage: meta-enemy category from secondary[0], then
+//                                  individual enemy from that column)
+//   mode 3 (STKIND_MELEE2):       short ids[5] at +0x06, short weights[5] at +0x10
+typedef struct EnemySpawnConfig
+{
+    char x00[0x28];     // 0x00, layout TBD
+    short mode;         // 0x28, 1=Air Ride, 2=STKIND_MELEE1, 3=STKIND_MELEE2
+} EnemySpawnConfig;
+
+typedef struct EnemySpawnData
+{
+    short spawn_count;          // 0x00, number of entries in spawn_entries
+    short pad02;                // 0x02
+    char *spawn_entries;        // 0x04, primary spawn table (stride 0x38)
+    int x08;                    // 0x08
+    int **secondary_table;      // 0x0C, pointer-array of meta-enemy sub-tables (may be NULL)
+    EnemySpawnConfig *config;   // 0x10
+} EnemySpawnData;
+
+static EnemySpawnData **stc_enemy_spawn_data = (EnemySpawnData **)(0x805dd0e0 + 0x630);
 
 // Enemy global parameter table (detection range, retarget cooldown, knockback thresholds)
 #define stc_enemy_param_table ((void *)0x805dd878) // 0x805dd878

@@ -25,6 +25,25 @@ typedef enum EventKind
     EVKIND_NUM,
 } EventKind;
 
+static const char *const EventKind_Names[EVKIND_NUM] = {
+    [EVKIND_DYNABLADE]        = "Dyna Blade",
+    [EVKIND_TAC]              = "Tac",
+    [EVKIND_METEOR]           = "Meteor",
+    [EVKIND_PILLAR]           = "Pillar",
+    [EVKIND_RUNAMOK]          = "Run Amok",
+    [EVKIND_RESTORATIONAREA]  = "Restoration Area",
+    [EVKIND_RAILFIRE]         = "Rail Fire",
+    [EVKIND_SAMEITEM]         = "All Same Item",
+    [EVKIND_LIGHTHOUSE]       = "Lighthouse",
+    [EVKIND_SECRETCHAMBER]    = "Secret Chamber",
+    [EVKIND_PREDICTION]       = "Prediction",
+    [EVKIND_MACHINEFORMATION] = "Machine Formation",
+    [EVKIND_UFO]              = "UFO",
+    [EVKIND_BOUNCE]           = "Bounce",
+    [EVKIND_FOG]              = "Fog",
+    [EVKIND_FAKEPOWERUPS]     = "Fake Powerups",
+};
+
 typedef struct EventCheckData
 {
     struct
