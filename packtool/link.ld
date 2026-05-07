@@ -398,6 +398,9 @@ SECTIONS
   TopRide_GetStats = 0x80287040;
   TopRideItem_SpawnAtPosition = 0x8034bf50;
   TopRideItem_GetDataByIndex = 0x8034d204;
+  TopRide_KirbyApplyItem = 0x802d8cb4;
+  TopRide_GetPlayerKind = 0x8000bd6c;
+  TopRide_SetPlayerKind = 0x8000bda8;
   ClearChecker_ResetAllData = 0x8000c604;
   ClearChecker_ShouldShowNewUnlocks = 0x8000c6f0;
   ClearChecker_MarkNewUnlocksShown = 0x8000c734;
@@ -794,7 +797,7 @@ SECTIONS
   Hoshi_BackupModSave = 0x80495188;
   Hoshi_RestoreModSave = 0x8049518c;
 
-  /* Sky/lighting system */
+  /* Sky/lighting system. See docs/sky-lighting-system.md. */
   Sky_Init = 0x8010f114;
   Sky_SetPresetIndex = 0x800dc630;
   Sky_LoadPreset = 0x800dc1b4;
@@ -804,6 +807,76 @@ SECTIONS
   Sky_GetPresetCount = 0x800d5414;
   Sky_TransitionGlobal = 0x800d5444;
   Sky_RestoreGlobal = 0x800d546c;
+  Sky_SetupLights = 0x800db774;
+  Sky_InitFog = 0x800dbfa8;
+  Sky_AllocFade = 0x800eef04;
+  Sky_BeginFade = 0x800eef50;
+  Sky_FreeFade = 0x800eefb0;
+
+  /* Stage HSD light chain (real GX hardware lights, separate from
+     the sky preset's AreaLight). Three chains live at offsets
+     +0x00/+0x04/+0x08 of stage_resource[+0x14]; built unconditionally per
+     stage by Light_StageInit. The two GX wrappers are byte-identical
+     thunks to LObj_GX. */
+  Light_StageInit = 0x800d5ed4;
+  Light_GX = 0x800d5fb0;
+  Light_CreateForStage = 0x800d5fd0;
+  Light_AnimProc = 0x800d5f3c;
+  Light_GX_Secondary = 0x800d60b8;
+  Light_CreateForStageSecondary = 0x800d60d8;
+  Light_AnimProcSimple = 0x800d6094;
+  Light_CreateForMenu = 0x800d6188;
+  LObj_CreateAll = 0x80057468;
+
+  /* HSD light core. LObjLoadDesc does NOT auto-add to the active list;
+     LObj_GX → HSD_LObjSetCurrentAll rebuilds the active list each frame
+     from the chain attached via GObj_AddObject. See sky-lighting-system.md. */
+  LObjLoad = 0x803ffe24;
+  LObjInfoInit = 0x80400654;
+  HSD_LObjAddAnim = 0x804003bc;
+  HSD_LObjGetLightMaskDiffuse = 0x803fdb14;
+  HSD_LObjGetLightMaskAlpha = 0x803fdb24;
+  HSD_LObjGetLightMaskSpecular = 0x803fdb2c;
+  HSD_LightID2Index = 0x803ff8e4;
+  HSD_Index2LightID = 0x803ff9d0;
+  HSD_LObjAddCurrent = 0x803ff080;
+  HSD_LObjSetCurrentAll = 0x803ff570;
+  HSD_LObjSetupInit = 0x803fe4b8;
+  HSD_LObjLoadDesc = 0x80400238;
+  /* LObj_GX, LObj_LoadDesc, LObj_SetPosition, LObj_SetInterest exported
+     in the hoshi proxies block above — do not redefine here. */
+
+  /* AreaLight: KAR-proprietary directional light driven per-frame by
+     sky presets. Lives at GrObj+0x718, registered in r13[+0x538].
+     Does NOT feed any LOBJ; the registry walk fans out to per-rider /
+     per-character lighting state. See sky-lighting-system.md. */
+  AreaLight_Lerp = 0x800797a8;
+  AreaLight_Create = 0x80079428;
+  AreaLight_Create_Default = 0x8007a4d0;
+  AreaLight_LerpThunk = 0x8007a598;
+  AreaLight_BroadcastVisFlag = 0x80079948;
+  AreaLight_StageInit = 0x800ef618;
+  AreaLight_LerpToLive = 0x800ef864;
+  AreaLight_RegistryWalk = 0x8007a2c0;
+  AreaLight_RegistryWalkThunk = 0x8007a2a0;
+  AreaLight_InsertSorted = 0x80079a60;
+  AreaLight_Init = 0x80079314;
+
+  /* Fog GX path. World_CObj reads the global fog/erase color at
+     0x80557484 (BSS) and pushes it to HSD_SetEraseColor. */
+  Fog_GX = 0x800dbf84;
+  World_CObj = 0x800b04a8;
+  HSD_SetEraseColor = 0x8040f884;
+  HSD_FogSet = 0x8041b0fc;
+
+  /* lbfade screen-tint overlay (slot 3 owned by sky system). */
+  ScreenFade_Alloc = 0x80065a80;
+  ScreenFade_Free = 0x80065ae4;
+  ScreenFade_Begin = 0x800665f8;
+  ScreenFade_GetState = 0x80066960;
+  ScreenFade_Draw = 0x80065140;
+  ScreenFade_GX = 0x8006541c;
+
   Gm_Roll = 0x800db2b8;
   CityEvent_ShowHudText = 0x80113fb4;
   CityEvent_SetSisText = 0x801169fc;
@@ -824,4 +897,8 @@ SECTIONS
   PointCollision_EnsureIDValid = 0x800d1838;
   PointCollision_GetNormalByID = 0x800d1860;
   grGetGroundTypeFromTriangleID = 0x800cec28;
+
+  /* Stage model creation — instantiates JObj trees from
+     grdata->model_section (terrain + backdrop). */
+  CreateStageModel_3D = 0x800dcbf0; /* 3D_CreateStageModel; identifier renamed to dodge leading-digit C limitation */
 }

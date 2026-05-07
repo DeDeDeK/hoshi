@@ -44,49 +44,55 @@ static const char *const EventKind_Names[EVKIND_NUM] = {
     [EVKIND_FAKEPOWERUPS]     = "Fake Powerups",
 };
 
-typedef struct EventCheckData
+// Archive root of GrCity1Event.dat. Loaded into memory whenever the player
+// enters City Trial (by fn_grSetupCityEventData, which runs regardless of the
+// CT events on/off setting), and stashed at GrData.event_config. The same
+// pointer is also stored as EventCheckData.data when events are enabled.
+typedef struct EventConfigData
 {
     struct
     {
-        struct
-        {
-            int delay_min;                     // 0x0
-            int delay_max;                     // 0x4
-            int occur_chance;                  // 0x8
-            int skip_chance;                   // 0xc
-            int min_time;                            // 0x10, min match time (frames) before events start
-            u8 x14[0x4];                             // 0x14
-            int prev_kind_max;                       // 0x18, max history entries
-            int music_fadeout_frames;                // 0x1c, number of frames to fade out the music
-            int starting_delay;                      // 0x20, frames in state 1 before transitioning to state 2
-            int cleanup_delay;                       // 0x24, frames in state 3 before returning to idle
-            int hud_display_frames;                  // 0x28, frames to display event HUD text
-            struct                                   // 0x2c, contains a weight for every event for every type of stadium
-            {                                        //
-                int arr[STGROUP_NUM][EVKIND_NUM]; //
-            } *weights;                        //
-            struct                                   // 0x30, per-event parameters, 0xC bytes per EventKind
-            {                                        //
-                struct                               //
-                {                                    //
-                    int category;                    // 0x00, category for diversity boost (0 or 1)
-                    int duration;                    // 0x04, event duration in frames
-                    u8 once_only;                    // 0x08, if 1, can only occur once per match
-                    u8 is_siren;                     // 0x09, if 1, plays siren + fades music + changes sky
-                    u8 xa;                           //
-                    u8 xb;                           //
-                } arr[EVKIND_NUM];                  //
-            } *param;
-        } *event;                                    //
-        struct                                       // 0x04, per-event BGM/sky data, 0x14 bytes per EventKind
-        {                                            //
-            int bgm_file;                            // 0x00, BGM file index for secondary music
-            int sky_preset;                          // 0x04, sky preset index (-1 = no change)
-            int location_idx;                        // 0x08, index into event location array
-            int location_count;                      // 0x0C, number of locations
-            void *event_data;                        // 0x10, pointer to event-specific data
-        } *bgm_sky;                                  //
-    } *data;
+        int delay_min;                     // 0x0
+        int delay_max;                     // 0x4
+        int occur_chance;                  // 0x8
+        int skip_chance;                   // 0xc
+        int min_time;                            // 0x10, min match time (frames) before events start
+        u8 x14[0x4];                             // 0x14
+        int prev_kind_max;                       // 0x18, max history entries
+        int music_fadeout_frames;                // 0x1c, number of frames to fade out the music
+        int starting_delay;                      // 0x20, frames in state 1 before transitioning to state 2
+        int cleanup_delay;                       // 0x24, frames in state 3 before returning to idle
+        int hud_display_frames;                  // 0x28, frames to display event HUD text
+        struct                                   // 0x2c, contains a weight for every event for every type of stadium
+        {                                        //
+            int arr[STGROUP_NUM][EVKIND_NUM]; //
+        } *weights;                        //
+        struct                                   // 0x30, per-event parameters, 0xC bytes per EventKind
+        {                                        //
+            struct                               //
+            {                                    //
+                int category;                    // 0x00, category for diversity boost (0 or 1)
+                int duration;                    // 0x04, event duration in frames
+                u8 once_only;                    // 0x08, if 1, can only occur once per match
+                u8 is_siren;                     // 0x09, if 1, plays siren + fades music + changes sky
+                u8 xa;                           //
+                u8 xb;                           //
+            } arr[EVKIND_NUM];                  //
+        } *param;
+    } *event;                                    // 0x00
+    struct                                       // 0x04, per-event BGM/sky data, 0x14 bytes per EventKind
+    {                                            //
+        int bgm_file;                            // 0x00, BGM file index for secondary music
+        int sky_preset;                          // 0x04, sky preset index (-1 = no change)
+        int location_idx;                        // 0x08, index into event location array
+        int location_count;                      // 0x0C, number of locations
+        void *event_data;                        // 0x10, pointer to event-specific data
+    } *bgm_sky;                                  //
+} EventConfigData;
+
+typedef struct EventCheckData
+{
+    EventConfigData *data;
     int state; // 0 = no event, 1 = event starting, 2 = event active, 3 = event ending
     EventKind cur_kind;
     int xc;

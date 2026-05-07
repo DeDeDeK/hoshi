@@ -660,11 +660,11 @@ struct LObjDesc
 {
     char *class_name;               // 0x00
     LObjDesc *next;                 // 0x04
-    u16 flags;                      // 0x08
-    u16 attnflags;                  // 0x0A
+    u16 flags;                      // 0x08 -- low 2 bits = LOBJ_AMBIENT/INFINITE/POINT/SPOT (validity, asserted by LObjLoad); bits 2-5 = LOBJ_DIFFUSE/SPECULAR/ALPHA/HIDDEN. OR'd into LOBJ.flags.
+    u16 attnflags;                  // 0x0A -- bit 0: LOBJ_RAW_PARAM. When set, u.attn is a raw 6-float block; else u.spot is a 3-word computed block.
     GXColor color;                  // 0x0C
-    struct _HSD_WObjDesc *position; // 0x10
-    struct _HSD_WObjDesc *interest; // 0x14
+    struct _HSD_WObjDesc *position; // 0x10 -- loaded as WObj if flags & 3 != 0
+    struct _HSD_WObjDesc *interest; // 0x14 -- loaded as WObj if flags & 3 == 3 (LOBJ_SPOT)
     union
     {
         void *p;
@@ -722,6 +722,56 @@ struct HSD_Fog
     GXColor color;     // 0x18
     struct AOBJ *aobj; // 0x1C
 };
+
+// AreaLightData: 0x2C-byte directional-light record stored inside a stage's
+// sky-preset entry (preset+0x18). Interpolated per-frame by AreaLight_Lerp
+// (lbarealight.c) into the live AreaLight at GrObj+0x718. Confirmed via
+// disasm of AreaLight_Create (0x80079428) and AreaLight_Lerp (0x800797a8).
+// See docs/sky-lighting-system.md.
+//
+// Color fields are packed RGBA8888 u32 (high byte = R) — that's how
+// GXColor_Lerp (0x80079c04) loads/stores them with single lwz/stw.
+typedef struct AreaLightData
+{
+    u32 header;          // 0x00 metadata (raw-copied)
+    u8 unk_04;           // 0x04 raw-copied
+    u8 flags;            // 0x05 bits 0+1: validity (asserted), bit 2: lerp enable
+    u16 unk_06;          // 0x06 raw-copied
+    u32 color;           // 0x08 RGBA diffuse light color (interpolated)
+    u32 hw_color;        // 0x0C RGBA specular/hardware light color (interpolated)
+    Vec3 direction;      // 0x10 light direction (Vec3 lerp, 12 bytes)
+    u8 unk_1C[3];        // 0x1C raw-copied (HSD attn type/flags)
+    u8 intensity;        // 0x1F byte interpolation if flags bit 2
+    u32 attn_param_0;    // 0x20 HSD light attn/spot params
+    u32 attn_param_1;    // 0x24
+    u32 attn_param_2;    // 0x28
+} AreaLightData;
+
+// Live AreaLight runtime object built by AreaLight_Create. One per stage,
+// stored at GrObj+0x718. Per-frame lerp target for sky-preset color/direction.
+// Registered in the global object list at r13[+0x538]; AreaLight_BroadcastVisFlag
+// walks that list. Bit 0x80 of byte +0x38 is the visibility bit toggled by the
+// preset's light_vis_flag (preset+0x44 bit 0).
+struct AreaLight
+{
+    HSD_ClassInfo *parent;  // 0x00 vtable, from class-table 1336(r13)
+    void *class_ptr;        // 0x04 the class param passed to AreaLight_Create
+    u32 header;             // 0x08 copied from src+0x00
+    u8 unk_0C;              // 0x0C copied from src+0x04
+    u8 flags;               // 0x0D copied from src+0x05
+    u16 _pad_0E;            // 0x0E
+    u32 color;              // 0x10 RGBA from src+0x08 (lerp target each frame)
+    u32 hw_color;           // 0x14 RGBA from src+0x0C
+    Vec3 direction;         // 0x18 from src+0x10
+    u8 unk_24[3];           // 0x24 from src+0x1C
+    u8 intensity;           // 0x27 from src+0x1F
+    u32 attn_param_0;       // 0x28 from src+0x20
+    u32 attn_param_1;       // 0x2C from src+0x24
+    u32 attn_param_2;       // 0x30 from src+0x28
+    u32 extra;              // 0x34 r5 to AreaLight_Create (=0 from stage init)
+    u32 _pad_38_first;      // 0x38 bit 0x80 = visibility (set by light_vis_flag)
+};
+typedef struct AreaLight AreaLight;
 
 struct HSD_FogDesc
 {
@@ -894,6 +944,21 @@ void LObj_RemoveAll(LOBJ *lobj);
 HSD_Fog *Fog_LoadDesc(HSD_FogDesc *fogdesc);
 void Fog_Set(HSD_Fog *fog);
 void Fog_Release(HSD_Fog *fog);
+
+// AreaLight (KAR-proprietary) — a per-stage directional light driven each frame
+// by sky presets. Confirmed via disasm of Sky_Update / Sky_LoadPreset.
+// See docs/sky-lighting-system.md.
+AreaLight *AreaLight_Create(void *class_ptr, AreaLightData *src, u32 extra);  // 0x80079428
+AreaLight *AreaLight_Create_Default(AreaLightData *src);                       // 0x8007a4d0 — class=0, extra=0
+void AreaLight_Lerp(AreaLight *start, AreaLightData *target, AreaLight *dest, float ratio); // 0x800797a8
+void AreaLight_BroadcastVisFlag(void *class_ptr, u8 vis_flag);                 // 0x80079948 — preset+0x44 bit 0 → +0x38 bit 0x80
+void AreaLight_StageInit(GOBJ *grobj_or_gobj);                                 // 0x800ef618 — stack-builds default, stores at +0x718
+void AreaLight_LerpToLive(GOBJ *grobj, AreaLight *start, AreaLightData *target, float ratio); // 0x800ef864 — Sky_Update adapter
+
+// Stage HSD light chain — real GX hardware lights, separate from AreaLight.
+// Loaded from gr_data->stage_resource[+0x14] (LObjDesc**, NULL-terminated).
+void Light_GX(GOBJ *gobj, int pass);                  // 0x800d5fb0 — wraps LObj_GX
+void Light_CreateForStage(void *grobj_or_ctx);        // 0x800d5fd0 — class=1 GObj at stage init
 DOBJ *JObj_GetDObj(JOBJ *jobj);
 void *MOBJ_SetAlpha(DOBJ *dobj, float alpha);
 void MOBJ_SetToonTextureImage(_HSD_ImageDesc *);

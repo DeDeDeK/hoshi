@@ -142,8 +142,8 @@ typedef union YakumonoParam
     //            JObj alloc with model joint data. Zero → empty alloc,
     //            ydata+0x64 stays NULL (yakumono is invisible).
     //   +0x0c  — read by GrYaku_AttachModel (0x800f6274). Non-zero →
-    //            model attach via grdata->lights / grdata->motion. Zero →
-    //            no-model branch (no DObj/MObj/PObj attached).
+    //            model attach via grdata->model_section / grdata->motion.
+    //            Zero → no-model branch (no DObj/MObj/PObj attached).
     //
     // See docs/yakumono-system.md "Spawning yakumono in stages they don't
     // normally appear in" for the full breakdown.
@@ -350,7 +350,7 @@ void GrYakuBreakCoral_DropItems(int param);   // 0x801040fc — "BigStar" / star
 // These create a single yakumono of the corresponding kind and run the
 // kind-specific tail-init.
 void Lighthouse_Create(GrObj *grobj, int data_idx);  // 0x8010d228 (desc_id 68)
-void Lighthouse_Init(GOBJ *yaku_gobj);               // 0x8010d240
+void Lighthouse_Init(GOBJ *yaku_gobj);               // 0x8010d260
 void whispyLogic(GrObj *grobj, int data_idx);        // 0x8010db64 (desc_id 69) — WhispyWoods
 
 // === Per-grobj globals ===
