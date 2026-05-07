@@ -299,6 +299,14 @@ struct HSD_ArchiveExternInfo
     u32 symbol; /* 0x04 */
 };
 
+// Bit set in HSD_Archive.flags by Archive_Init for archives that own
+// their file blob (loaded via Archive_LoadFile). Archive_Free asserts
+// this bit is set before freeing — without it the function panics with
+// "archive->flags & HSD_ARCHIVE_DONT_FREE failed in lbarchive.c:274".
+// (The HAL flag name is misleading: the bit being SET is what permits
+// the free; cleared means the archive wraps a borrowed buffer.)
+#define HSD_ARCHIVE_DONT_FREE 0x1
+
 struct HSD_Archive
 {
     struct HSD_ArchiveHeader header;              /* 0x00 */
@@ -309,7 +317,7 @@ struct HSD_Archive
     char *symbols;                                /* 0x30 */
     struct HSD_Archive *next;                     /* 0x34 */
     char *name;                                   /* 0x38 */
-    u32 flags;                                    /* 0x3C */
+    u32 flags;                                    /* 0x3C — HSD_ARCHIVE_* bits */
     void *top_ptr;                                /* 0x40 */
 };
 typedef struct {
@@ -334,12 +342,17 @@ static HSD_VIInfo *hsd_vi_info = (HSD_VIInfo *)0x80589a80;
 
 /*** Functions ***/
 
+// NOTE: Archive_LoadFile internally allocates from a per-scene heap, so the
+// returned pointer is only valid for the current scene (3D scene exit zeroes
+// the struct in place). Don't cache returned archives across scene transitions —
+// reload as needed instead. The matching free path is Archive_Free(0, archive),
+// but it's optional: scene teardown reclaims the storage automatically.
 HSD_Archive *Archive_LoadFile(char *filename);
 HSD_Archive *Archive_LoadInitReturnSymbol(char *filename, void *ptr, ...);                // input each symbol name pointer sequentially and terminate with 0;
 void Archive_GetSections(HSD_Archive *archive, void *symbol_out, char *symbol_name, ...); // input each symbol name sequentially and terminate with 0;
 void *Archive_GetPublicAddress(HSD_Archive *archive, char *symbol);
-void Archive_Init(HSD_Archive *archive, void *file_data, int size);
-void Archive_Free(HSD_Archive *archive);
+void Archive_Init(HSD_Archive *archive, void *file_data, int size); // sets HSD_ARCHIVE_DONT_FREE in archive->flags
+void Archive_Free(int heap_id, HSD_Archive *archive);               // heap_id matches the Heap_Alloc heap (0 for Archive_LoadFile)
 char *Archive_GetExtern(HSD_Archive *archive, int index);                   // gets name of the nth symbol in the dat file
 void Archive_LocateExtern(HSD_Archive *archive, char *symbols, void *addr); // relocates pointers to symbols
 HSD_Archive *File_GetPreloadedFile(char *filename);

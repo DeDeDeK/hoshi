@@ -1262,7 +1262,7 @@ static const char *const TopRideItemKind_Names[TRITEM_NUM] = {
 typedef struct TopRideItemMgr
 {
     void *vtable;               // 0x00
-    int stage_data;             // 0x04, pointer to stage config data
+    u8 *stage_data;             // 0x04, pointer to per-stage config table. Bytes at +0x38, +0x40, +0x41 select stage-specific spawn modes / weight tables read by TopRideItem_MgrInit (0x8034b5f4), TopRideItem_SpawnAtPosition (0x8034bf50), and TopRideItem_SpawnTimed (0x8034b8c8). These are stage configuration, not runtime race state.
     int timer;                  // 0x08
     int archive_data;           // 0x0C
     int x10;                    // 0x10
@@ -1291,6 +1291,19 @@ void TopRideItem_SpawnAtPosition(TopRideItemMgr *mgr, int item_kind, Vec3 *pos, 
 // Out-of-range kinds fall through to `return kind` (invalid pointer), so only
 // call with 0..TRITEM_NUM-1.
 const void *TopRideItem_GetDataByIndex(int kind); // 0x8034d204
+
+// Forward decl — full definition in topride.h. Declared here as a typedef
+// (matching topride.h) so callers don't have to include topride.h just to
+// use TopRide_KirbyApplyItem.
+typedef struct TopRideKirby TopRideKirby;
+
+// Per-kind effect dispatcher: applies a TopRide item's effect to a Kirby
+// directly. This is the same dispatcher invoked by the per-frame consume path
+// (TopRide_KirbyUpdate -> Absorber consume). Out-of-range kinds (< 0 or >= 22)
+// silently no-op. Requires kirby+0x7c (held item GObj) to be non-null — true
+// during active gameplay (round_state == 2). Calling this skips the absorber
+// pickup animation but applies the gameplay effect immediately.
+void TopRide_KirbyApplyItem(TopRideKirby *kirby, int item_kind); // 0x802d8cb4
 
 // === Item Creation & Initialization ===
 ItemKind Gm_GetRandomItem(BoxKind box_kind, ItemGroup group, int spawn_flags); // 0x800eb7e4. box_kind: -1=sky, 0-2=box color. group: -1=all, 0=bad, 1=good. spawn_flags: 0x2=patch, 0x4=box
