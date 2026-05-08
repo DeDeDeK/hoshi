@@ -341,10 +341,13 @@ SECTIONS
   Text_GX = 0x804516E4;
   Text_LoadSisFile = 0x8044F800;
   Text_SetScale = 0x80450774;
-  Text_SetSisText = 0x8044F9D4;
-  Text_FinalizeSisText = 0x8044F8C8;
-  _Text_DetermineWidthHeight = 0x80451344;
+  Text_StorePremadeText = 0x8044F9D4;
+  Text_InitPremadeText = 0x8044F8C8;
+  Text_DetermineHeightAndWidth = 0x80451344;
+  Text_PushState = 0x80450828;
+  Text_PopState = 0x8045111C;
   Text_SetText = 0x8045031C;
+  DevelopText_DrawStrokeGlyph = 0x80438898;
   TitleScreen_GetData = 0x8000cdbc;
   TRK_FlushCache = 0x803BFFD8;
   DCInvalidateRange = 0x803d3ef8;
