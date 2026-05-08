@@ -9,33 +9,44 @@
 
 /*** Structs ***/
 
+// SIS text-stream opcode IDs. Sizes (incl. opcode byte) are noted per-entry; data
+// follows the opcode byte big-endian. The renderer at Text_GXLink (0x804516e4)
+// is the source of truth — see docs/sis-text-system.md for full semantics.
 typedef enum TextCmdOpcode
 {
-    TEXTCMD_TERMINATE,
-    TEXTCMD_1,
-    TEXTCMD_2,
-    TEXTCMD_3,
-    TEXTCMD_4,
-    TEXTCMD_5,
-    TEXTCMD_6,
-    TEXTCMD_POS,
-    TEXTCMD_8,
-    TEXTCMD_9,
-    TEXTCMD_10,
-    TEXTCMD_11,
-    TEXTCMD_COLOR,
-    TEXTCMD_13,
-    TEXTCMD_SCALE,
-    TEXTCMD_15,
-    TEXTCMD_ALIGNCENTER,
-    TEXTCMD_ALIGNCENTEREND,
-    TEXTCMD_ALIGNLEFT,
-    TEXTCMD_ALIGNLEFTEND,
-    TEXTCMD_ALIGNRIGHT,
-    TEXTCMD_ALIGNRIGHTEND,
-    TEXTCMD_KERNING,
-    TEXTCMD_KERNINGEND,
-    TEXTCMD_NUM,
+    TEXTCMD_TERMINATE,        // 0x00, 1 byte. Pops a CALL return marker if present, else ends rendering.
+    TEXTCMD_SUBTEXT_RESET,    // 0x01, 1 byte. Resets cursor + temp render state, clears state stack. Falls through to SUBTEXT_BREAK.
+    TEXTCMD_SUBTEXT_BREAK,    // 0x02, 1 byte. Bookmarks parse position; resets char counter.
+    TEXTCMD_LINEBREAK,        // 0x03, 1 byte. Newline (advance cursor.y by line height * scale).
+    TEXTCMD_LINEBREAK_REFLOW, // 0x04, 1 byte. LINEBREAK + sets reflow flag for next-frame re-entry.
+    TEXTCMD_DELAY,            // 0x05, 3 bytes (u16 frames). Typewriter pause counter.
+    TEXTCMD_TIMING,           // 0x06, 5 bytes (u16 space_delay, u16 char_delay). Typewriter timing.
+    TEXTCMD_POS,              // 0x07, 5 bytes (s16 x_px, s16 y_lines). Subtext header.
+    TEXTCMD_JUMP,             // 0x08, 5 bytes (s32 abs ptr). Absolute pointer jump (HSD-relocated).
+    TEXTCMD_CALL,             // 0x09, 5 bytes (s32 abs ptr). Push return marker, jump absolute.
+    TEXTCMD_POSPUSH,          // 0x0a, 5 bytes (s16 x, s16 y). Inline relative cursor push.
+    TEXTCMD_POSPUSHEND,       // 0x0b, 1 byte. Pops POSPUSH.
+    TEXTCMD_COLOR,            // 0x0c, 4 bytes (u8 R, G, B). Pushes color, sets temp.color RGB. Alpha unchanged.
+    TEXTCMD_COLOREND,         // 0x0d, 1 byte. Pops COLOR.
+    TEXTCMD_SCALE,            // 0x0e, 5 bytes (u16 sx_q8, u16 sy_q8). Pushes scale, sets temp.scale = (sx,sy)/256.
+    TEXTCMD_SCALEEND,         // 0x0f, 1 byte. Pops SCALE.
+    TEXTCMD_ALIGNCENTER,      // 0x10, 1 byte. Pushes align, sets temp.align = CENTER.
+    TEXTCMD_ALIGNCENTEREND,   // 0x11, 1 byte. Pops align (alias of 0x13/0x15).
+    TEXTCMD_ALIGNLEFT,        // 0x12, 1 byte. Pushes align, sets temp.align = LEFT.
+    TEXTCMD_ALIGNLEFTEND,     // 0x13, 1 byte. Pops align.
+    TEXTCMD_ALIGNRIGHT,       // 0x14, 1 byte. Pushes align, sets temp.align = RIGHT.
+    TEXTCMD_ALIGNRIGHTEND,    // 0x15, 1 byte. Pops align.
+    TEXTCMD_KERNING,          // 0x16, 1 byte. Sets temp.kerning = 1 (no push).
+    TEXTCMD_KERNINGEND,       // 0x17, 1 byte. Sets temp.kerning = 0.
+    TEXTCMD_FIT,              // 0x18, 1 byte. Sets temp.use_aspect_fit = 1 (auto-shrink to aspect.x).
+    TEXTCMD_FITEND,           // 0x19, 1 byte. Sets temp.use_aspect_fit = 0.
+    TEXTCMD_SPACE,            // 0x1a, 1 byte. Word separator (advances cursor.x by space-width).
+    TEXTCMD_NOOP_1B,          // 0x1b, 1 byte. No-op.
+    TEXTCMD_NOOP_1C,          // 0x1c, 1 byte. No-op.
+    TEXTCMD_NOOP_1D,          // 0x1d, 1 byte. No-op.
+    TEXTCMD_NOOP_1E,          // 0x1e, 1 byte. No-op.
+    TEXTCMD_NOOP_1F,          // 0x1f, 1 byte. No-op.
+    TEXTCMD_NUM,              // = 0x20; bytes >= 0x20 are 2-byte glyph codes.
 } TextCmdOpcode;
 
 typedef enum TextAlignKind
@@ -45,10 +56,16 @@ typedef enum TextAlignKind
     TEXTALIGN_RIGHT,
 } TextAlignKind;
 
+// Per-SIS-slot glyph bank, used at render time for character codes >= 0x4000.
+// Codes < 0x4000 use the master Latin bank baked into main.dol at 0x8050a040
+// (image, 256 * 0x200) and 0x80509dc0 (kerning, 256 * 2). Most SIS files leave
+// these pointers null and rely entirely on the master bank; only SisSmmenu.dat
+// (Japanese kana) and a few icon-carrying files (SisClrChk*, SisSelply*) have
+// real per-slot glyph data.
 struct SISData
 {
-    u8 *image_data_arr;   // array of I4 image data for characters, stride is (32*32) / 2
-    u8 *kerning_data_arr; // array of kerning data for characters, stride is 0x2, kerning is at 0x0
+    u8 *image_data_arr;   // I4 32x32 glyphs, stride 0x200, indexed by (code - 0x4000) & 0xFF
+    u8 *kerning_data_arr; // {u8 left_pad, u8 right_edge} per glyph, stride 0x2
 };
 
 struct TextHeapCell
@@ -60,68 +77,73 @@ struct TextHeapCell
 
 struct TextCanvas
 {
-    TextCanvas *next; // 0x0
-    GOBJ *cam_gobj;   // 0x4,
-    u16 size;         // 0x8 data remaining after this alloc?
-    u16 sis_idx;      // 0xa sis group this canvas belongs to
-    u8 p_link;        // 0xC
-    u8 xd;            // 0xD
-    u8 gx_link;       // 0xE
-    u8 gx_pri;        // 0xF
+    TextCanvas *next;   // 0x0, intrusive next in stc_textcanvas_first chain
+    GOBJ *cam_gobj;     // 0x4, owning camera GObj (set unless no_create_cam_gobj < 0)
+    u16 size;           // 0x8, heap cell size remaining
+    u16 sis_idx;        // 0xa, SIS slot bound to this canvas
+    u8 entity_class;    // 0xC, GObj entityclass passed to Text_CreateCanvas
+    u8 p_link;          // 0xD, GObj plink
+    u8 gx_link;         // 0xE, GX link bit for child Text GObjs
+    u8 gx_pri;          // 0xF, GX priority for child Text GObjs
 };
 
 struct Text
 {
-    Vec3 trans;                               // 0x0-0xC, affects entire viewport
-    Vec2 aspect;                              // 0xC-0x14 CHANGE THIS TO BOUND, affects entire viewport
-    float scissor_top;                        // 0x14, is_scissor must be enabled
-    float scissor_bot;                        // 0x18, is_scissor must be enabled
-    float scissor_left;                       // 0x1c, is_scissor must be enabled
-    float scissor_right;                      // 0x20, is_scissor must be enabled
-    Vec2 viewport_scale;                      // 0x24-0x2C, scales entire viewport including text (was orignally scale)
-    GXColor viewport_color;                   // 0x2c, if the alpha value is != 0, uses an additional GXSetTevAlphaIn call @ 803a87f8 if enabled. background is the size of the aspect
-    GXColor color;                            // 0x30
-    Vec2 scale;                               // 0x34-0x3C scales just the text. (was originally stretch)
-    float x3c;                                // 0x3c
-    float x40;                                // 0x40
-    u16 x44;                                  // 0x44
-    u16 x46;                                  // 0x46
-    u8 use_aspect;                            // 0x48, will fit the text to the bounds defined in aspect
-    u8 kerning;                               // 0x49
-    u8 align;                                 // 0x4a
-    u8 x4b;                                   //
-    u8 is_depth_compare;                      // 0x4C, if set to 1, updates the depth buffer when rendering, uses GX_LEQUAL (803a85a0)
-    u8 hidden;                                // 0x4D
-    u8 is_scissor;                            // 0x4E, crops the text within the bounding box 803a88e8
-    u8 sis_id;                                // 0x4F, id of the premade text file to use
-    Text *next;                               // some buffer alloc'd @ 803a5ba0
-    GOBJ *gobj;                               // 0x54
-    void (*render_callback)(GOBJ *text_gobj); // 0x58, read at 803a878c
-    u8 *text_start;                           // 0x5C, start parsing text data at this ptr
-    u8 *text_end;                             // 0x60, stops parsing text data at this ptr
-    TextHeapCell *alloc;                      // 0x64
-    TextHeapCell *x68;                        // 0x68, some alloc used for dialogue?
-    u16 x6c;                                  // 0x6c, flags of some kind
-    u16 x6e;                                  // 0x6e
+    Vec3 trans;             // 0x00, per-vertex anchor in canvas-ortho pixel space. (x: pixels right of canvas left, y: pixels above canvas bottom, z: depth)
+    Vec2 aspect;            // 0x0C, bbox width/height in pixels. Used by use_aspect auto-shrink, viewport_color background size, and scissor reference frame.
+    float scissor_top;      // 0x14, per-quad clip top    (gated by is_scissor — NOT GXSetScissor)
+    float scissor_bot;      // 0x18, per-quad clip bottom (gated by is_scissor)
+    float scissor_left;     // 0x1C, per-quad clip left   (gated by is_scissor)
+    float scissor_right;    // 0x20, per-quad clip right  (gated by is_scissor)
+    Vec2 viewport_scale;    // 0x24, multiplies everything: glyph quad size, x-advance, background, scissor reference. ~0.4 yields HUD-readable size.
+    GXColor viewport_color; // 0x2C, RGBA. If alpha != 0, drawn first as a flat-shaded background quad covering aspect * viewport_scale.
+    GXColor color;          // 0x30, RGBA. Default per-character color before any TEXTCMD_COLOR. Loaded into temp.color at every subtext start. Alpha is render-state, not affected by COLOR opcodes.
+    Vec2 scale;             // 0x34, initial per-character scale; opcode TEXTCMD_SCALE overrides per-glyph.
+    float subtext_init_x;   // 0x3C, initial X cursor offset for the subtext (loaded into temp.cursor_x).
+    float subtext_init_y;   // 0x40, initial Y cursor offset for the subtext (loaded into temp.cursor_y).
+    u16 char_count_init;    // 0x44, initial value of temp.char_count_max (per-subtext glyph counter ceiling).
+    u16 dwell_init;         // 0x46, initial value of temp.dwell (typewriter dwell cycles).
+
+    u8 use_aspect;          // 0x48, auto-shrink horizontally to fit aspect.x.
+    u8 kerning;             // 0x49, use kerning advances vs. fixed-cell width.
+    u8 align;               // 0x4A, TextAlignKind.
+    u8 reflow_flag;         // 0x4B, internal — set by TEXTCMD_LINEBREAK_REFLOW to re-enter renderer next frame. Leave at 0 from external code.
+    u8 is_depth_compare;    // 0x4C, if 1, GX_LEQUAL Z mode (text z-tests). If 0, always on top.
+    u8 hidden;              // 0x4D, non-zero -> Text_GXLink early-returns.
+    u8 is_scissor;          // 0x4E, enables the per-quad scissor_* clip rect.
+    u8 sis_id;              // 0x4F, index into stc_sis_data[5] for per-SIS image/kerning bank (codes >= 0x4000).
+
+    Text *next;             // 0x50, intrusive next in stc_text_first chain.
+    GOBJ *gobj;             // 0x54, owning Text GObj (gobj->userdata at +0x2C points back here).
+    void (*render_callback)(GOBJ *text_gobj); // 0x58, invoked once per render in pass 2 after GX state setup, before any drawing. Hook for fade/wave/typewriter (advance text_end). NULL for none.
+    u8 *text_start;         // 0x5C, opcode stream start (NULL gates the entire render).
+    u8 *text_end;           // 0x60, opcode stream end. HARD limit — useful for typewriter reveal (advance from callback).
+    TextHeapCell *alloc;    // 0x64, primary text-data heap cell.
+    TextHeapCell *state_stack; // 0x68, lazily-allocated state-history buffer used by Text_PushState/Text_PopState (color/scale/pos/align frames).
+    u16 pospush_flags;      // 0x6C, bitfield gating TEXTCMD_POSPUSH/POSPUSHEND (1=enabled, requires temp.use_aspect != 0).
+    u16 char_visited_len;   // 0x6E, length of per-character "visited" tracking buffer (cleared per subtext).
+
+    // Mutable per-subtext render state. The opcodes 0x10/0x12/0x14, 0x16/0x17,
+    // 0x18/0x19 mutate the *temp* fields, NOT the public ones at 0x48-0x4A.
     struct
     {
-        float x70;            // 0x70
-        float x74;            // 0x74
-        float x78;            // 0x78
-        float x7c;            // 0x7c
-        float x80;            // 0x80
-        float x84;            // 0x84
-        float x88;            // 0x88
-        GXColor color;        // 0x8c, temp color storage when processing text opcodes. 803a8d7c
-        u16 x90;              // 0x90
-        u16 x92;              // 0x92
-        int x94;              // 0x94
-        int char_display_num; // 0x98, how many characters to display
-        u8 use_aspect;        // 0x9c, use_aspect
-        u8 kerning;           // 0x9d, kerning
-        u8 align;             // 0x9e, align value, checked per character, updates the float @ x70
-        u8 x9f;               // 0x9f
-        int x100;             // 0x100
+        float cursor_x;       // 0x70, running X cursor for the current subtext (pre-viewport_scale units).
+        float cursor_y;       // 0x74, running Y cursor.
+        float init_x;         // 0x78, copy of subtext_init_x at subtext start.
+        float init_y;         // 0x7C, copy of subtext_init_y at subtext start.
+        float scale_x;        // 0x80, current scale.x (init from Text.scale.x; overridden by TEXTCMD_SCALE).
+        float scale_y;        // 0x84, current scale.y.
+        float fit_squeeze;    // 0x88, width-fit auto-scale factor (= aspect.x / measured_width when fitting; 1.0 otherwise).
+        GXColor color;        // 0x8C, TEV reg-1 source per glyph. RGB updated by TEXTCMD_COLOR; alpha sourced from Text.color.a at init.
+        u16 char_count_max;   // 0x90, glyph counter ceiling (init from char_count_init).
+        u16 dwell;             // 0x92, typewriter dwell cycles remaining (init from dwell_init).
+        int wait_countdown;    // 0x94, active typewriter wait countdown (set by TEXTCMD_DELAY).
+        int char_display_num;  // 0x98, running count of glyphs drawn so far in this subtext (read-only counter for callbacks/animations).
+        u8 use_aspect;         // 0x9C, mirror of Text.use_aspect, mutable via TEXTCMD_FIT/FITEND.
+        u8 kerning;            // 0x9D, mirror of Text.kerning, mutable via TEXTCMD_KERNING/KERNINGEND.
+        u8 align;              // 0x9E, mirror of Text.align, mutable via TEXTCMD_ALIGN*.
+        u8 pad9F;              // 0x9F, padding.
+        int pad100;            // 0xA0, padding/scratch.
     } temp;
 };
 
@@ -271,7 +293,7 @@ static void Text_SetScale(Text *text, int idx, float x, float y)
 }
 static void Text_GetWidthAndHeight(Text *t, int subtext_idx, float *width, float *height)
 {
-    void _Text_DetermineWidthHeight(u8 * text_data, Text * text, float *width, float *height); // note: text_data must not start at the 7 opcode, skip past it by passing &text->text_start[5]
+    void Text_DetermineHeightAndWidth(u8 * text_data, Text * text, float *width, float *height); // note: text_data must not start at the 7 opcode, skip past it by passing &text->text_start[5]
 
     u8 *subtext_ptr = Text_GetSubtext(t->text_start, subtext_idx);
 
@@ -279,13 +301,13 @@ static void Text_GetWidthAndHeight(Text *t, int subtext_idx, float *width, float
         return;
 
     // update temp variables that only the gx cb update
-    t->temp.x78 = t->x3c;
-    t->temp.x7c = t->x40;
+    t->temp.init_x = t->subtext_init_x;
+    t->temp.init_y = t->subtext_init_y;
     t->temp.use_aspect = t->use_aspect;
     t->temp.kerning = t->kerning;
     t->temp.align = t->align;
 
-    _Text_DetermineWidthHeight(&subtext_ptr[5], t, width, height);
+    Text_DetermineHeightAndWidth(&subtext_ptr[5], t, width, height);
 }
 
 static int Text_CharToCommand(char c)
@@ -457,14 +479,19 @@ void Text_SetText(Text *text, int subtext, char *string, ...);
 u8 *TextHeap_Alloc(int size);
 void TextHeap_Free(u8 *alloc);
 int Text_ConvertASCIIToShiftJIS(char *out, char *in);
-void Text_GX(GOBJ *gobj, int pass);
+void Text_GX(GOBJ *gobj, int pass); // 0x804516e4 — pass 0 = camera setup, pass 2 = draw + opcode walk.
 void Text_LoadSisFile(int index, char *filename, char *symbol);
-int Text_SetSisText(Text *text, int text_index);
-void Text_FinalizeSisText(Text *text, int text_index);
+int Text_StorePremadeText(Text *text, int text_index); // 0x8044f9d4 — parse/count subtexts in SIS data.
+void Text_InitPremadeText(Text *text, int text_index); // 0x8044f8c8 — set text from SIS slot entry by index.
 void Text_DestroyAllSisCanvas(int sis_id);
 void Text_DestroyCanvas(TextCanvas *);
 void Text_InitSisHeap(int size);
 void Text_DestroySisHeap();
+// State-history stack helpers used by the renderer/composers when nesting
+// COLOR/SCALE/POS/ALIGN opcodes. kind: 1=POS, 2=COLOR, 3=SCALE, 4=ALIGN, 5=int.
+// High bit (0x80) on Pop = "pop without write" (sizer pass).
+void Text_PushState(Text *text, void *value_ptr, u8 kind); // 0x80450828
+void Text_PopState(Text *text, u8 kind);                   // 0x8045111c
 
 /*** Variables ***/
 // Text data
