@@ -686,6 +686,10 @@ int SFX_PlayCommon(int sfxID);
 int SFX_PlayCrowd(int sfxID);
 void SFX_StopCrowd();
 
+// Menu SFX wrappers — each plays one fixed menu sound (no args; the sfx id,
+// volume, pan, and track are hardcoded internally). Names from GKYE01.map.
+int playSoundFX_errorNoise(void);   // 0x80061734, "denied/error" buzzer for rejected menu actions
+
 void AudioHeap_SetAllocAndFree(void *alloc_func, void *free_func);
 void Audio_ResetCache(int group_index);
 void Audio_QueueFileLoad(int group_index, u64 ssm_index);

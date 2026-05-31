@@ -45,7 +45,7 @@ typedef enum CopyKind
     COPYKIND_PLASMA,
     COPYKIND_NEEDLE,
     COPYKIND_MIC,
-    COPYKIND_ICE,
+    COPYKIND_FREEZE,
     COPYKIND_TORNADO,
     COPYKIND_BIRD,
     COPYKIND_NUM,
@@ -60,7 +60,7 @@ static const char *const CopyKind_Names[COPYKIND_NUM] = {
     [COPYKIND_PLASMA]  = "Plasma",
     [COPYKIND_NEEDLE]  = "Needle",
     [COPYKIND_MIC]     = "Mic",
-    [COPYKIND_ICE]     = "Ice",
+    [COPYKIND_FREEZE]  = "Freeze",
     [COPYKIND_TORNADO] = "Tornado",
     [COPYKIND_BIRD]    = "Wing",
 };
@@ -96,7 +96,7 @@ typedef enum PowerUpKind
 {
     POWERUPKIND_NONE = -1,
     POWERUPKIND_FIRECRACKER = 0,
-    POWERUPKIND_TIMEBOMB,
+    POWERUPKIND_SENSORBOMB,
     POWERUPKIND_GORDO,
     POWERUPKIND_PANICSPIN,
     POWERUPKIND_NUM,

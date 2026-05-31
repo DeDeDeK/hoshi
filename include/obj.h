@@ -816,6 +816,15 @@ static u32 *stc_gobjproc_updateidx_cur = (u32 *)0x804d783c;                     
 static HSD_GObjInitData *stc_gobj_init_data = (HSD_GObjInitData *)0x8058c190;
 static float *stc_cobj_aspect = (float *)0x805deb20;
 
+// HSD hardware-light slot table — 9 LOBJ pointers, rebuilt every frame by
+// HSD_LObjSetCurrentAll (0x803ff570). Slots 0..7 hold positional/directional
+// LOBJs in active-list insertion order; slot 8 is the dedicated ambient slot.
+// Reading is stale-by-one-frame for any per-frame think hook (the table is
+// populated during GX rendering), but the LOBJ pointers themselves are stable
+// across the lookup.
+#define HSD_LOBJ_HW_SLOT_AMBIENT 8
+static struct LOBJ **stc_lobj_hw_slot_table = (struct LOBJ **)0x805899B0;
+
 /*** Functions ***/
 int JObj_GetWorldPosition(JOBJ *source, Vec3 *add, Vec3 *dest);
 void JObj_SetMtxDirtySub(JOBJ *jobj);
