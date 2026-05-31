@@ -160,11 +160,29 @@ typedef struct GrData // exists in the stage file
     YakumonoTable *yakumono; // 0x40 — per-stage yakumono manifest (see yakumono.h)
 } GrData;        //
 
+// Per-stage runtime object. The layout below names the runtime members the
+// engine populates during stage init; the surrounding padding holds other
+// stage state we haven't reverse-engineered yet (notably the per-light helper
+// records at +0x54 and the light JOBJ table at +0x104). See
+// docs/sky-lighting-system.md for the full diagram.
 typedef struct GrObj
 {
-    GOBJ *gobj;         // 0x0
-    GroundKind gr_kind; // 0x4
-    GrData *gr_data;    // 0x8
+    GOBJ *gobj;                 // 0x000
+    GroundKind gr_kind;         // 0x004
+    GrData *gr_data;            // 0x008
+    u8 _pad_00c[0xF4 - 0x0C];
+    JOBJ *backdrop_jobj;        // 0x0F4 — distant skybox/horizon mesh attached
+                                //         by 3D_CreateStageModel. NULL if the
+                                //         stage's ModelSection.backdrop is NULL.
+    u8 _pad_0f8[0x168 - 0xF8];
+    GOBJ *sky_gobj;             // 0x168 — fog/sky GObj built by Sky_InitFog.
+                                //         hsd_object (+0x28) = HSD_Fog *,
+                                //         userdata (+0x2C) = SkyState *.
+    u8 _pad_16c[0x714 - 0x16C];
+    u32 fade_slot_id;           // 0x714 — lbfade slot ID owned by the sky
+                                //         system (incremented per stage entry,
+                                //         so it doubles as a freshness signal).
+    AreaLight *area_light;      // 0x718 — KAR-proprietary directional light.
 } GrObj;
 
 static GrData **stc_grdatalookup = (GrData **)(0x80557638); // indexed by gr_kind

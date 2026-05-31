@@ -654,9 +654,29 @@ typedef struct GameData // 805359d8
     } airride_select_ply;
     struct
     {
-        u8 x160[0x5a];  // 0x160 to 0x1b9
-        u8 color[4];    // 0x1ba
-        u8 x1be[0x12];  // 0x1be to 0x1cf
+        u8 x160[0x37];                    // 0x160 to 0x196 — header bytes outside the lobby init range
+        // === Lobby data — cleared (memset 0x39) by TopRide_InitSelectData (0x8002cfd8) ===
+        u8 x197;                          // 0x197
+        u8 init_flag;                     // 0x198, set to 0xFF on InitSelectData; consumed by lobby update
+        u8 x199;                          // 0x199, exit-status flag (1 after scene-exit triggered)
+        u8 x19a;                          // 0x19a
+        u8 active_pad_mask;               // 0x19b, bitmap of slots with controllers attached
+        u8 ready_to_start;                // 0x19c, set when all open panels are confirmed
+        u8 panel_locked_mask;             // 0x19d, bitmap of panels that consumed input this frame
+        u8 hold_b_timer[4];               // 0x19e, per-slot B-hold-to-exit timer
+        u8 ply_state[4];                  // 0x1a2, per-slot main state: 0=selecting, 1=ready, 2=in-panel editing
+        u8 ply_target[4];                 // 0x1a6, per-slot target panel (cursor moves between panels)
+        u8 ply_panel_pos[4];              // 0x1aa, per-slot panel position 0..3 (activation order)
+        u8 ply_subcursor[4];              // 0x1ae, per-slot in-panel cursor (0=top, 1=middle, 2=bottom row)
+        u8 panel_pkind[4];                // 0x1b2, per-panel state: 0=open, 1=HMN, 2=CPU, 3=OFF
+        u8 panel_pkind_ui[4];             // 0x1b6, animated mirror of panel_pkind for UI transitions
+        u8 color[4];                      // 0x1ba, per-panel Kirby color (L/R buttons cycle via CSS_topRide_colorChanger)
+        u8 panel_cpu_level[4];            // 0x1be, per-panel CPU level (0..4) — bottom row when panel is editing
+        u8 panel_handicap[4];             // 0x1c2, per-panel handicap (0..4, "5 bars" bottom row when HMN)
+        u8 panel_machine[4];              // 0x1c6, per-panel TR machine kind (0=Free Star, 1=Steer Star) — middle row "Control Type"
+        u8 panel_field_d[4];              // 0x1ca, per-panel UI param_13 (uninvestigated)
+        u8 x1ce;                          // 0x1ce, flag set to 1 by InitSelectData (extra-unlocks override?)
+        u8 x1cf;                          // 0x1cf, flag set to 1 by InitSelectData
     } topride_select_ply;
     struct
     {
@@ -1299,15 +1319,29 @@ typedef struct GameData // 805359d8
     int xd14;                        // 0xd14
     int xd18;                        // 0xd18
     int xd1c;                        // 0xd1c
-    int xd20;                        // 0xd20
-    int xd24;                        // 0xd24
-    int xd28;                        // 0xd28
-    int xd2c;                        // 0xd2c
-    int xd30;                        // 0xd30
-    int xd34;                        // 0xd34
-    int xd38;                        // 0xd38
-    int xd3c;                        // 0xd3c
-    int xd40;                        // 0xd40
+    // === TR slot config table — 4 slots × 9 bytes (0xD20 to 0xD43) ===
+    // Committed at TR scene-exit from the lobby fields above. The runtime
+    // reader is TopRide_FielderInit (0x802dafb4) which dispatches to
+    // TopRide_KirbyInit per slot using this block. Per-slot byte layout:
+    //   +0: pkind (TopRidePlayerKind: HMN/CPU/NONE) — accessor TopRide_GetPlayerKind / SetPlayerKind
+    //   +1: kirby color — TopRide_GetColor / SetColor
+    //   +2: CPU level (0..4) — TopRide_SetCpuLevel
+    //   +3: handicap (0..4) — TopRide_SetHandicap
+    //   +5: TopRide_SetSlotConfigD25 (zz_8000bfd4_, unclassified)
+    //   +6: controller port — TopRide_SetControllerPort
+    //   +8: TR machine kind (0=Free Star, 1=Steer Star) — TopRide_GetMachineKind / SetMachineKind
+    struct
+    {
+        u8 pkind;                    // 0xD20+i*9, see TopRidePlayerKind
+        u8 color;                    // 0xD21+i*9
+        u8 cpu_level;                // 0xD22+i*9
+        u8 handicap;                 // 0xD23+i*9
+        u8 xD24;                     // 0xD24+i*9
+        u8 xD25;                     // 0xD25+i*9
+        u8 controller_port;          // 0xD26+i*9
+        u8 xD27;                     // 0xD27+i*9
+        u8 machine_kind;             // 0xD28+i*9, TopRideMachineKind
+    } topride_slot[4];               // 0xd20, 36 bytes total
     int xd44;                        // 0xd44
     int xd48;                        // 0xd48
     int xd4c;                        // 0xd4c

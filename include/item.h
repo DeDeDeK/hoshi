@@ -118,7 +118,7 @@ typedef enum ItemKind
     ITKIND_FOODAPPLE,
     ITKIND_FIREWORKS,
     ITKIND_PANICSPIN,
-    ITKIND_TIMEBOMB,
+    ITKIND_SENSORBOMB,
     ITKIND_GORDO,
     ITKIND_HYDRA1,
     ITKIND_HYDRA2,
@@ -191,7 +191,7 @@ static const char *const ItemKind_Names[ITKIND_NUM] = {
     [ITKIND_FOODAPPLE]       = "Apple",
     [ITKIND_FIREWORKS]       = "Fireworks",
     [ITKIND_PANICSPIN]       = "Panic Spin",
-    [ITKIND_TIMEBOMB]        = "Time Bomb",
+    [ITKIND_SENSORBOMB]      = "Sensor Bomb",
     [ITKIND_GORDO]           = "Gordo",
     [ITKIND_HYDRA1]          = "Hydra Piece 1",
     [ITKIND_HYDRA2]          = "Hydra Piece 2",
@@ -1205,56 +1205,59 @@ static CityItemMgr     **stc_city_item_mgr   = (CityItemMgr **)(0x805dd0e0 + 0x7
 
 // Top Ride item kinds — bitmask indices for TopRideItemMgr.enabled_mask (+0x24).
 // Mystery (a2dIT21 "?") is NOT in the bitmask — it's always available as the roulette item.
+// Identifiers match the canonical AP-side item names. Slot 12 (PARTY_BALL_ALT,
+// KirbyKusdama) is the engine's twin Party Ball variant; gate_topride_items.c
+// mirrors bit 21 onto bit 12 so both spawn together.
 typedef enum TopRideItemKind
 {
-    TRITEM_HAMMER,          // 0  a2dIT1e AC_hammer
-    TRITEM_GROW,            // 1  a2dIT01 AC_macron
-    TRITEM_SPEEDUP,         // 2  a2dIT02 AC_speedUp
-    TRITEM_SPEEDDOWN,       // 3  a2dIT03 AC_speedDown
-    TRITEM_BOOST_SAW,       // 4  a2dIT04 AC_BoostUp_Missile (charge saw attack)
-    TRITEM_CHARGEBOOST,     // 5  a2dIT0c AC_chargeUp
-    TRITEM_INVINCIBLE,      // 6  a2dIT0d AC_muteki
-    TRITEM_BUZZSAW,         // 7  a2dIT0a AC_Sdrill_kusudama
-    TRITEM_SPEAR,           // 8  a2dIT05 AC_FrontSpeer
-    TRITEM_FREEZE,          // 9  a2dIT1b AC_ice
-    TRITEM_MISSILE,         // 10 a2dIT07 AC_BoostUp_Missile (projectile missile)
-    TRITEM_FIRE,            // 11 a2dIT06 AC_AfterFlame
-    TRITEM_NEEDLE,          // 12 a2dIT0b AC_Sdrill_kusudama
-    TRITEM_BOMB,            // 13 a2dIT08 AC_bomb
-    TRITEM_LANDMINE,        // 14 a2dIT10 AC_landbomb
-    TRITEM_LANTERN,         // 15 a2dIT11 AC_lanthanum — "New Item: Lantern" (TR checklist reward 10)
-    TRITEM_MIKE,            // 16 a2dIT16 AC_mike
-    TRITEM_CRACKER,         // 17 a2dIT12 AC_clakko
-    TRITEM_WHO_PAINT,       // 18 a2dIT13 AC_meta — "New Item: Who? Paint" (TR checklist reward 9)
-    TRITEM_SMOKESCREEN,     // 19 a2dIT17 AC_kemuron
-    TRITEM_CHICKIE,         // 20 a2dIT18 AC_piyo — "New Item: Chickie" (TR checklist reward 8)
-    TRITEM_BACKWARD,        // 21 a2dIT20 AC_usiro
+    TRITEM_HAMMER,           // 0  a2dIT1e AC_hammer
+    TRITEM_BIG_CAKE,         // 1  a2dIT01 AC_macron
+    TRITEM_SPEED_UP,         // 2  a2dIT02 AC_speedUp
+    TRITEM_SPEED_DOWN,       // 3  a2dIT03 AC_speedDown
+    TRITEM_SPINNER,          // 4  a2dIT04 AC_BoostUp_Missile (charge saw attack)
+    TRITEM_CHARGE_TANK,      // 5  a2dIT0c AC_chargeUp
+    TRITEM_INVINCIBLE_CANDY, // 6  a2dIT0d AC_muteki
+    TRITEM_BUZZ_SAW,         // 7  a2dIT0a AC_Sdrill_kusudama
+    TRITEM_DRILL,            // 8  a2dIT05 AC_FrontSpeer
+    TRITEM_FREEZE_FAN,       // 9  a2dIT1b AC_ice
+    TRITEM_MISSILE,          // 10 a2dIT07 AC_BoostUp_Missile (projectile missile)
+    TRITEM_FIRE,             // 11 a2dIT06 AC_AfterFlame
+    TRITEM_PARTY_BALL_ALT,   // 12 a2dIT0b AC_Sdrill_kusudama — KirbyKusdama, twin Party Ball variant
+    TRITEM_BOMB,             // 13 a2dIT08 AC_bomb
+    TRITEM_STEP_BOOM,        // 14 a2dIT10 AC_landbomb
+    TRITEM_LANTERN,          // 15 a2dIT11 AC_lanthanum — "New Item: Lantern" (TR checklist reward 10)
+    TRITEM_WALKY,            // 16 a2dIT16 AC_mike
+    TRITEM_KRACKO,           // 17 a2dIT12 AC_clakko
+    TRITEM_WHO_PAINT,        // 18 a2dIT13 AC_meta — "New Item: Who? Paint" (TR checklist reward 9)
+    TRITEM_SMOKESCREEN,      // 19 a2dIT17 AC_kemuron
+    TRITEM_CHICKIE,          // 20 a2dIT18 AC_piyo — "New Item: Chickie" (TR checklist reward 8)
+    TRITEM_PARTY_BALL,       // 21 a2dIT20 AC_usiro — KirbyUshiroyurerun, canonical Party Ball slot
     TRITEM_NUM,
 } TopRideItemKind;
 
 static const char *const TopRideItemKind_Names[TRITEM_NUM] = {
-    [TRITEM_HAMMER]      = "Hammer",
-    [TRITEM_GROW]        = "Grow",
-    [TRITEM_SPEEDUP]     = "Speed Up",
-    [TRITEM_SPEEDDOWN]   = "Speed Down",
-    [TRITEM_BOOST_SAW]   = "Boost Saw",
-    [TRITEM_CHARGEBOOST] = "Charge Boost",
-    [TRITEM_INVINCIBLE]  = "Invincible Candy",
-    [TRITEM_BUZZSAW]     = "Buzz Saw",
-    [TRITEM_SPEAR]       = "Spear",
-    [TRITEM_FREEZE]      = "Freeze",
-    [TRITEM_MISSILE]     = "Missile",
-    [TRITEM_FIRE]        = "Fire",
-    [TRITEM_NEEDLE]      = "Needle",
-    [TRITEM_BOMB]        = "Bomb",
-    [TRITEM_LANDMINE]    = "Land Mine",
-    [TRITEM_LANTERN]     = "Lantern",
-    [TRITEM_MIKE]        = "Mike",
-    [TRITEM_CRACKER]     = "Cracker",
-    [TRITEM_WHO_PAINT]   = "Who? Paint",
-    [TRITEM_SMOKESCREEN] = "Smoke Screen",
-    [TRITEM_CHICKIE]     = "Chickie",
-    [TRITEM_BACKWARD]    = "Backward",
+    [TRITEM_HAMMER]           = "Hammer",
+    [TRITEM_BIG_CAKE]         = "Big Cake",
+    [TRITEM_SPEED_UP]         = "Speed Up",
+    [TRITEM_SPEED_DOWN]       = "Speed Down",
+    [TRITEM_SPINNER]          = "Spinner",
+    [TRITEM_CHARGE_TANK]      = "Charge Tank",
+    [TRITEM_INVINCIBLE_CANDY] = "Invincible Candy",
+    [TRITEM_BUZZ_SAW]         = "Buzz Saw",
+    [TRITEM_DRILL]            = "Drill",
+    [TRITEM_FREEZE_FAN]       = "Freeze Fan",
+    [TRITEM_MISSILE]          = "Missile",
+    [TRITEM_FIRE]             = "Fire",
+    [TRITEM_PARTY_BALL_ALT]   = "Party Ball (alt)",
+    [TRITEM_BOMB]             = "Bomb",
+    [TRITEM_STEP_BOOM]        = "Step-boom",
+    [TRITEM_LANTERN]          = "Lantern",
+    [TRITEM_WALKY]            = "Walky",
+    [TRITEM_KRACKO]           = "Kracko",
+    [TRITEM_WHO_PAINT]        = "Who? Paint",
+    [TRITEM_SMOKESCREEN]      = "Smokescreen",
+    [TRITEM_CHICKIE]          = "Chickie",
+    [TRITEM_PARTY_BALL]       = "Party Ball",
 };
 
 // Top Ride ItemMgr — C++ singleton (RTTI name "ItemMgr"). Manages which items
@@ -1287,7 +1290,7 @@ void TopRideItem_SpawnAtPosition(TopRideItemMgr *mgr, int item_kind, Vec3 *pos, 
 
 // Returns a pointer to the per-item data blob for a TopRide item kind (0..21).
 // Offset +0x10 of the returned struct is the float spawn weight used by the
-// weighted-random pickers in TopRideItem_SpawnTimed and the cracker burst.
+// weighted-random pickers in TopRideItem_SpawnTimed and TopRideItem_PartyBallUpdate.
 // Out-of-range kinds fall through to `return kind` (invalid pointer), so only
 // call with 0..TRITEM_NUM-1.
 const void *TopRideItem_GetDataByIndex(int kind); // 0x8034d204

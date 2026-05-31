@@ -26,6 +26,9 @@ typedef struct TopRideChargeComponent
     float prev_charge;        // 0x38, previous frame's charge value
     float charge_at_release;  // 0x3C, snapshot of charge_value at moment of A release
     float angular_velocity;   // 0x40, rotation rate from steering
+    u8 x44[0x10];             // 0x44
+    float boost_speed;        // 0x54, calculated boost speed
+    u32 total_frames;         // 0x58, increments every frame (per-kirby frame counter)
 } TopRideChargeComponent;
 
 // Per-player Kirby object. Vtable at 0x804d2304, RTTI name "Kirby".
@@ -72,10 +75,63 @@ typedef enum TopRidePlayerKind
     TR_PKIND_NONE = 2,
 } TopRidePlayerKind;
 
-// Get/set the kind for a given TR controller slot (0..3). Backed by the
-// 9-byte-stride per-slot config block at GameData+0xD20.
-TopRidePlayerKind TopRide_GetPlayerKind(int slot); // 0x8000bd6c
-void TopRide_SetPlayerKind(int slot, TopRidePlayerKind kind); // 0x8000bda8
+// TR has only two playable "Control Type" machines, selected by L/R on the
+// middle row of each lobby panel. Maps 1:1 to the global MachineKind values
+// VCKIND_FREE / VCKIND_STEER for unlock-mask checks.
+typedef enum TopRideMachineKind
+{
+    TR_MACHINE_FREE  = 0,   // Free Star — analog stick freely steers (VCKIND_FREE)
+    TR_MACHINE_STEER = 1,   // Steer Star — left/right only (VCKIND_STEER)
+    TR_MACHINE_NUM,
+} TopRideMachineKind;
+
+// Convert a TopRideMachineKind to the corresponding MachineKind (VCKIND)
+// for indexing into `KARSave.machine_unlocked_mask`.
+#define TOPRIDE_MACHINE_TO_VCKIND(tr) ((tr) == TR_MACHINE_FREE ? VCKIND_FREE : VCKIND_STEER)
+
+// Per-slot config accessors. Backed by the 9-byte-stride config block at
+// GameData[slot*9 + 0xD20], committed from the lobby fields at TR scene-exit
+// (see TopRide_PreGameThink and TopRide_OnCourseSelect for the writer paths).
+TopRidePlayerKind TopRide_GetPlayerKind(int slot);                   // 0x8000bd6c, reads byte +0
+void TopRide_SetPlayerKind(int slot, TopRidePlayerKind kind);        // 0x8000bda8, writes byte +0
+u8   TopRide_GetColor(int slot);                                     // 0x8000bdf0, reads byte +1
+void TopRide_SetColor(int slot, u8 color);                           // 0x8000be2c, writes byte +1
+void TopRide_SetCpuLevel(int slot, u8 level);                        // 0x8000be74, writes byte +2 (0..4)
+void TopRide_SetHandicap(int slot, u8 handicap);                     // 0x8000bf04, writes byte +3 (0..4)
+void TopRide_SetControllerPort(int slot, u8 port);                   // 0x8000bebc, writes byte +6
+TopRideMachineKind TopRide_GetMachineKind(int slot);                 // 0x8000bf4c, reads byte +8
+void TopRide_SetMachineKind(int slot, TopRideMachineKind machine);   // 0x8000bf8c, writes byte +8
+
+// TR lobby (player-select) state-machine entrypoints. Called per-frame per-slot
+// from TopRide_PreGameThink (0x8002c06c) based on the slot's `ply_state`:
+//   ply_state == 0 (selecting / just-joined) -> TopRide_CSS_SelectingThink
+//   ply_state == 1 (ready / confirmed)        -> TopRide_CSS_ReadyThink
+//   ply_state == 2 (in-panel editing)         -> TopRide_CSS_PanelThink
+// All three operate on `GameData.topride_select_ply` (see game.h). The L/R
+// machine cycler lives in `TopRide_CSS_PanelThink` at 0x8002be20..0x8002be94
+// (sub-cursor row 1 = "Control Type"), reading/writing `panel_machine[slot]`.
+//
+// These are the **multiplayer race** lobby thinks, dispatched from
+// TopRide_PreGameThink (TopRide_GetMode() == 0). The solo Free Run / Time
+// Attack lobby uses a completely separate think — see TopRide_SoloPanelThink.
+void TopRide_CSS_SelectingThink(int slot);  // 0x8002ac68
+void TopRide_CSS_ReadyThink(int slot);      // 0x8002b094
+void TopRide_CSS_PanelThink(int slot);      // 0x8002b8a8
+
+// Solo lobby panel-editing think for Free Run / Time Attack, dispatched from
+// TopRide_OnCourseSelect (0x8002cc30) for slots with ply_state != 1. This is
+// the solo counterpart to TopRide_CSS_PanelThink and carries its OWN copy of
+// the "Control Type" L/R machine cycler at 0x8002cb88..0x8002cbec
+// (reads/writes panel_machine[panel] at lobby offset 0x2f, tests RIGHT
+// 0x80002 / LEFT 0x40001 — identical bits to the race cycler). Because solo
+// never routes through TopRide_CSS_PanelThink, this cycler needs its own
+// unlock gate (see gate_machines.c, hook at 0x8002cb98).
+void TopRide_SoloPanelThink(int slot);      // 0x8002ca80
+
+// Reinitializes the TR lobby block (memsets 0x39 bytes at GameData+0x197 then
+// writes per-slot defaults: panel_machine=0 (Free Star), color=slot,
+// handicap=2, panel_field_d=0xff, etc.).
+void TopRide_InitSelectData(void);                                   // 0x8002cfd8
 
 // State ID returned by state_handler->vt[+0x0C]() for the current Kirby state.
 // See docs/topride-kirby-states.md for the full state machine and class table.
@@ -104,11 +160,49 @@ typedef enum TopRideKirbyStateId
 
 // Read the current state ID via state_handler->vt[+0x0C](). Safe once
 // round_state == 2; state_handler is NULL / partially wired before that.
+//
+// **Caveat:** only some states override the get_state_id slot — others
+// (KirbyNormal, KirbyBurn, possibly more) inherit a stub that returns 0,
+// so the return value is unreliable for "am I in state X?" checks. Use
+// TopRide_KirbyHasStateVtable for that instead.
 static inline TopRideKirbyStateId TopRide_KirbyGetStateId(TopRideKirby *kirby)
 {
     void **state_vt = *(void ***)kirby->state_handler;
     int (*get_id)(void *) = (int (*)(void *))state_vt[3]; // vtable byte offset 0x0C
     return (TopRideKirbyStateId)get_id(kirby->state_handler);
+}
+
+// State class vtable addresses (from docs/topride-kirby-states.md "State
+// Classes"). Compare against state_handler->vtable to reliably identify the
+// kirby's current state — this is what dynamic_cast does inside the Group A
+// wrappers and doesn't depend on per-state get_state_id overrides.
+#define TR_KSTATE_VT_NORMAL      ((void *)0x804d6f5c)
+#define TR_KSTATE_VT_DAMAGE_BASE ((void *)0x804da158)
+#define TR_KSTATE_VT_PRESS       ((void *)0x804da070)
+#define TR_KSTATE_VT_CRUSH       ((void *)0x804d9ee0)
+#define TR_KSTATE_VT_EXPLODE     ((void *)0x804d9dd0)
+#define TR_KSTATE_VT_STRIKE      ((void *)0x804d9cbc)
+#define TR_KSTATE_VT_SPIN        ((void *)0x804d9a90)
+#define TR_KSTATE_VT_SANDSPIN    ((void *)0x804d9bac)
+#define TR_KSTATE_VT_NUMB        ((void *)0x804d9980)
+#define TR_KSTATE_VT_ELEC        ((void *)0x804d9870)
+#define TR_KSTATE_VT_WHIRLPOOL   ((void *)0x804d9760)
+#define TR_KSTATE_VT_BURN        ((void *)0x804d964c)
+#define TR_KSTATE_VT_FREEZE      ((void *)0x804d953c)
+#define TR_KSTATE_VT_CONFUSE     ((void *)0x804d9434)
+#define TR_KSTATE_VT_SHORTCUT    ((void *)0x804d90e8)
+#define TR_KSTATE_VT_TRANSPARENT ((void *)0x804da304)
+#define TR_KSTATE_VT_SPEEDUP     ((void *)0x804dbcf8)
+#define TR_KSTATE_VT_SPEEDDOWN   ((void *)0x804dbac8)
+
+// True if the kirby's current state instance has the given vtable. Reliable
+// way to ask "is this kirby in state X right now?" — the wrapper at
+// kirby->vtable[+offset] uses the same comparison via dynamic_cast.
+static inline int TopRide_KirbyHasStateVtable(TopRideKirby *kirby, void *state_vt)
+{
+    if (!kirby || !kirby->state_handler)
+        return 0;
+    return *(void **)kirby->state_handler == state_vt;
 }
 
 // === Kirby state-transition helpers ===
