@@ -13,6 +13,21 @@ struct GXColor
     u8 a;
 };
 
+// Pack four bytes into an RGBA8888 u32 (high byte = R) — matches the layout
+// used by GXColor_Lerp (0x80079c04) and the u32 color fields in SkyPresetEntry,
+// AreaLightData, etc.
+#define RGBA(r, g, b, a) ((u32)(r) << 24 | (u32)(g) << 16 | (u32)(b) << 8 | (u32)(a))
+
+static inline GXColor GXColor_Unpack(u32 c)
+{
+    GXColor out;
+    out.r = (c >> 24) & 0xFF;
+    out.g = (c >> 16) & 0xFF;
+    out.b = (c >>  8) & 0xFF;
+    out.a = (c >>  0) & 0xFF;
+    return out;
+}
+
 struct GXRenderModeObj
 {
     u32 viTVMode;             // 0x0
