@@ -146,13 +146,13 @@ typedef struct EnemyData
     int lifetime_counter;   // 0x2c, decremented each frame in proc 21 for OOB enemies
     int tier_flags;         // 0x30, variant selector (0=T0, 1=T1/T2, 2/3/4=special). From desc.x3C for actors < 0x48.
     int state;              // 0x34, current state ID. Written by EnemyStateChange.
-    void *common_state_table; // 0x38, pointer to common states 0-13 (0x804b2950)
-    int anim_idx;           // 0x3c, animation index from state table entry. -1 = no animation.
-    void *per_type_state_table; // 0x40, per-type state table for states >= 0x0E
-    void *per_type_vtable;  // 0x44, per-type function descriptor from PTR_PTR_804b1d98[kind]
+    int per_type_threshold; // 0x38, constant 0x0E set in InitFromDesc; state-ID cutoff between common and per-type states (EnemyStateChange uses a hardcoded 14, so this is informational)
+    int anim_idx;           // 0x3c, animation index from state table entry. -1 = no animation. Written by EnemyStateChange (stw r0,60(r28)).
+    void *common_state_table; // 0x40, pointer to common states 0x00-0x0D (0x804b2950). EnemyStateChange reads this for state_id < 0x0E (lwz r3,64(r28)).
+    void *per_type_state_table; // 0x44, per-type state table for states >= 0x0E; initialized to PTR_PTR_804b1d98[kind][0x00]. EnemyStateChange reads this for state_id >= 0x0E (lwz r3,68(r28)).
     void *anim_data;        // 0x48, current animation data pointer (actor_data+0x0C + anim_idx*0x10)
     float anim_timer;       // 0x4c, animation keyframe timer (decremented per frame by StateMachine)
-    float state_frame;      // 0x50
+    float anim_frame;       // 0x50, current animation frame accumulator (= x2a8 + x2ac each frame, written by EventActor_StateMachine)
     void *anim_command_ptr; // 0x54, animation script bytecode pointer
     int anim_loop_depth;    // 0x58, animation script loop nesting depth
     int x5c;                // 0x5c
@@ -828,7 +828,7 @@ typedef struct EnemyData
 // Data index used by Enemy_LoadFile to load archive files.
 
 // Enemy manager functions
-void Enemy_LoadStageEnemies(void); // 0x800f25b4, iterates stage enemy list, calls Enemy_CheckAndLoad per ID. Skips in City Trial.
+void Enemy_LoadStageEnemies(void); // 0x800f25b4, iterates stage enemy list, calls Enemy_CheckAndLoad per ID. Skips only in City Trial Free Run (Major==MJRKIND_CITY && Gm_GetCityMode()==CITYMODE_FREERUN); runs normally in timed City Trial.
 short *Enemy_GetStagesEnemies(int stage_kind); // 0x80262808, returns short* array of enemy IDs for stage (terminated by -1)
 void Enemy_InitPositionData(void); // 0x800f2634, allocates enemy position slots, loads positions from stage data
 void Enemy_InitSpawner(void); // 0x800f2ee4, creates enemy manager GObj with Enemy_Think proc
@@ -873,7 +873,7 @@ void EnemyPath_Init(EnemyData *ed); // 0x80206e2c, finds nearest spline to ed->p
 // Actor data lookup
 void *Enemy_GetActorData(int actor_id); // 0x801fd498, returns actor_data pointer for loaded archive. Indexes by {data_index, flags} from table at 0x804b22b4. Returns 0 if archive not loaded.
 
-// GObj proc functions (registered by EventActor_Create, all 11 procs, unconditionally)
+// GObj proc functions (registered by EventActor_Create — 10 procs unconditionally, at priorities 0/1/4/5/6/7/8/9/10/21; plus a separate GXLink render callback zz_801fd158_ at priority 9)
 void EventActor_ProcResetDamage(GOBJ *gobj); // 0x801fc670, priority 0: zeros per-frame damage via HurtData_ResetPerFrame
 void EventActor_ProcUpdate(GOBJ *gobj); // 0x801fc698, priority 1: HSD anim advance + state machine + state_func1 dispatch
 void EnemyPhysicsProc(GOBJ *gobj); // 0x801fc6fc, priority 4: state_func2 dispatch + vel += accel, pos += vel, OOB floor kill (skipped for actor_id >= 0x4C)

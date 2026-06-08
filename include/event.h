@@ -56,8 +56,8 @@ typedef struct EventConfigData
         int delay_max;                     // 0x4
         int occur_chance;                  // 0x8
         int skip_chance;                   // 0xc
-        int min_time;                            // 0x10, min match time (frames) before events start
-        u8 x14[0x4];                             // 0x14
+        u8 x10[0x4];                             // 0x10, unknown (not read by CityEvent_StateIdle)
+        int min_time;                            // 0x14, min match time (frames) before events start; CityEvent_StateIdle gates on City_GetMinSecMs?() >= this
         int prev_kind_max;                       // 0x18, max history entries
         int music_fadeout_frames;                // 0x1c, number of frames to fade out the music
         int starting_delay;                      // 0x20, frames in state 1 before transitioning to state 2

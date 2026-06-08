@@ -17,8 +17,10 @@ typedef struct RiderData RiderData;
 //
 // Mapping assembled from the per-kind spawn functions and their ability
 // callers. "Thrown" kinds fly and damage on impact; "Aura" kinds are spawned
-// with zero velocity and stored in rider[0xfc] — they hover on the rider as
-// the visual/hitbox representation of the active copy ability.
+// with zero velocity and stored at rider+0x3F0 — they hover on the rider as
+// the visual/hitbox representation of the active copy ability. (The rider+0xfc
+// offset in earlier drafts was wrong; Fire/Spike/Ice *_AbilityInit all do
+// `stw r3, 0x3F0(rider)` — confirmed in docs/projectile-system.md §6.3.)
 typedef enum ProjectileKind
 {
     PROJKIND_SWORD_STAR_A       = 0,  // spawnStarBullet @ 0x801a8c80 (flag=0)
