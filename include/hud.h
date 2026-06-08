@@ -16,8 +16,8 @@ typedef enum HUDKind
     HUDKIND_HUDCAM = 19,
     HUDKIND_ITEMINDICATOR = 25,
     HUDKIND_PLYHUDPOS = 35,
-    HUDKIND_CITYSTATBAR = 64,
-    HUDKIND_CITYSTATBG = 66,
+    HUDKIND_CITYSTATBG = 66,  // 0x42, attached by City_CreateStatChart at 0x80128c70 (li r4,66)
+    HUDKIND_CITYSTATBAR = 67, // 0x43, attached by City_CreateStatChartBar at 0x801291e0 (li r4,67; bl 3DHud_AddData)
 } HUDKind;
 
 typedef struct HudMapIconData

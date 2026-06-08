@@ -149,14 +149,14 @@ typedef struct GrData // exists in the stage file
     void *spline;          // 0x14
     void *pos_data;        // 0x18
     int x1c;               // 0x1c
-    int x20;               // 0x1c
-    int x24;               // 0x1c
-    int x28;               // 0x1c
-    int x2c;               // 0x1c
+    void *yakumono_pos;    // 0x20 — yakumono position-record block; grGetYakumonoposNum reads [+0x2c]->[+0x8] as the record count (0x800d1434)
+    int x24;               // 0x24
+    int x28;               // 0x28
+    int x2c;               // 0x2c
     EventConfigData *event_config; // 0x30 — set by fn_grSetupCityEventData (0x8010f7c4) when entering City Trial. Loaded regardless of the events on/off setting; same pointer is also stored as EventCheckData.data when events are enabled.
-    int x34;               // 0x1c
-    int x38;               // 0x1c
-    int x3c;               // 0x1c
+    int x34;               // 0x34
+    int x38;               // 0x38
+    int x3c;               // 0x3c
     YakumonoTable *yakumono; // 0x40 — per-stage yakumono manifest (see yakumono.h)
 } GrData;        //
 
