@@ -193,12 +193,12 @@ static const char *const ItemKind_Names[ITKIND_NUM] = {
     [ITKIND_PANICSPIN]       = "Panic Spin",
     [ITKIND_SENSORBOMB]      = "Sensor Bomb",
     [ITKIND_GORDO]           = "Gordo",
-    [ITKIND_HYDRA1]          = "Hydra Piece 1",
-    [ITKIND_HYDRA2]          = "Hydra Piece 2",
-    [ITKIND_HYDRA3]          = "Hydra Piece 3",
-    [ITKIND_DRAGOON1]        = "Dragoon Piece 1",
-    [ITKIND_DRAGOON2]        = "Dragoon Piece 2",
-    [ITKIND_DRAGOON3]        = "Dragoon Piece 3",
+    [ITKIND_HYDRA1]          = "Hydra Part X",
+    [ITKIND_HYDRA2]          = "Hydra Part Y",
+    [ITKIND_HYDRA3]          = "Hydra Part Z",
+    [ITKIND_DRAGOON1]        = "Dragoon Part A",
+    [ITKIND_DRAGOON2]        = "Dragoon Part B",
+    [ITKIND_DRAGOON3]        = "Dragoon Part C",
     [ITKIND_ACCELFAKE]       = "Boost Fake",
     [ITKIND_TOPSPEEDFAKE]    = "Top Speed Fake",
     [ITKIND_OFFENSEFAKE]     = "Offense Fake",
@@ -622,8 +622,15 @@ typedef struct ItemData
 
     // === Flags (0x358-0x35b) ===
     u8 x358;                    // 0x358, bit 5 (0x20) = visible_this_frame (set by Item_GX cull test)
-    u8 x359_f8 : 5;             // 0x359, 0xf8
-    u8 coll_kind : 3;           // 0x359, 0x07, collision kind from ItemDesc
+    // 0x359 bitfield (big-endian, MSB-first allocation):
+    //   bits 5-7 (0xE0) = x359_hi
+    //   bits 2-4 (0x1C) = coll_kind — set via rlwimi r0,kind,2,27,29 in CityItem_AllocCollData,
+    //                     read via rlwinm. r0,byte,30,29,31 in Item_GenericEnvColl. 3=point coll
+    //                     (most items), 1=alloc CollData, 0=requires CollData (dangerous).
+    //   bits 0-1 (0x03) = x359_lo
+    u8 x359_hi : 3;             // 0x359, 0xE0
+    u8 coll_kind : 3;           // 0x359, 0x1C, collision kind from ItemDesc
+    u8 x359_lo : 2;             // 0x359, 0x03
     // x35a bits, decoded so far:
     //   bit 0 (0x01) = spawned-from-sky (set by CityItem_MarkAsSkySpawned, used by power-up handlers)
     //   bit 4 (0x10) = is_grounded (set when item lands; cleared on state change)
