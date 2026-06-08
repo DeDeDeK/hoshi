@@ -86,7 +86,7 @@ typedef enum TopRideMachineKind
 } TopRideMachineKind;
 
 // Convert a TopRideMachineKind to the corresponding MachineKind (VCKIND)
-// for indexing into `KARSave.machine_unlocked_mask`.
+// for indexing into `APSave.machine_unlocked_mask` (via the global `ap_save`).
 #define TOPRIDE_MACHINE_TO_VCKIND(tr) ((tr) == TR_MACHINE_FREE ? VCKIND_FREE : VCKIND_STEER)
 
 // Per-slot config accessors. Backed by the 9-byte-stride config block at
@@ -161,10 +161,11 @@ typedef enum TopRideKirbyStateId
 // Read the current state ID via state_handler->vt[+0x0C](). Safe once
 // round_state == 2; state_handler is NULL / partially wired before that.
 //
-// **Caveat:** only some states override the get_state_id slot — others
-// (KirbyNormal, KirbyBurn, possibly more) inherit a stub that returns 0,
-// so the return value is unreliable for "am I in state X?" checks. Use
-// TopRide_KirbyHasStateVtable for that instead.
+// **Caveat:** only some states override the get_state_id slot — KirbyNormal
+// and the abstract KirbyDamage base inherit a stub (0x802e4a44) that returns
+// 0, so the return value is unreliable for "am I in state X?" checks. (Note:
+// KirbyBurn DOES override it — its slot at 0x802fcc7c returns 10.) Use
+// TopRide_KirbyHasStateVtable for reliable state identification instead.
 static inline TopRideKirbyStateId TopRide_KirbyGetStateId(TopRideKirby *kirby)
 {
     void **state_vt = *(void ***)kirby->state_handler;

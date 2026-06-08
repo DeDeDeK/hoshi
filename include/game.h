@@ -1573,7 +1573,7 @@ typedef struct Game3dData
     f32 patch_drop_spawn_y_bias;                  // 0x1c4, added to spawn position Y in both sub-handlers
     f32 patch_drop_mode2_factor;                  // 0x1c8, multiplied with sum-of-positive-stats to size mode-2 drops
     f32 patch_drop_mode1_factor;                  // 0x1cc, multiplied with sum-of-positive-stats to size mode-1 drops
-    int x1d0;                                     // 0x1d0
+    f32 patch_drop_throw_spread;                  // 0x1d0, max throw-spread half-angle in degrees; ×deg2rad×rand (sign by count parity) fans drop throw directions. Read by Rider_TickDropAllUp / Rider_SpawnDropPatchSeq
     PatchDropModeParams patch_drop_mode0_params;  // 0x1d4
     PatchDropModeParams patch_drop_mode1_params;  // 0x1ec
     PatchDropModeParams patch_drop_mode2_params;  // 0x204
@@ -2849,6 +2849,7 @@ ItemGroup Gm_GetItemGroup(ItemKind it_kind);
 u8 Checklist_GetRewardNum(GameMode gm);                                // 80049c20, returns number of rewards for a mode
 u8 Checklist_GetClearKindFromRewardIndex(GameMode gm, u8 reward_index); // 80049c84, returns clear_kind for a reward index
 int ClearChecker_CheckUnlocked(GameMode gm, u8 reward_index);          // 80049e24, checks has_reward bit for a reward index's clear_kind
+void ClearChecker_SetNewUnlockSilent(GameMode gm, u8 clear_kind);     // 80049fcc, marks clear_kind newly completed without SFX (Top Ride checklist evaluator path)
 void ClearChecker_SetNewUnlock(GameMode gm, u8 clear_kind);            // 8004a054, marks clear_kind as newly completed
 int ClearChecker_GetFrameIndex(void);                                   // 80005ce0, returns current frame index used for SFX cooldown in SetNewUnlock
 u8 ClearChecker_GetKindClear(GameMode gm, u8 clear_kind);              // 8004a130, returns status byte for a clear_kind
@@ -2929,6 +2930,10 @@ int Ply_GetDragoonCollection(int ply);                                     // 80
 void Ply_UpdateDragoonCollection(int ply, int piece_bits);                  // 8022cd64, OR's piece_bits into dragoon collection flags
 int Ply_GetHydraCollection(int ply);                                       // 8022cd04, returns count of hydra pieces collected (0-3)
 void Ply_UpdateHydraCollection(int ply, int piece_bits);                    // 8022cca0, OR's piece_bits into hydra collection flags
+int Ply_GetHydraPieceMask(int ply);                                        // 8022cce8, raw 3-bit hydra piece bitmask (PlayerData+0x908 bits 2-4); cf. Ply_GetHydraCollection for the popcount
+void Ply_SetHydraPieceMask(int ply, int mask);                             // 8022ccc8, overwrites the 3-bit hydra piece bitmask (not OR; cf. Ply_UpdateHydraCollection)
+int Ply_GetDragoonPieceMask(int ply);                                      // 8022cdac, raw 3-bit dragoon piece bitmask (PlayerData+0x908 bits 7-9); cf. Ply_GetDragoonCollection for the popcount
+void Ply_SetDragoonPieceMask(int ply, int mask);                           // 8022cd8c, overwrites the 3-bit dragoon piece bitmask (not OR; cf. Ply_UpdateDragoonCollection)
 void Ply_OnLegendaryPieceCollect(int ply, int piece_count);                // 8027a4e8, plays SFX based on piece collection progress
 void Ply_MarkLegendaryMachineAssembled(int ply, int machine_index);        // 80231198, marks legendary machine as assembled (0=Dragoon, 1=Hydra)
 void Ply_PlayFGM(int fgm_id, int ply, int param_3);                       // 80277c84, plays a positional sound effect for a player

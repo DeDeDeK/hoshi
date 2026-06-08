@@ -626,6 +626,10 @@ SECTIONS
   Ply_GetHydraCollection = 0x8022cd04;
   Ply_UpdateDragoonCollection = 0x8022cd64;
   Ply_GetDragoonCollection = 0x8022cdc8;
+  Ply_GetHydraPieceMask = 0x8022cce8;
+  Ply_SetHydraPieceMask = 0x8022ccc8;
+  Ply_GetDragoonPieceMask = 0x8022cdac;
+  Ply_SetDragoonPieceMask = 0x8022cd8c;
   Ply_MarkLegendaryMachineAssembled = 0x80231198;
   LegendaryPiece_ClearSpawnRequest = 0x80252e74;
   LegendaryPiece_MarkAsSpawned = 0x80252f10;
@@ -662,6 +666,10 @@ SECTIONS
   Projectile_Despawn = 0x80220364;
   Projectile_DespawnGObj = 0x802230a0;
   Projectile_AssignStateFlags = 0x80222298;
+  Projectile_InitHurtData = 0x80221440;
+  Projectile_RebuildCollShape = 0x80221c9c;
+  Projectile_UserDataDtor = 0x8021ff54;
+  Gordo_EnforceMaxActive = 0x8022b45c;
   Rider_TryThrowBomb = 0x801a9580;
   Rider_TryThrowSensorBomb = 0x801a9fe8;
   Rider_IsGordoThrowable = 0x801aa008;
@@ -787,6 +795,7 @@ SECTIONS
   Checklist_GetClearKindFromRewardIndex = 0x80049C84;
   ClearChecker_CheckUnlocked = 0x80049E24;
   ClearChecker_GetRewardFromClearKind = 0x80049EC4;
+  ClearChecker_SetNewUnlockSilent = 0x80049FCC;
   ClearChecker_SetNewUnlock = 0x8004A054;
   ClearChecker_GetFrameIndex = 0x80005CE0;
   ClearChecker_GetKindClear = 0x8004A130;
