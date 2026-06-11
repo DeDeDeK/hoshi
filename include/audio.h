@@ -686,7 +686,7 @@ int SFX_PlayCommon(int sfxID);
 int SFX_PlayCrowd(int sfxID);
 void SFX_StopCrowd();
 
-// Menu SFX wrappers — each plays one fixed menu sound (no args; the sfx id,
+// Menu SFX wrappers - each plays one fixed menu sound (no args; the sfx id,
 // volume, pan, and track are hardcoded internally). Names from GKYE01.map.
 int playSoundFX_errorNoise(void);   // 0x80061734, "denied/error" buzzer for rejected menu actions
 
@@ -705,8 +705,8 @@ void BGM_Pause();
 void BGM_Resume();
 void BGM_LowerVolume();
 void BGM_RaiseVolume();
-void BGM_PlaySecondaryFile(int bgm_file_index); // 0x80061e7c — plays event BGM on stream 2, pauses main BGM
-void BGM_StopSecondary(void);                   // 0x800620e8 — stops secondary BGM stream
+void BGM_PlaySecondaryFile(int bgm_file_index); // 0x80061e7c - plays event BGM on stream 2, pauses main BGM
+void BGM_StopSecondary(void);                   // 0x800620e8 - stops secondary BGM stream
 int BGM_GetPreferredVolume();            // 0 - > 127, derived from sound options in main menu
 void BGM_SetVolume(int volume, int unk); // 0 - > 127, unk is 1
 int FGM_CheckActive(u32 fgm_id);

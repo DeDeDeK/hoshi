@@ -237,7 +237,7 @@ static const char *const PatchKind_Names[PATCHKIND_NUM] = {
 
 // Per-kind static effect-info: list of stat changes a patch grants on pickup.
 // NULL for non-patch items. The `group` field here (BAD/GOOD/FAKE) is the
-// authoritative ItemGroup for the kind — not the dead mirror at ItemCommonAttr.x24.
+// authoritative ItemGroup for the kind - not the dead mirror at ItemCommonAttr.x24.
 typedef struct PatchEffectInfo
 {
     struct
@@ -256,22 +256,22 @@ typedef struct PatchEffectInfo
 typedef struct ItemCommonAttr
 {
     float scale_factor;     // 0x00, multiplied with ItemData.scale for rendering
-    int x4;                 // 0x04, dead — no readers
+    int x4;                 // 0x04, dead - no readers
     float cull_distance;    // 0x08, used by Item_GX shadow-cull test (zz_80255fc4_)
     float land_offset;      // 0x0c, vertical offset above ground surface on landing/raycast
-    int x10;                // 0x10, dead — no readers
-    int x14;                // 0x14, dead — no readers
-    int x18;                // 0x18, dead — no readers
+    int x10;                // 0x10, dead - no readers
+    int x14;                // 0x14, dead - no readers
+    int x18;                // 0x18, dead - no readers
     BoxKind box_kind;       // 0x1c, which color box pool this item spawns from (live)
-    int x20;                // 0x20, dead — no readers
-    int x24;                // 0x24, dead — real ItemGroup lives in effect_info->group
+    int x20;                // 0x20, dead - no readers
+    int x24;                // 0x24, dead - real ItemGroup lives in effect_info->group
     PatchEffectInfo *effect_info; // 0x28, NULL for non-patch items
 } ItemCommonAttr;
 
 // Per-kind tail data, copied at runtime into ItemData.x144 by the per-kind
 // init function (state-table slot +0xC). The buffer is allocated by
 // CityItem_AllocUniqueAttr from the pool descriptor at 0x8055dddc with a
-// fixed 0x38-byte stride — the box family maximum.
+// fixed 0x38-byte stride - the box family maximum.
 //
 // Of the 68 ItemKinds, 53 share a copy-1-int template that's never read back
 // (dead carry-over from the box family's init template). The 3 box kinds
@@ -279,7 +279,7 @@ typedef struct ItemCommonAttr
 // is documented here.
 typedef union ItemUniqueAttr
 {
-    struct                      // BOXBLUE / BOXGREEN / BOXRED only — sizeof = 0x38
+    struct                      // BOXBLUE / BOXGREEN / BOXRED only - sizeof = 0x38
     {
         float x00;              // 0x00, copied to buffer (no readers found)
         float x04;              // 0x04, copied to buffer (no readers found)
@@ -296,13 +296,13 @@ typedef union ItemUniqueAttr
         float x30;              // 0x30
         float effect_scale;     // 0x34, scaled into effect-spawn position at 0x8025710c
     } box;
-    int x00;                    // all other 53 kinds — single int copied to ItemData.x144 + 0x00; never read back
+    int x00;                    // all other 53 kinds - single int copied to ItemData.x144 + 0x00; never read back
 } ItemUniqueAttr;
 
 typedef struct itData
 {
     ItemCommonAttr *attr;       // 0x0
-    ItemUniqueAttr *unique_attr; // 0x4, per-kind tail data — only the box family is structured
+    ItemUniqueAttr *unique_attr; // 0x4, per-kind tail data - only the box family is structured
     struct
     {
         JOBJ *j;
@@ -324,7 +324,7 @@ typedef struct itData
 } itData;
 
 // Patch-toss physics descriptor (24 bytes). Two of these live inside
-// ItemCommonParam (offsets 0x5C and 0x80) — one for "good" tosses, one for
+// ItemCommonParam (offsets 0x5C and 0x80) - one for "good" tosses, one for
 // "bad". Consumed by CityItem_BeginPatchToss (0x80256254) when a machine
 // hits/touches a patch and the patch is ejected from the box.
 typedef struct PatchTossDesc
@@ -349,7 +349,7 @@ typedef struct ItemCommonParam
     float hardmode_scale_mult;     // 0x04, secondary multiplier when difficulty/checklist gate is active
     float shadow_scale_alt;        // 0x08, shadow-size multiplier when ItemData.x24 != 0
     float shadow_scale;            // 0x0c, default shadow-size multiplier
-    // 0x10..0x1c: dead padding — populated from ItCommon.dat at boot but never
+    // 0x10..0x1c: dead padding - populated from ItCommon.dat at boot but never
     // read by any code path (verified by exhaustive xref scan; no direct, indirect,
     // memcpy'd, or address-of access). Not aliased by another SDA pointer.
     float x10;                     // 0x10
@@ -381,7 +381,7 @@ typedef struct ItemCommonParam
 typedef struct itCommonDataAll
 {
     ItemCommonParam *param;     // 0x0, copied to stc_item_param at boot
-    void *x4;                   // 0x4, secondary table — purpose unverified
+    void *x4;                   // 0x4, secondary table - purpose unverified
     itData *itData;             // 0x8, per-kind data array (0x18-byte stride)
 } itCommonDataAll;
 
@@ -488,7 +488,7 @@ typedef struct ItemData
 
     // === Common Attributes Copy (0x118-0x140) ===
     // Runtime copy of ItemCommonAttr fields, written by CityItem_CopyCommonAttr.
-    // Most are dead mirrors — listed for offset accuracy, not for use.
+    // Most are dead mirrors - listed for offset accuracy, not for use.
     float attr_scale;           // 0x118, from ItemCommonAttr.scale_factor, used by transform helpers
     int attr_x04;               // 0x11c, dead mirror
     float attr_cull_distance;   // 0x120, from ItemCommonAttr.cull_distance, used in Item_GX shadow-cull test
@@ -496,11 +496,11 @@ typedef struct ItemData
     int attr_x10;               // 0x128, dead mirror
     int attr_x14;               // 0x12c, dead mirror
     int attr_x18;               // 0x130, dead mirror
-    int attr_box_kind;          // 0x134, dead mirror — box_kind is read directly via Item_GetCommonAttr
+    int attr_box_kind;          // 0x134, dead mirror - box_kind is read directly via Item_GetCommonAttr
     int attr_x20;               // 0x138, dead mirror
-    int attr_x24;               // 0x13c, dead mirror — real ItemGroup is read from effect_data->group when needed
+    int attr_x24;               // 0x13c, dead mirror - real ItemGroup is read from effect_data->group when needed
     PatchEffectInfo *effect_data; // 0x140, NULL for non-patch items; consumed by Patch_GetEffectData / Machine_OnTouchItem
-    void *x144;                 // 0x144, per-kind unique_attr buffer — allocated by CityItem_AllocUnkData and populated by per-kind init
+    void *x144;                 // 0x144, per-kind unique_attr buffer - allocated by CityItem_AllocUnkData and populated by per-kind init
     // === Hurt / Damage (0x148-0x1a0) ===
     HurtData *hurt_data;        // 0x148, created by HurtData_Create during CityItem_InitHurtData
     int x14c;                   // 0x14c
@@ -558,7 +558,7 @@ typedef struct ItemData
     int x218;                   // 0x218
     int x21c;                   // 0x21c
     int x220;                   // 0x220
-    int damage_processed;       // 0x224, "damage taken this frame" latch — cleared at end of CityItem_ApplyDamageFromHurtData (proc priority 10)
+    int damage_processed;       // 0x224, "damage taken this frame" latch - cleared at end of CityItem_ApplyDamageFromHurtData (proc priority 10)
     int x228;                   // 0x228
     int effect_gfx_a;           // 0x22c, particle/GFX effect handle
     int effect_gfx_b;           // 0x230, particle/GFX effect handle
@@ -624,7 +624,7 @@ typedef struct ItemData
     u8 x358;                    // 0x358, bit 5 (0x20) = visible_this_frame (set by Item_GX cull test)
     // 0x359 bitfield (big-endian, MSB-first allocation):
     //   bits 5-7 (0xE0) = x359_hi
-    //   bits 2-4 (0x1C) = coll_kind — set via rlwimi r0,kind,2,27,29 in CityItem_AllocCollData,
+    //   bits 2-4 (0x1C) = coll_kind - set via rlwimi r0,kind,2,27,29 in CityItem_AllocCollData,
     //                     read via rlwinm. r0,byte,30,29,31 in Item_GenericEnvColl. 3=point coll
     //                     (most items), 1=alloc CollData, 0=requires CollData (dangerous).
     //   bits 0-1 (0x03) = x359_lo
@@ -634,15 +634,15 @@ typedef struct ItemData
     // x35a bits, decoded so far:
     //   bit 0 (0x01) = spawned-from-sky (set by CityItem_MarkAsSkySpawned, used by power-up handlers)
     //   bit 4 (0x10) = is_grounded (set when item lands; cleared on state change)
-    //   bit 5 (0x20) = persistent pickup-lock — "this is a box, never collectible" (set by box init)
-    //   bit 6 (0x40) = temporary pickup-lock — spawn-anim or audio busy (paired with audio_timer)
+    //   bit 5 (0x20) = persistent pickup-lock - "this is a box, never collectible" (set by box init)
+    //   bit 6 (0x40) = temporary pickup-lock - spawn-anim or audio busy (paired with audio_timer)
     //   bit 7 (0x80) = cleared on every state change; gates trigger/coll debug overlay in Item_GX
     // CityItem_CanCollect returns 1 iff bits 5 AND 6 are both clear.
     u8 x35a;                    // 0x35a
     // x35b bits, decoded so far:
     //   bit 5 (0x20) = model_hidden (mirrors JOBJ_HIDDEN on the rendered jobj)
     //   bit 6 (0x40) = caller-supplied init flag from ItemDesc (purpose unclear)
-    //   bit 7 (0x80) = settled / no-further-state-work — set by CityItem_SetX35bBit7
+    //   bit 7 (0x80) = settled / no-further-state-work - set by CityItem_SetX35bBit7
     //                  from per-state-kind callbacks at end-of-state (suspected: rest state)
     u8 x35b;                    // 0x35b
 
@@ -1210,8 +1210,8 @@ static ItemCommonParam **stc_item_param      = (ItemCommonParam **)(0x805dd0e0 +
 static CityItemMgr     **stc_city_item_mgr   = (CityItemMgr **)(0x805dd0e0 + 0x7EC);     // 0x805dd8cc
 // stc_it_common_data (0x805dd0e0 + 0x7F0 = 0x805dd8d0, set by Gm_LoadItCommon) is declared in game.h
 
-// Top Ride item kinds — bitmask indices for TopRideItemMgr.enabled_mask (+0x24).
-// Mystery (a2dIT21 "?") is NOT in the bitmask — it's always available as the roulette item.
+// Top Ride item kinds - bitmask indices for TopRideItemMgr.enabled_mask (+0x24).
+// Mystery (a2dIT21 "?") is NOT in the bitmask - it's always available as the roulette item.
 // Identifiers match the canonical AP-side item names. Slot 12 (PARTY_BALL_ALT,
 // KirbyKusdama) is the engine's twin Party Ball variant; gate_topride_items.c
 // mirrors bit 21 onto bit 12 so both spawn together.
@@ -1229,16 +1229,16 @@ typedef enum TopRideItemKind
     TRITEM_FREEZE_FAN,       // 9  a2dIT1b AC_ice
     TRITEM_MISSILE,          // 10 a2dIT07 AC_BoostUp_Missile (projectile missile)
     TRITEM_FIRE,             // 11 a2dIT06 AC_AfterFlame
-    TRITEM_PARTY_BALL_ALT,   // 12 a2dIT0b AC_Sdrill_kusudama — KirbyKusdama, twin Party Ball variant
+    TRITEM_PARTY_BALL_ALT,   // 12 a2dIT0b AC_Sdrill_kusudama - KirbyKusdama, twin Party Ball variant
     TRITEM_BOMB,             // 13 a2dIT08 AC_bomb
     TRITEM_STEP_BOOM,        // 14 a2dIT10 AC_landbomb
-    TRITEM_LANTERN,          // 15 a2dIT11 AC_lanthanum — "New Item: Lantern" (TR checklist reward 10)
+    TRITEM_LANTERN,          // 15 a2dIT11 AC_lanthanum - "New Item: Lantern" (TR checklist reward 10)
     TRITEM_WALKY,            // 16 a2dIT16 AC_mike
     TRITEM_KRACKO,           // 17 a2dIT12 AC_clakko
-    TRITEM_WHO_PAINT,        // 18 a2dIT13 AC_meta — "New Item: Who? Paint" (TR checklist reward 9)
+    TRITEM_WHO_PAINT,        // 18 a2dIT13 AC_meta - "New Item: Who? Paint" (TR checklist reward 9)
     TRITEM_SMOKESCREEN,      // 19 a2dIT17 AC_kemuron
-    TRITEM_CHICKIE,          // 20 a2dIT18 AC_piyo — "New Item: Chickie" (TR checklist reward 8)
-    TRITEM_PARTY_BALL,       // 21 a2dIT20 AC_usiro — KirbyUshiroyurerun, canonical Party Ball slot
+    TRITEM_CHICKIE,          // 20 a2dIT18 AC_piyo - "New Item: Chickie" (TR checklist reward 8)
+    TRITEM_PARTY_BALL,       // 21 a2dIT20 AC_usiro - KirbyUshiroyurerun, canonical Party Ball slot
     TRITEM_NUM,
 } TopRideItemKind;
 
@@ -1267,7 +1267,7 @@ static const char *const TopRideItemKind_Names[TRITEM_NUM] = {
     [TRITEM_PARTY_BALL]       = "Party Ball",
 };
 
-// Top Ride ItemMgr — C++ singleton (RTTI name "ItemMgr"). Manages which items
+// Top Ride ItemMgr - C++ singleton (RTTI name "ItemMgr"). Manages which items
 // can spawn during a Top Ride match. Initialized by TopRideItem_MgrInit (0x8034b5f4).
 typedef struct TopRideItemMgr
 {
@@ -1302,7 +1302,7 @@ void TopRideItem_SpawnAtPosition(TopRideItemMgr *mgr, int item_kind, Vec3 *pos, 
 // call with 0..TRITEM_NUM-1.
 const void *TopRideItem_GetDataByIndex(int kind); // 0x8034d204
 
-// Forward decl — full definition in topride.h. Declared here as a typedef
+// Forward decl - full definition in topride.h. Declared here as a typedef
 // (matching topride.h) so callers don't have to include topride.h just to
 // use TopRide_KirbyApplyItem.
 typedef struct TopRideKirby TopRideKirby;
@@ -1310,7 +1310,7 @@ typedef struct TopRideKirby TopRideKirby;
 // Per-kind effect dispatcher: applies a TopRide item's effect to a Kirby
 // directly. This is the same dispatcher invoked by the per-frame consume path
 // (TopRide_KirbyUpdate -> Absorber consume). Out-of-range kinds (< 0 or >= 22)
-// silently no-op. Requires kirby+0x7c (held item GObj) to be non-null — true
+// silently no-op. Requires kirby+0x7c (held item GObj) to be non-null - true
 // during active gameplay (round_state == 2). Calling this skips the absorber
 // pickup animation but applies the gameplay effect immediately.
 void TopRide_KirbyApplyItem(TopRideKirby *kirby, int item_kind); // 0x802d8cb4
@@ -1337,15 +1337,15 @@ void CityItem_BeginPatchToss(GOBJ *gobj, ItemKind kind, int param); // 0x8025625
 
 // === City Trial event-mode flags (CityItemMgr.flags @ +0x1AC) ===
 u32  CityItem_TestEventFlag(u32 mask);                // 0x80254134. Returns mgr->flags & mask
-void CityItem_SetDynabladeEventFlag();                // 0x80254144 — bit 0 (called from event_dynablade_start)
+void CityItem_SetDynabladeEventFlag();                // 0x80254144 - bit 0 (called from event_dynablade_start)
 void CityItem_ClearDynabladeEventFlag();              // 0x80254158
-void CityItem_SetMeteorEventFlag();                   // 0x80254174 — bit 1 (called from event_meteor_start)
+void CityItem_SetMeteorEventFlag();                   // 0x80254174 - bit 1 (called from event_meteor_start)
 void CityItem_ClearMeteorEventFlag();                 // 0x80254188
-void CityItem_InitLocatorEvent(Vec3 *pos, float p0, float p1); // 0x802541a4 — bit 2 + writes loc_pos/params (called from event_rubberyItems_start)
+void CityItem_InitLocatorEvent(Vec3 *pos, float p0, float p1); // 0x802541a4 - bit 2 + writes loc_pos/params (called from event_rubberyItems_start)
 void CityItem_ClearLocatorEvent();                    // 0x8025421c
-void CityItem_InitFakeEvent(void *event_data);        // 0x80254238 — bit 3 + sticky fake_event_data (called from event_fakeItems_start)
-void CityItem_ClearFakeEvent();                       // 0x80254290 — clears bit 3 only; fake_event_data stays
-void CityItem_SetSameItemsEventFlag();                // 0x802542ac — bit 4 (called from event_sameItems_start)
+void CityItem_InitFakeEvent(void *event_data);        // 0x80254238 - bit 3 + sticky fake_event_data (called from event_fakeItems_start)
+void CityItem_ClearFakeEvent();                       // 0x80254290 - clears bit 3 only; fake_event_data stays
+void CityItem_SetSameItemsEventFlag();                // 0x802542ac - bit 4 (called from event_sameItems_start)
 void CityItem_ClearSameItemsEventFlag();              // 0x802542c0
 
 // === Box Functions ===
@@ -1354,7 +1354,7 @@ void Box_EnterSpawn(GOBJ *gobj);                       // 0x80256ec0. Initial bo
 void Box_OnLandCallback(GOBJ *gobj);                   // 0x80257020. Called when box lands on ground
 
 // === Patch / Effect System ===
-void *Patch_GetEffectData(ItemData *id);               // 0x80252e90. Returns effect_data (entries + count), copies to output buffer
+int Patch_GetEffectData(ItemData *id, void *out_entries); // 0x80252e90. Copies id->effect_data->entries (count x 8-byte {int type; float value;}) into out_entries; returns the entry count (0 if not a patch item).
 int Patch_GetMaxValue();                               // 0x8000aaf0. Returns max patch stat value from gmGameParams
 int Patch_GetMinValue();                               // 0x8000ab1c. Returns min patch stat value from gmGameParams
 int Patch_GetPlySavedValue();                          // 0x8000ab48

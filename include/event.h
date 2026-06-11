@@ -143,8 +143,8 @@ static volatile int *stc_meteor_event_data = (volatile int *)(0x805dd0e0 + 0x654
 static volatile int *stc_meteor_spawn_count = (volatile int *)(0x805dd0e0 + 0x658);       // 0x805dd738
 
 void CityEvent_ModifyItemFallDesc(EventKind evkind);
-void CityEvent_ShowHudText(int event_kind, int hud_display_frames); // 0x80113fb4 — gates on IsInCity||IsInStadium, then calls stadiumPrediction
-void CityEvent_SetSisText(int sis_text_index);                     // 0x801169fc — creates/replaces event HUD text object with SIS entry at given index. Stores text at Gm_Get3dData()+0x48. Pass -1 to destroy only.
+void CityEvent_ShowHudText(int event_kind, int hud_display_frames); // 0x80113fb4 - gates on IsInCity||IsInStadium, then calls stadiumPrediction
+void CityEvent_SetSisText(int sis_text_index);                     // 0x801169fc - creates/replaces event HUD text object with SIS entry at given index. Stores text at Gm_Get3dData()+0x48. Pass -1 to destroy only.
 void *Event_GetInstanceData(EventCheckData *ev_chk); // table lookup: data[0x04][cur_kind * 20 + 16]. returns event instance data pointer
 void event_fakeItems_applyEffect(void *event_data); // applies fake item effect using the event data pointer
 int Gm_IsStadiumMode(); // returns 1 if in stadium mode, used as gate check for copy abilities in Machine_OnTouchItem

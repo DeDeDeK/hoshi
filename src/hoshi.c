@@ -173,20 +173,20 @@ void Hook_3DExit()
 CODEPATCH_HOOKCREATE(0x80015274, "", Hook_3DExit, "", 0)
 
 // runs after Top Ride gameplay is initialized (minor 19 cb_Load)
-void Hook_TopRideLoad()
+void Hook_TopRideLoadEnd()
 {
     // loop through installed mods, run their function
     for (int i = 0; i < stc_modloader_data->mod_num; i++)
     {
         GlobalMod *this_mod = &stc_modloader_data->mods[i];
 
-        if (this_mod->desc->OnTopRideLoad)
-            this_mod->desc->OnTopRideLoad();
+        if (this_mod->desc->OnTopRideLoadEnd)
+            this_mod->desc->OnTopRideLoadEnd();
     }
 
     return;
 };
-CODEPATCH_HOOKCREATE(0x80008fac, "", Hook_TopRideLoad, "", 0)
+CODEPATCH_HOOKCREATE(0x80008fac, "", Hook_TopRideLoadEnd, "", 0)
 
 // runs upon entering player select
 void Hook_PlayerSelectLoad()

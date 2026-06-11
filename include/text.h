@@ -11,7 +11,7 @@
 
 // SIS text-stream opcode IDs. Sizes (incl. opcode byte) are noted per-entry; data
 // follows the opcode byte big-endian. The renderer at Text_GXLink (0x804516e4)
-// is the source of truth — see docs/sis-text-system.md for full semantics.
+// is the source of truth - see docs/sis-text-system.md for full semantics.
 typedef enum TextCmdOpcode
 {
     TEXTCMD_TERMINATE,        // 0x00, 1 byte. Pops a CALL return marker if present, else ends rendering.
@@ -91,7 +91,7 @@ struct Text
 {
     Vec3 trans;             // 0x00, per-vertex anchor in canvas-ortho pixel space. (x: pixels right of canvas left, y: pixels above canvas bottom, z: depth)
     Vec2 aspect;            // 0x0C, bbox width/height in pixels. Used by use_aspect auto-shrink, viewport_color background size, and scissor reference frame.
-    float scissor_top;      // 0x14, per-quad clip top    (gated by is_scissor — NOT GXSetScissor)
+    float scissor_top;      // 0x14, per-quad clip top    (gated by is_scissor - NOT GXSetScissor)
     float scissor_bot;      // 0x18, per-quad clip bottom (gated by is_scissor)
     float scissor_left;     // 0x1C, per-quad clip left   (gated by is_scissor)
     float scissor_right;    // 0x20, per-quad clip right  (gated by is_scissor)
@@ -101,13 +101,13 @@ struct Text
     Vec2 scale;             // 0x34, initial per-character scale; opcode TEXTCMD_SCALE overrides per-glyph.
     float subtext_init_x;   // 0x3C, initial X cursor offset for the subtext (loaded into temp.cursor_x).
     float subtext_init_y;   // 0x40, initial Y cursor offset for the subtext (loaded into temp.cursor_y).
-    u16 char_delay_init;    // 0x44, *designed* seed for temp.char_delay: frames to pause after each revealed glyph (typewriter speed; 0 = reveal instantly). GOTCHA: the renderer copies this into temp.char_delay ONLY at a 0x01/0x02 SUBTEXT opcode (the lone write to temp.char_delay is Text_GXLink 0x80451cec). A Text_AddSubtext buffer is 0x07-POS-delimited with NO 0x01/0x02, so the copy never fires and this field is dead for it — seed temp.char_delay directly instead. (reveal_count is likewise reset only on 0x01/0x02, not 0x07, so a multi-subtext buffer reveals sequentially across ALL its segments.)
+    u16 char_delay_init;    // 0x44, *designed* seed for temp.char_delay: frames to pause after each revealed glyph (typewriter speed; 0 = reveal instantly). GOTCHA: the renderer copies this into temp.char_delay ONLY at a 0x01/0x02 SUBTEXT opcode (the lone write to temp.char_delay is Text_GXLink 0x80451cec). A Text_AddSubtext buffer is 0x07-POS-delimited with NO 0x01/0x02, so the copy never fires and this field is dead for it - seed temp.char_delay directly instead. (reveal_count is likewise reset only on 0x01/0x02, not 0x07, so a multi-subtext buffer reveals sequentially across ALL its segments.)
     u16 space_delay_init;   // 0x46, seeds temp.space_delay: per-0x1a-SPACE / 0x03-LINEBREAK reveal pause (frames). (Formerly "dwell_init".)
 
     u8 use_aspect;          // 0x48, auto-shrink horizontally to fit aspect.x.
     u8 kerning;             // 0x49, use kerning advances vs. fixed-cell width.
     u8 align;               // 0x4A, TextAlignKind.
-    u8 reflow_flag;         // 0x4B, internal — set by TEXTCMD_LINEBREAK_REFLOW to re-enter renderer next frame. Leave at 0 from external code.
+    u8 reflow_flag;         // 0x4B, internal - set by TEXTCMD_LINEBREAK_REFLOW to re-enter renderer next frame. Leave at 0 from external code.
     u8 is_depth_compare;    // 0x4C, if 1, GX_LEQUAL Z mode (text z-tests). If 0, always on top.
     u8 hidden;              // 0x4D, non-zero -> Text_GXLink early-returns.
     u8 is_scissor;          // 0x4E, enables the per-quad scissor_* clip rect.
@@ -115,9 +115,9 @@ struct Text
 
     Text *next;             // 0x50, intrusive next in stc_text_first chain.
     GOBJ *gobj;             // 0x54, owning Text GObj (gobj->userdata at +0x2C points back here).
-    void (*render_callback)(GOBJ *text_gobj); // 0x58, invoked once per render in pass 2 after GX state setup, before any drawing. Hook for fade/wave effects. NULL for none. (Advancing text_end here does NOT drive a typewriter — see text_end / char_delay_init.)
+    void (*render_callback)(GOBJ *text_gobj); // 0x58, invoked once per render in pass 2 after GX state setup, before any drawing. Hook for fade/wave effects. NULL for none. (Advancing text_end here does NOT drive a typewriter - see text_end / char_delay_init.)
     u8 *text_start;         // 0x5C, opcode stream start (NULL gates the entire render).
-    u8 *text_end;           // 0x60, typewriter reveal frontier — NOT a hard render limit (the parser halts on the inline 0x00 TERMINATE, not here). The built-in typewriter sets this to parse+1 at each revealed glyph; the loop head (0x80451c44) pauses parsing here while wait_countdown > 0. Reset to 0 at 0x01 SUBTEXT_RESET.
+    u8 *text_end;           // 0x60, typewriter reveal frontier - NOT a hard render limit (the parser halts on the inline 0x00 TERMINATE, not here). The built-in typewriter sets this to parse+1 at each revealed glyph; the loop head (0x80451c44) pauses parsing here while wait_countdown > 0. Reset to 0 at 0x01 SUBTEXT_RESET.
     TextHeapCell *alloc;    // 0x64, primary text-data heap cell.
     TextHeapCell *state_stack; // 0x68, lazily-allocated state-history buffer used by Text_PushState/Text_PopState (color/scale/pos/align frames).
     u16 pospush_flags;      // 0x6C, bitfield gating TEXTCMD_POSPUSH/POSPUSHEND (1=enabled, requires temp.use_aspect != 0).
@@ -135,10 +135,10 @@ struct Text
         float scale_y;        // 0x84, current scale.y.
         float fit_squeeze;    // 0x88, width-fit auto-scale factor (= aspect.x / measured_width when fitting; 1.0 otherwise).
         GXColor color;        // 0x8C, TEV reg-1 source per glyph. RGB updated by TEXTCMD_COLOR; alpha sourced from Text.color.a at init.
-        u16 char_delay;        // 0x90, per-glyph typewriter pause in frames. Copied into wait_countdown on each glyph/SPACE reveal (0x80452628 / 0x804521f4). Seeded from char_delay_init ONLY at a 0x01/0x02 SUBTEXT opcode (0x80451cec) — for 0x07-delimited Text_AddSubtext buffers nothing seeds it, so write it directly. The renderer reloads it into a working register at render top (0x80451c34) and never clears it, so one write persists across frames. Live-settable mid-stream via TEXTCMD_TIMING (updates only the working register, not this field). (Formerly "char_count_max" — it is a delay, not a draw ceiling.)
+        u16 char_delay;        // 0x90, per-glyph typewriter pause in frames. Copied into wait_countdown on each glyph/SPACE reveal (0x80452628 / 0x804521f4). Seeded from char_delay_init ONLY at a 0x01/0x02 SUBTEXT opcode (0x80451cec) - for 0x07-delimited Text_AddSubtext buffers nothing seeds it, so write it directly. The renderer reloads it into a working register at render top (0x80451c34) and never clears it, so one write persists across frames. Live-settable mid-stream via TEXTCMD_TIMING (updates only the working register, not this field). (Formerly "char_count_max" - it is a delay, not a draw ceiling.)
         u16 space_delay;       // 0x92, per-space / linebreak pause in frames (init from space_delay_init; live-settable via TEXTCMD_TIMING). (Formerly "dwell".)
         int wait_countdown;    // 0x94, frames left to pause at the reveal frontier; decremented once per render at 0x80451c64, gating the text_end dwell-pause. Set from char_delay/space_delay on each reveal, or directly by TEXTCMD_DELAY.
-        int reveal_count;      // 0x98, glyphs revealed so far — engine-written reveal progress. NOT reset by 0x07 POS, only by 0x01/0x02 SUBTEXT or Text creation. The built-in typewriter advances from this; mods can read it for per-glyph effects. (Formerly "char_display_num".)
+        int reveal_count;      // 0x98, glyphs revealed so far - engine-written reveal progress. NOT reset by 0x07 POS, only by 0x01/0x02 SUBTEXT or Text creation. The built-in typewriter advances from this; mods can read it for per-glyph effects. (Formerly "char_display_num".)
         u8 use_aspect;         // 0x9C, mirror of Text.use_aspect, mutable via TEXTCMD_FIT/FITEND.
         u8 kerning;            // 0x9D, mirror of Text.kerning, mutable via TEXTCMD_KERNING/KERNINGEND.
         u8 align;              // 0x9E, mirror of Text.align, mutable via TEXTCMD_ALIGN*.
@@ -479,10 +479,10 @@ void Text_SetText(Text *text, int subtext, char *string, ...);
 u8 *TextHeap_Alloc(int size);
 void TextHeap_Free(u8 *alloc);
 int Text_ConvertASCIIToShiftJIS(char *out, char *in);
-void Text_GX(GOBJ *gobj, int pass); // 0x804516e4 — pass 0 = camera setup, pass 2 = draw + opcode walk.
+void Text_GX(GOBJ *gobj, int pass); // 0x804516e4 - pass 0 = camera setup, pass 2 = draw + opcode walk.
 void Text_LoadSisFile(int index, char *filename, char *symbol);
-int Text_StorePremadeText(Text *text, int text_index); // 0x8044f9d4 — parse/count subtexts in SIS data.
-void Text_InitPremadeText(Text *text, int text_index); // 0x8044f8c8 — set text from SIS slot entry by index.
+int Text_StorePremadeText(Text *text, int text_index); // 0x8044f9d4 - parse/count subtexts in SIS data.
+void Text_InitPremadeText(Text *text, int text_index); // 0x8044f8c8 - set text from SIS slot entry by index.
 void Text_DestroyAllSisCanvas(int sis_id);
 void Text_DestroyCanvas(TextCanvas *);
 void Text_InitSisHeap(int size);

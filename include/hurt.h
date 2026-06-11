@@ -26,7 +26,7 @@ typedef struct HurtDesc
 typedef struct HurtData
 {
     HurtKind kind;       // 0x0
-    void *desc;          // 0x4, HurtDesc pointer
+    HurtDesc *desc;      // 0x4
     int region_count;    // 0x8, collision region tier: stages=2, riders/machines=4, enemies=2 (meteor=8)
     void *regions;       // 0xc, collision region array (allocated from object pool, stride 0xC8)
     int sub_region_count; // 0x10, sub-region count tier
@@ -34,7 +34,7 @@ typedef struct HurtData
     void *x18;           // 0x18
     int hitcoll_log_idx; // 0x1c, index of strongest hit in HitCollData::log
     int attacker_kind;   // 0x20, HurtKind of the attacker that dealt the strongest hit
-    float kb_mag;        // 0x24, knockback magnitude — non-zero triggers hit reaction
+    float kb_mag;        // 0x24, knockback magnitude - non-zero triggers hit reaction
     float dmg_taken;     // 0x28, cumulative damage taken this frame
     float max_single_hit; // 0x2c, largest single-hit damage this frame
     Vec3 contact_point;  // 0x30, collision contact position
@@ -45,7 +45,7 @@ typedef struct HurtData
     int x5c;             // 0x5c
     int x60;             // 0x60
     int x64;             // 0x64
-    void *pos_tracker;   // 0x68, position-tracking object (for velocity computation in getDamageDealt)
+    void *pos_tracker;   // 0x68, position-tracking object (for velocity computation in HitColl_GetDamageDealt)
     float radius;        // 0x6c, hurtbox radius (set per-frame by HurtData_UpdatePerFrame)
     Vec3 center_pos;     // 0x70, hurtbox center position (set per-frame)
     int x7c;             // 0x7c
@@ -102,7 +102,7 @@ typedef struct DmgLog //
 // Fields map to TriggerData offsets 0x04-0x34 when copied.
 typedef struct HurtParams
 {
-    int base_damage;          // 0x00, base damage value (int, converted to float by getDamageDealt)
+    int base_damage;          // 0x00, base damage value (int, converted to float by HitColl_GetDamageDealt)
     float dmg_distance_factor; // 0x04, damage scales with relative velocity magnitude (0 = fixed damage)
     float x08;                // 0x08
     float x0c;                // 0x0c
@@ -135,13 +135,13 @@ static HitCollData *stc_hitcolldata = (HitCollData *)0x80559bf4;
 // === Hurt System Functions ===
 void HitColl_Init(HurtData *hurt);                     // 0x8018cf64. Clears global collision log counter, sets victim hurt_data pointer
 void Trigger_ClearParameterStruct(HurtParams *params);  // 0x8018a0c0. memset(params, 0, 0x34). Zeroes a HurtParams struct. Previously named HurtDesc_Init
-HurtData *HurtData_Create(void *desc, HurtKind kind, int obj1_kind, int obj2_kind, int obj3_kind); // 0x8018c1c8
+HurtData *HurtData_Create(HurtDesc *desc, HurtKind kind, int obj1_kind, int obj2_kind, int obj3_kind); // 0x8018c1c8
 void HurtData_GiveIntangibility(HurtData *hurt, int timer); // 0x8018cb5c. Sets intangibility for at least `timer` frames (only updates if > current). Sets vuln.kind = 2. Map name: HurtData_UpdateIntangibility
 void HurtData_UpdateVulnState(HurtData *hurt);         // 0x8018cb28. Updates vulnerability state: clears flag at 0x9c, sets vuln.kind based on intang/invuln timers
 HurtData *RiderGObj_GetHurtData(GOBJ *rider_gobj);     // 0x80192788. Returns HurtData from rider GOBJ userdata
-void HitColl_SetDamageLog(void *hurt_data, void *hurt_entry, void *hitcoll_data, void *trigger_params); // 0x8018cf94. Calculates damage via getDamageDealt, stores in collision log (up to 20 entries), applies knockback. Calls on_damage_callback at HurtData+0x8C if set
+void HitColl_SetDamageLog(HurtData *hurt_data, void *hurt_entry, HitCollData *hitcoll_data, void *trigger_params); // 0x8018cf94. Calculates damage via HitColl_GetDamageDealt, stores in collision log (up to 20 entries), applies knockback. Calls on_damage_callback at HurtData+0x8C if set
 void HitColl_ActOnCollision(HurtData *hurt);           // 0x8018d878. Processes global collision log, finds max knockback, sets HurtData.kb_mag and collision position
-float getDamageDealt(void *trigger_params);            // 0x8018ace4. Calculates final damage from trigger parameters: base_damage + distance_multiplier * scale_factor
+float HitColl_GetDamageDealt(void *trigger_params);            // 0x8018ace4. Calculates final damage from trigger parameters: base_damage + distance_multiplier * scale_factor
 void Trigger_InitParameters(void *dest, void *hurt_params, int flags); // 0x8018a118. Copies 13 dwords from hurt_params into dest (offsets 0x04-0x34), sets dest+0x38 = flags
 
 #endif

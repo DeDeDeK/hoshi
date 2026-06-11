@@ -882,12 +882,12 @@ int Rider_GivePowerUpByKind(RiderData *rd, PowerUpKind kind); // removes current
 // spawners declared in projectile.h.
 void Rider_GetProjectileBaseVelocity(RiderData *rd, Vec3 *out); // 0x8019407c
 
-// 8-instruction Vec3 readers — `gobj` is the rider GObj, `out` is filled with
+// 8-instruction Vec3 readers - `gobj` is the rider GObj, `out` is filled with
 // the corresponding RiderData field. Used by HELD-state projectile snap
 // (Bomb_State0_SnapToHand reads hand-bone pos; Gordo_EnterThrownState reads
 // forward + up to derive the throw orientation). The "hand bone" naming for
 // rd+0x318 reflects observed usage by both bomb HELD-snap and the fire/spike/
-// ice aura spawn helpers — the field is not directly named in the struct.
+// ice aura spawn helpers - the field is not directly named in the struct.
 void Rider_GetHandBonePos(GOBJ *gobj, Vec3 *out); // 0x80191ffc, reads rd[0x318..0x320]
 void Rider_GetForward(GOBJ *gobj, Vec3 *out);     // 0x80191ef8, reads rd->forward (rd+0x324)
 void Rider_GetUp(GOBJ *gobj, Vec3 *out);          // 0x80191f18, reads rd->up      (rd+0x330)

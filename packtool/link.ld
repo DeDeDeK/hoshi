@@ -131,6 +131,7 @@ SECTIONS
   GXSetDrawDone = 0x803cbdb8;
   GXWaitDrawDone = 0x803CBE50;
   GXSetColor = 0x803CF874;
+  GXSetBlendMode = 0x803cf820;
   GXSetZMode = 0x803CF8CC;
   GXSetLineWidth = 0x803CC42C;
   GXBegin = 0x803CC2B4;
@@ -580,7 +581,6 @@ SECTIONS
   Machine_HealTick = 0x801e2244;
   Machine_PatchPickupEffect = 0x8027a478;
   Machine_ApplyHurt = 0x8018d1a8;
-  Machine_ApplyHurtFinal = 0x8018cf94;
   Machine_GiveDamage = 0x801e1ee8;
   Machine_EnterHitReaction = 0x801e05bc;
   Machine_ActOnHitCollision = 0x801d7308;
@@ -781,7 +781,7 @@ SECTIONS
   HitColl_Init = 0x8018cf64;
   HitColl_SetDamageLog = 0x8018cf94;
   HitColl_ActOnCollision = 0x8018d878;
-  getDamageDealt = 0x8018ace4;
+  HitColl_GetDamageDealt = 0x8018ace4;
   Trigger_InitParameters = 0x8018a118;
   RiderGObj_GetHurtData = 0x80192788;
   Gm_Get3dData = 0x80112044;
@@ -875,7 +875,7 @@ SECTIONS
   HSD_LObjSetupInit = 0x803fe4b8;
   HSD_LObjLoadDesc = 0x80400238;
   /* LObj_GX, LObj_LoadDesc, LObj_SetPosition, LObj_SetInterest exported
-     in the hoshi proxies block above — do not redefine here. */
+     in the hoshi proxies block above - do not redefine here. */
 
   /* AreaLight: KAR-proprietary directional light driven per-frame by
      sky presets. Lives at GrObj+0x718, registered in r13[+0x538].
@@ -929,7 +929,44 @@ SECTIONS
   PointCollision_GetNormalByID = 0x800d1860;
   grGetGroundTypeFromTriangleID = 0x800cec28;
 
-  /* Stage model creation — instantiates JObj trees from
+  /* Stage model creation - instantiates JObj trees from
      grdata->model_section (terrain + backdrop). */
   CreateStageModel_3D = 0x800dcbf0; /* 3D_CreateStageModel; identifier renamed to dodge leading-digit C limitation */
+
+  /* Functions documented (with addresses) in the hoshi headers but previously
+     unexported. Exported here so mods can call them directly. */
+  AirRide_CheckCharacterUnlocked = 0x8000c488;
+  AirRide_CheckBonusUnlocked = 0x8000c584;
+  CityTrial_CheckStadiumIsUnlocked = 0x8000c17c;
+  Pause_CheckStatsUnlocked = 0x8000c768;
+  Gm_GetDownVector = 0x800ceb18;
+  CityItem_Throw = 0x80253ce4;
+  EventActor_Hide = 0x801fed40;
+  GXSetCopyClear = 0x8033d8a0;
+  GXCopyTex = 0x8033dcbc;
+  GXSetTexCopySrc = 0x8033d4c8;
+  GXSetTexCopyDst = 0x8033d5cc;
+  GrYaku_InitData = 0x800f4d50;
+  GrYaku_GetHurtData = 0x800f8248;
+  GrYakumono_GetState = 0x800f7ab8;
+  GrYakumono_Think = 0x800f5284;
+  Gr_AddAnim = 0x800f5ce8;
+  Gr_RemoveAnim = 0x800f5f3c;
+  Lighthouse_Create = 0x8010d228;
+  Lighthouse_Init = 0x8010d260;
+  Yakumono_Preload = 0x800f82ec;
+  grGetYakumonoposNum = 0x800d1434;
+  grInitYakumono = 0x800f425c;
+  grLoadYakumono = 0x800f440c;
+  whispyLogic = 0x8010db64;
+  HSD_DumpHeapStat = 0x80015df8;
+  HSD_DumpClassStat = 0x80382854;
+  HSD_ObjDumpStat = 0x803755f8;
+  HurtData_UpdateVulnState = 0x8018cb28;
+  JObj_LoadSet = 0x8019035c;
+  MTH_Render = 0x8001f67c;
+  Preload_FreeEntry = 0x800174e8;
+  Rider_GetHandBonePos = 0x80191ffc;
+  Rider_GetForward = 0x80191ef8;
+  Rider_GetUp = 0x80191f18;
 }

@@ -8,7 +8,7 @@
 // Data table at 0x804b22b4 maps each ID to {data_index, flags}.
 typedef enum ActorID
 {
-    // Tier 0 — Base enemies (flags=0)
+    // Tier 0 - Base enemies (flags=0)
     ACTORID_BROOM_HATTER       = 0x00,
     ACTORID_BROOM_HATTER_B     = 0x01,
     ACTORID_BRONTO_BURT        = 0x02,
@@ -34,7 +34,7 @@ typedef enum ActorID
     ACTORID_WADDLE_DEE_TRUCK   = 0x16,
     ACTORID_WADDLE_DEE         = 0x17,
 
-    // Tier 1 — Enhanced variants (flags=1), same data_index sequence
+    // Tier 1 - Enhanced variants (flags=1), same data_index sequence
     ACTORID_T1_BROOM_HATTER       = 0x18,
     ACTORID_T1_BROOM_HATTER_B     = 0x19,
     ACTORID_T1_BRONTO_BURT        = 0x1A,
@@ -60,7 +60,7 @@ typedef enum ActorID
     ACTORID_T1_WADDLE_DEE_TRUCK   = 0x2E,
     ACTORID_T1_WADDLE_DEE         = 0x2F,
 
-    // Tier 2 — Further enhanced (flags=1), same data_index sequence
+    // Tier 2 - Further enhanced (flags=1), same data_index sequence
     ACTORID_T2_BROOM_HATTER       = 0x30,
     ACTORID_T2_BROOM_HATTER_B     = 0x31,
     ACTORID_T2_BRONTO_BURT        = 0x32,
@@ -688,7 +688,7 @@ typedef struct EnemyData
     int x988;               // 0x988
     int x98c;               // 0x98c
     int x990;               // 0x990
-    int damage_accum_1;     // 0x994, damage accumulator (capped at 9999). Not used for death — cosmetic only.
+    int damage_accum_1;     // 0x994, damage accumulator (capped at 9999). Not used for death - cosmetic only.
     int damage_accum_2;     // 0x998, secondary damage accumulator (capped at 9999)
     int kb_source_kind;      // 0x99c, damage source type for knockback (0=normal, 3=enemy-on-enemy, 5=special)
     int x9a0;               // 0x9a0
@@ -835,7 +835,7 @@ void Enemy_InitSpawner(void); // 0x800f2ee4, creates enemy manager GObj with Ene
 void Enemy_Think(void); // 0x800f3904, GObj proc callback for enemy manager (Air Ride)
 void Enemy_CityTrialThink(void); // 0x800f33c0, GObj proc callback for enemy manager (City Trial)
 
-// Archive loading — idempotent, safe to call multiple times
+// Archive loading - idempotent, safe to call multiple times
 void Enemy_CheckAndLoad(int actor_id); // 0x801fd060, validates actor ID, calls Enemy_LoadFile
 void Enemy_LoadFile(int actor_id); // 0x801fd348, loads enemy archive data from disc. No-ops if already loaded.
 
@@ -851,7 +851,7 @@ void EventActor_SetVisibility(EnemyData *ed); // 0x801fed74, clears bit 7 (invis
 void EventActor_EnableRendering(GOBJ *gobj); // 0x80204198, clears bit 4 of render_flags (+0xB08).
 void EventActor_DisableRendering(GOBJ *gobj); // 0x802041b0, sets bit 4 of render_flags (+0xB08).
 // Note: render_flags bits and JOBJ_HIDDEN are independent. For actors with id >= 0x4C,
-// clearing render_flags alone is insufficient — must also JObj_ClearFlagsAll(jobj, JOBJ_HIDDEN).
+// clearing render_flags alone is insufficient - must also JObj_ClearFlagsAll(jobj, JOBJ_HIDDEN).
 double EventActor_GetParentScale(GOBJ *parent_gobj); // 0x802049b8, reads parent_gobj->userdata + 0x2B0 (scale). Crashes if parent_gobj is null.
 int Gm_CheckEnemyEnabled(void); // 0x8000a348, returns 1 if enemy spawning is enabled
 
@@ -859,13 +859,13 @@ int Gm_CheckEnemyEnabled(void); // 0x8000a348, returns 1 if enemy spawning is en
 void EnemyStateChange(EnemyData *ed, int state_id, int flags, float anim_rate, float anim_end_frame); // 0x801fc398, transitions enemy to new behavioral state. flags bitmask: 0x01=skip anim setup, 0x02=skip anim reset if same, 0x04=skip cleanup, 0x08=save/restore pos, 0x10=keep per-type cb, 0x20=skip HurtData reset, 0x40=skip SFX cleanup. anim_rate/anim_end_frame passed in f1/f2.
 
 // Meteor-specific
-void Meteor_BehaviorInit(EnemyData *ed); // 0x8021e1a0, DISABLES RENDERING (calls DisableRendering + sets JOBJ_HIDDEN), then zeros velocity, enters state 15, sets vel from zone/speed tables. Reads stc_meteor_event_data — must point to valid data. Caller must re-enable rendering + clear JOBJ_HIDDEN after.
-void Meteor_Landing(EnemyData *ed); // 0x8021ea5c, WARNING: transitions to state 17 which does NOT exist in the meteor state table — calling this causes out-of-bounds read and memory corruption. Dead code in vanilla (only reachable from state 15 timeout, which is never entered via normal creation). Do not call.
+void Meteor_BehaviorInit(EnemyData *ed); // 0x8021e1a0, DISABLES RENDERING (calls DisableRendering + sets JOBJ_HIDDEN), then zeros velocity, enters state 15, sets vel from zone/speed tables. Reads stc_meteor_event_data - must point to valid data. Caller must re-enable rendering + clear JOBJ_HIDDEN after.
+void Meteor_Landing(EnemyData *ed); // 0x8021ea5c, WARNING: transitions to state 17 which does NOT exist in the meteor state table - calling this causes out-of-bounds read and memory corruption. Dead code in vanilla (only reachable from state 15 timeout, which is never entered via normal creation). Do not call.
 void Meteor_HitTransition(EnemyData *ed); // 0x8021e7c4, state 14 hit handler: normalizes velocity, computes impact speed from actor_data, enters state 16, creates impact VFX (0x5A5A2) and audio fade. State 16 waits for effects to finish then calls EventActor_Destroy.
 
 // Enemy-player interaction
 float EnemyActor_DistToPlayer(int player_idx, float *pos); // 0x801fffa4, returns 3D distance from pos to player player_idx. Result in f1.
-void EnemyActor_RumblePlayer(int player_idx, int intensity, int duration); // 0x801ff80c, triggers controller rumble for a player. Gets rider GObj, then calls rumble with (controller_idx, 2, intensity, duration). NOT a damage function — actual enemy damage flows through the HitColl collision pipeline.
+void EnemyActor_RumblePlayer(int player_idx, int intensity, int duration); // 0x801ff80c, triggers controller rumble for a player. Gets rider GObj, then calls rumble with (controller_idx, 2, intensity, duration). NOT a damage function - actual enemy damage flows through the HitColl collision pipeline.
 
 // Path-following initialization
 void EnemyPath_Init(EnemyData *ed); // 0x80206e2c, finds nearest spline to ed->pos and assigns spline_primary/secondary. Sets spline_segment and spline_arc_param. If no spline found, sets bit 2 of +0xB0A instead.
@@ -873,14 +873,14 @@ void EnemyPath_Init(EnemyData *ed); // 0x80206e2c, finds nearest spline to ed->p
 // Actor data lookup
 void *Enemy_GetActorData(int actor_id); // 0x801fd498, returns actor_data pointer for loaded archive. Indexes by {data_index, flags} from table at 0x804b22b4. Returns 0 if archive not loaded.
 
-// GObj proc functions (registered by EventActor_Create — 10 procs unconditionally, at priorities 0/1/4/5/6/7/8/9/10/21; plus a separate GXLink render callback zz_801fd158_ at priority 9)
+// GObj proc functions (registered by EventActor_Create - 10 procs unconditionally, at priorities 0/1/4/5/6/7/8/9/10/21; plus a separate GXLink render callback zz_801fd158_ at priority 9)
 void EventActor_ProcResetDamage(GOBJ *gobj); // 0x801fc670, priority 0: zeros per-frame damage via HurtData_ResetPerFrame
 void EventActor_ProcUpdate(GOBJ *gobj); // 0x801fc698, priority 1: HSD anim advance + state machine + state_func1 dispatch
 void EnemyPhysicsProc(GOBJ *gobj); // 0x801fc6fc, priority 4: state_func2 dispatch + vel += accel, pos += vel, OOB floor kill (skipped for actor_id >= 0x4C)
 void EventActor_ProcStateActive(GOBJ *gobj); // 0x801fc7c4, priority 5: state_func3 dispatch (main per-state AI logic)
 void EventActor_ProcSharedModel(GOBJ *gobj); // 0x801fc7f8, priority 6: shadow update + state_func4 dispatch + SharedUpdate
 void EventActor_ProcPerType(GOBJ *gobj); // 0x801fc848, priority 7: per_type_cb dispatch + HurtData update + position snap
-// Priority 8: EventActor_ProcHitCollInit (0x801fc8e8) — single blr, no-op stub
+// Priority 8: EventActor_ProcHitCollInit (0x801fc8e8) - single blr, no-op stub
 void EventActor_ProcHitColl(GOBJ *gobj); // 0x801fc8ec, priority 9: HitColl processing + collision checks
 void EventActor_ProcDamage(GOBJ *gobj); // 0x801fc9f0, priority 10: reads HurtData output, calls giveEnemyDamage, dispatches hit_reaction_cb2
 void EventActor_ProcFinal(GOBJ *gobj); // 0x801fcabc, priority 21: pos → pos_prev, ground state flags, lifetime/despawn, OOB destroy
@@ -892,7 +892,7 @@ void EventActor_StateCleanup(EnemyData *ed); // 0x801fe110, cleans up attach slo
 void EventActor_SharedUpdate(GOBJ *gobj); // 0x801fd780, updates JObj world matrix from position/orientation/scale
 void EventActor_UpdateFacing(EnemyData *ed); // 0x801fd7bc, recalculates forward/up/right axes from orientation
 void EventActor_ShadowInit(EnemyData *ed); // 0x80200208, shadow and 3D model initialization/update
-void EventActor_FinalizeInit(EnemyData *ed); // 0x802042fc, finalize init — sets up animation, collision, model visibility
+void EventActor_FinalizeInit(EnemyData *ed); // 0x802042fc, finalize init - sets up animation, collision, model visibility
 void EventActor_OnCapture(EnemyData *ed); // 0x802038c4, called when enemy is captured/inhaled by a rider
 void EventActor_HurtDataCreate(EnemyData *ed); // 0x80201ee8, creates HurtData for the actor (hitbox/hurtbox collision setup)
 void EventActor_FollowParent(EnemyData *ed); // 0x80219eec, child actor state: syncs position/scale from parent_gobj
@@ -903,7 +903,7 @@ void Enemy_UnregisterFromSpawnSlot(GOBJ *gobj); // 0x800f3b28, removes enemy fro
 void Enemy_CopyParamBlock(EnemyData *ed); // 0x802006b4, bulk-copies 0xA4 bytes from *actor_data-4 into ed+0x364 through ed+0x408
 
 // Damage system
-void giveEnemyDamage(EnemyData *ed, float damage); // 0x8020b680, adds damage to accumulators (capped at 9999). Cosmetic only — does not cause death.
+void giveEnemyDamage(EnemyData *ed, float damage); // 0x8020b680, adds damage to accumulators (capped at 9999). Cosmetic only - does not cause death.
 int Enemy_ClassifyDamageTier(float damage); // 0x8020b740, classifies damage into tier 0-3 based on global thresholds
 float Enemy_ScaleDamage(float damage); // 0x8020b71c, scales damage by global multiplier from enemy param table
 void Enemy_ApplyKnockback(EnemyData *ed, void *hurtdata, int mode); // 0x8020b784, full knockback state transition: sets stun_frames, computes velocity, enters knockback state
@@ -993,7 +993,7 @@ static EnemySpawnData **stc_enemy_spawn_data = (EnemySpawnData **)(0x805dd0e0 + 
 // Enemy global parameter table (detection range, retarget cooldown, knockback thresholds)
 #define stc_enemy_param_table ((void *)0x805dd878) // 0x805dd878
 
-// HSD spline functions — used by actor movement/path-following systems
+// HSD spline functions - used by actor movement/path-following systems
 float splArcLengthGetParameter(void *spline); // 0x80415758, returns arc-length parameter in f1
 void splGetSplinePoint(Vec3 *output, void *spline, float param); // 0x80414fc0, evaluates spline at param. param passed in f1 (first float arg). Crashes if spline is null.
 void splArcLengthPoint(Vec3 *output, void *spline); // 0x80415958, wrapper: calls splArcLengthGetParameter then splGetSplinePoint. Crashes if spline is null.

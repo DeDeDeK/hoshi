@@ -654,8 +654,8 @@ typedef struct GameData // 805359d8
     } airride_select_ply;
     struct
     {
-        u8 x160[0x37];                    // 0x160 to 0x196 — header bytes outside the lobby init range
-        // === Lobby data — cleared (memset 0x39) by TopRide_InitSelectData (0x8002cfd8) ===
+        u8 x160[0x37];                    // 0x160 to 0x196 - header bytes outside the lobby init range
+        // === Lobby data - cleared (memset 0x39) by TopRide_InitSelectData (0x8002cfd8) ===
         u8 x197;                          // 0x197
         u8 init_flag;                     // 0x198, set to 0xFF on InitSelectData; consumed by lobby update
         u8 x199;                          // 0x199, exit-status flag (1 after scene-exit triggered)
@@ -671,9 +671,9 @@ typedef struct GameData // 805359d8
         u8 panel_pkind[4];                // 0x1b2, per-panel state: 0=open, 1=HMN, 2=CPU, 3=OFF
         u8 panel_pkind_ui[4];             // 0x1b6, animated mirror of panel_pkind for UI transitions
         u8 color[4];                      // 0x1ba, per-panel Kirby color (L/R buttons cycle via CSS_topRide_colorChanger)
-        u8 panel_cpu_level[4];            // 0x1be, per-panel CPU level (0..4) — bottom row when panel is editing
+        u8 panel_cpu_level[4];            // 0x1be, per-panel CPU level (0..4) - bottom row when panel is editing
         u8 panel_handicap[4];             // 0x1c2, per-panel handicap (0..4, "5 bars" bottom row when HMN)
-        u8 panel_machine[4];              // 0x1c6, per-panel TR machine kind (0=Free Star, 1=Steer Star) — middle row "Control Type"
+        u8 panel_machine[4];              // 0x1c6, per-panel TR machine kind (0=Free Star, 1=Steer Star) - middle row "Control Type"
         u8 panel_field_d[4];              // 0x1ca, per-panel UI param_13 (uninvestigated)
         u8 x1ce;                          // 0x1ce, flag set to 1 by InitSelectData (extra-unlocks override?)
         u8 x1cf;                          // 0x1cf, flag set to 1 by InitSelectData
@@ -1247,7 +1247,7 @@ typedef struct GameData // 805359d8
     int xabc;                        // 0xabc
     int xac0;                        // 0xac0
     int xac4;                        // 0xac4
-    PlayerDesc ply_desc[5];          // 0xac8 — gameplay loops iterate < 5; controller-bound loops (rumble, view) iterate < 4. Slot 4 is allocated and managed but appears unused by vanilla code paths (vestigial over-allocation, parallels stc_playerdata[5]).
+    PlayerDesc ply_desc[5];          // 0xac8 - gameplay loops iterate < 5; controller-bound loops (rumble, view) iterate < 4. Slot 4 is allocated and managed but appears unused by vanilla code paths (vestigial over-allocation, parallels stc_playerdata[5]).
     struct                           // 0xbb8
     {
         s8 ply;                      // 0x0
@@ -1319,17 +1319,17 @@ typedef struct GameData // 805359d8
     int xd14;                        // 0xd14
     int xd18;                        // 0xd18
     int xd1c;                        // 0xd1c
-    // === TR slot config table — 4 slots × 9 bytes (0xD20 to 0xD43) ===
+    // === TR slot config table - 4 slots × 9 bytes (0xD20 to 0xD43) ===
     // Committed at TR scene-exit from the lobby fields above. The runtime
     // reader is TopRide_FielderInit (0x802dafb4) which dispatches to
     // TopRide_KirbyInit per slot using this block. Per-slot byte layout:
-    //   +0: pkind (TopRidePlayerKind: HMN/CPU/NONE) — accessor TopRide_GetPlayerKind / SetPlayerKind
-    //   +1: kirby color — TopRide_GetColor / SetColor
-    //   +2: CPU level (0..4) — TopRide_SetCpuLevel
-    //   +3: handicap (0..4) — TopRide_SetHandicap
+    //   +0: pkind (TopRidePlayerKind: HMN/CPU/NONE) - accessor TopRide_GetPlayerKind / SetPlayerKind
+    //   +1: kirby color - TopRide_GetColor / SetColor
+    //   +2: CPU level (0..4) - TopRide_SetCpuLevel
+    //   +3: handicap (0..4) - TopRide_SetHandicap
     //   +5: TopRide_SetSlotConfigD25 (zz_8000bfd4_, unclassified)
-    //   +6: controller port — TopRide_SetControllerPort
-    //   +8: TR machine kind (0=Free Star, 1=Steer Star) — TopRide_GetMachineKind / SetMachineKind
+    //   +6: controller port - TopRide_SetControllerPort
+    //   +8: TR machine kind (0=Free Star, 1=Steer Star) - TopRide_GetMachineKind / SetMachineKind
     struct
     {
         u8 pkind;                    // 0xD20+i*9, see TopRidePlayerKind
@@ -1464,7 +1464,7 @@ typedef struct GameData // 805359d8
 // Sub-handlers (Rider_TickDropAllUp, Rider_SpawnDropPatchSeq) interpolate
 // between the (lo, hi) pairs with a uniform random factor; pair C scales
 // the spawn velocity vector, pairs A/B feed two scalar args to SpawnItem
-// (semantics not fully nailed down — see docs/patch-drop-system.md).
+// (semantics not fully nailed down - see docs/patch-drop-system.md).
 typedef struct PatchDropModeParams
 {
     f32 lo_a;  // 0x00
@@ -2794,7 +2794,7 @@ static gmDataAll **stc_gmdataall = (gmDataAll **)(0x805dd0e0 + 0x494);
 static int *stc_clearchecker_sfx_last_frame = (int *)(0x805dd0e0 + 0x4B0); // 0x805dd590, last frame ClearChecker_SetNewUnlock played its SFX (one-frame cooldown)
 static int *stc_city_machine_num = (int *)(0x805dd0e0 + 0x754); //
 static u8 *stc_city_starting_machine = (u8 *)0x80495816;
-static PlayerData *stc_playerdata = (PlayerData *)0x8055a9f0; // 5 of these (slots 0-4). Vanilla iterates < 5; unused slots are set to PKIND_NONE via plSetPlayerKind. Slot 4 has no direct xrefs anywhere in the binary — it is allocated/iterated/zeroed but appears to be dead over-allocation (PKIND_DEMO is used by title screen, menu radar, and TR results, but always targets slots 0-3).
+static PlayerData *stc_playerdata = (PlayerData *)0x8055a9f0; // 5 of these (slots 0-4). Vanilla iterates < 5; unused slots are set to PKIND_NONE via plSetPlayerKind. Slot 4 has no direct xrefs anywhere in the binary - it is allocated/iterated/zeroed but appears to be dead over-allocation (PKIND_DEMO is used by title screen, menu radar, and TR results, but always targets slots 0-3).
 static u8 *stc_clear_num = (u8 *)0x805d51d0;                          // array indexed by GMMODE, stores clear count per mode
 static RewardEntry **stc_reward_table_ptrs = (RewardEntry **)0x8049755C; // 3 pointers to per-mode reward tables. Indexed by GMMODE
 static u8 *stc_special_rewards = (u8 *)0x804AD270;                     // 5 special reward indices per mode (15 bytes total)
@@ -2820,8 +2820,8 @@ int CityTrial_IsInStadium();  // 0x8000ad48, checks if city_kind is a stadium (7
 
 GmIntroState Gm_GetIntroState();
 CityMode Gm_GetCityMode();
-AirRideMode Gm_GetAirRideMode();      // 0x8003d5f0 — returns GameData[0x35d]
-int Gm_GetAirRidePlayerSlot();         // 0x8003d644 — returns GameData[0x35f], active player slot for Free Run / Time Attack
+AirRideMode Gm_GetAirRideMode();      // 0x8003d5f0 - returns GameData[0x35d]
+int Gm_GetAirRidePlayerSlot();         // 0x8003d644 - returns GameData[0x35f], active player slot for Free Run / Time Attack
 float Ply_GetCityStatNum(int ply, int stat_idx, int unk);
 GOBJ *Ply_GetRiderGObj(int ply);
 GOBJ *Ply_GetMachineGObj(int ply);
@@ -2869,10 +2869,12 @@ void ClearChecker_MarkNewUnlocksShown(GameMode gm);                      // 8000
 
 // Grant a checkbox filler for the given mode. checkbox_filler_num is uncapped (u8, max 255).
 // checkbox_filler_list_len controls the displayed filler icons in the UI (capped at 5).
-static inline void Checklist_GrantFiller(GameMode mode) {
+static inline void Checklist_GrantFiller(GameMode mode)
+{
     GameClearData *clear_data = gmGetClearcheckerTypeP(mode);
     clear_data->checkbox_filler_num++;
-    if (clear_data->checkbox_filler_list_len < 5) {
+    if (clear_data->checkbox_filler_list_len < 5)
+    {
         clear_data->checkbox_filler_list_len++;
     }
 }
@@ -2886,7 +2888,7 @@ TopRideMode TopRide_GetMode(void);                                       // 8003
 int TopRide_GetTimeAttackPlayerSlot(void);                               // 8003eaf0, returns active player slot for Top Ride Time Attack
 TopRideStats *TopRide_GetStats(void);                                    // 80287040, returns TopRideStats pointer (via gmGetClearcheckerType1_2Ptr)
 
-// Top Ride Kirby (player) structs and globals — see topride.h
+// Top Ride Kirby (player) structs and globals - see topride.h
 
 // Clear Checker reward query callers
 int AirRide_CheckCourseUnlocked(s8 input);                              // 8000c0e0, checks reward index 34 (Nebula Belt) when input==8
@@ -2951,7 +2953,7 @@ typedef enum EventDropSource
 } EventDropSource;
 
 ItemKind CityItem_GetEventItem(EventDropSource source);                    // 80254114, weighted random pick from event_source_drop[] using the source's column. Returns -1 if no item.
-ItemKind _CityItem_GetEventItem(EventDropSource source);                   // 800ebe44, internal — public CityItem_GetEventItem just tail-calls this.
+ItemKind _CityItem_GetEventItem(EventDropSource source);                   // 800ebe44, internal - public CityItem_GetEventItem just tail-calls this.
 void City_SpawnMiscItems(int *desc, ...);                                  // 80104db0, public dispatch: desc[8]==1 → directed cone (shootPowerUps_); desc[8]==0 → omnidirectional (_City_SpawnMiscItems). desc[7] = drop_source (-1 → fall back to CityEvent_GetRandomItem).
 
 // Spawn one item with a randomized throw velocity. Builds a spawn descriptor
@@ -2962,9 +2964,9 @@ void City_SpawnMiscItems(int *desc, ...);                                  // 80
 void CityItem_Throw(ItemKind item_kind, int spawn_group, Vec3 *position, Vec3 *velocity, int item_flags, f32 scalar_a, f32 scalar_b); // 80253ce4
 
 // Yaku-break (destructible object) drop handlers. All three feed into City_SpawnMiscItems.
-void GrYakuBreakRock_DropItems(int param);   // 8010203c, gryakubreakrock.c — volcano walls + event pillars
-void GrYakuBreakHouse_DropItems(int param);  // 80102794, gryakubreakhouse.c — destructible houses
-void GrYakuBreakCoral_DropItems(int param);  // 801040fc, gryakubreakcoral.c — "BigStar" / star pole
+void GrYakuBreakRock_DropItems(int param);   // 8010203c, gryakubreakrock.c - volcano walls + event pillars
+void GrYakuBreakHouse_DropItems(int param);  // 80102794, gryakubreakhouse.c - destructible houses
+void GrYakuBreakCoral_DropItems(int param);  // 801040fc, gryakubreakcoral.c - "BigStar" / star pole
 
 // Legendary Machine Assembly
 typedef struct LegendaryAssemblyParams
