@@ -117,7 +117,7 @@ typedef struct GrModelMotion  // exists in the stage file
     GrModelMotionAnim anim[]; // variable amount of these depending on the stage
 } GrModelMotion;              //
 
-// ModelSection — 4 dwords pointed at by GrData.model_section. Slots 0
+// ModelSection - 4 dwords pointed at by GrData.model_section. Slots 0
 // and 1 are JOBJDesc** (a pointer to a slot containing the JOBJDesc *
 // instantiated by 3D_CreateStageModel), so a stage can ship a
 // terrain mesh, a separate skybox/backdrop mesh, both, or neither.
@@ -125,8 +125,8 @@ typedef struct GrModelMotion  // exists in the stage file
 // the result to GrObj+0xF4. See docs/sky-backdrop-system.md.
 typedef struct ModelSection
 {
-    JOBJDesc **terrain;  // 0x00 — main playable geometry
-    JOBJDesc **backdrop; // 0x04 — secondary skybox/horizon mesh
+    JOBJDesc **terrain;  // 0x00 - main playable geometry
+    JOBJDesc **backdrop; // 0x04 - secondary skybox/horizon mesh
     void *unk_8;         // 0x08
     void *unk_c;         // 0x0C
 } ModelSection;
@@ -144,20 +144,20 @@ typedef struct GrData // exists in the stage file
         int fog_flags;
     } *stage_node;                  // 0x4
     int x8;                         // 0x8
-    ModelSection *model_section;    // 0xc — terrain + backdrop JObj descs
+    ModelSection *model_section;    // 0xc - terrain + backdrop JObj descs
     GrModelMotion *motion;          // 0x10, pointer placed at runtime
     void *spline;          // 0x14
     void *pos_data;        // 0x18
     int x1c;               // 0x1c
-    void *yakumono_pos;    // 0x20 — yakumono position-record block; grGetYakumonoposNum reads [+0x2c]->[+0x8] as the record count (0x800d1434)
+    void *yakumono_pos;    // 0x20 - yakumono position-record block; grGetYakumonoposNum reads [+0x2c]->[+0x8] as the record count (0x800d1434)
     int x24;               // 0x24
     int x28;               // 0x28
     int x2c;               // 0x2c
-    EventConfigData *event_config; // 0x30 — set by fn_grSetupCityEventData (0x8010f7c4) when entering City Trial. Loaded regardless of the events on/off setting; same pointer is also stored as EventCheckData.data when events are enabled.
+    EventConfigData *event_config; // 0x30 - set by fn_grSetupCityEventData (0x8010f7c4) when entering City Trial. Loaded regardless of the events on/off setting; same pointer is also stored as EventCheckData.data when events are enabled.
     int x34;               // 0x34
     int x38;               // 0x38
     int x3c;               // 0x3c
-    YakumonoTable *yakumono; // 0x40 — per-stage yakumono manifest (see yakumono.h)
+    YakumonoTable *yakumono; // 0x40 - per-stage yakumono manifest (see yakumono.h)
 } GrData;        //
 
 // Per-stage runtime object. The layout below names the runtime members the
@@ -171,18 +171,18 @@ typedef struct GrObj
     GroundKind gr_kind;         // 0x004
     GrData *gr_data;            // 0x008
     u8 _pad_00c[0xF4 - 0x0C];
-    JOBJ *backdrop_jobj;        // 0x0F4 — distant skybox/horizon mesh attached
+    JOBJ *backdrop_jobj;        // 0x0F4 - distant skybox/horizon mesh attached
                                 //         by 3D_CreateStageModel. NULL if the
                                 //         stage's ModelSection.backdrop is NULL.
     u8 _pad_0f8[0x168 - 0xF8];
-    GOBJ *sky_gobj;             // 0x168 — fog/sky GObj built by Sky_InitFog.
+    GOBJ *sky_gobj;             // 0x168 - fog/sky GObj built by Sky_InitFog.
                                 //         hsd_object (+0x28) = HSD_Fog *,
                                 //         userdata (+0x2C) = SkyState *.
     u8 _pad_16c[0x714 - 0x16C];
-    u32 fade_slot_id;           // 0x714 — lbfade slot ID owned by the sky
+    u32 fade_slot_id;           // 0x714 - lbfade slot ID owned by the sky
                                 //         system (incremented per stage entry,
                                 //         so it doubles as a freshness signal).
-    AreaLight *area_light;      // 0x718 — KAR-proprietary directional light.
+    AreaLight *area_light;      // 0x718 - KAR-proprietary directional light.
 } GrObj;
 
 static GrData **stc_grdatalookup = (GrData **)(0x80557638); // indexed by gr_kind
@@ -194,13 +194,13 @@ GroundKind Gm_GetGrKindFromStageKind(StageKind stage_kind);
 
 // Gr_StateChange and other yakumono framework APIs are declared in yakumono.h.
 
-// Sky/lighting system — operates on GrObj, presets loaded from stage file.
+// Sky/lighting system - operates on GrObj, presets loaded from stage file.
 // See docs/sky-lighting-system.md for the full architecture.
 
 // 0x48-byte preset entry stored in the stage file's sky-block array
 // (gr_data+0x34 -> [4] -> [0]). Each entry interpolates fog, screen tint,
 // sky ambient color, and AreaLight params over `transition_frames`.
-// Color fields are packed RGBA8888 u32 (high byte = R) — that's how
+// Color fields are packed RGBA8888 u32 (high byte = R) - that's how
 // GXColor_Lerp (0x80079c04) loads/stores them with single lwz/stw.
 typedef struct SkyPresetEntry
 {
@@ -233,21 +233,21 @@ typedef struct SkyState
 } SkyState;
 _Static_assert(sizeof(SkyState) == 0x4C, "SkyState must be 0x4C bytes");
 
-void Sky_Init(GrObj *grobj);                              // 0x8010f114 — initial sky setup per stage
-void Sky_SetPresetIndex(GrObj *grobj, int preset_index);  // 0x800dc630 — store preset index in sky state +0x1C
-void Sky_LoadPreset(GrObj *grobj);                        // 0x800dc1b4 — load preset immediately (no transition)
-void Sky_BeginTransition(GrObj *grobj, int preset_index); // 0x800dc354 — smooth transition to preset
-void Sky_ApplyStoredIndex(GrObj *grobj);                  // 0x800dc4c0 — transition to stored index (+0x1C)
-void Sky_Update(GrObj *grobj);                            // 0x800dc640 — per-frame interpolation
-int Sky_GetPresetCount(void);                             // 0x800d5414 — total preset count from stage data
-void Sky_TransitionGlobal(int preset_index);              // 0x800d5444 — transition via stc_grobj
-void Sky_RestoreGlobal(void);                             // 0x800d546c — restore default sky preset
-void Sky_SetupLights(GrObj *grobj, int jobj_idx);         // 0x800db774 — toggle JOBJ visibility flags (no LOBJ creation)
-void Sky_InitFog(GrObj *grobj);                           // 0x800dbfa8 — build the fog GObj at grobj+0x168
-void Sky_AllocFade(GrObj *grobj);                         // 0x800eef04 — alloc lbfade slot 3 at grobj+0x714
-void Sky_BeginFade(GrObj *grobj, u32 *color, int frames); // 0x800eef50 — fire screen tint via ScreenFade_Begin
-void Sky_FreeFade(GrObj *grobj);                          // 0x800eefb0 — free lbfade slot at scene teardown
-int Gm_Roll(int *weights, int count);                     // 0x800db2b8 — weighted random selection
+void Sky_Init(GrObj *grobj);                              // 0x8010f114 - initial sky setup per stage
+void Sky_SetPresetIndex(GrObj *grobj, int preset_index);  // 0x800dc630 - store preset index in sky state +0x1C
+void Sky_LoadPreset(GrObj *grobj);                        // 0x800dc1b4 - load preset immediately (no transition)
+void Sky_BeginTransition(GrObj *grobj, int preset_index); // 0x800dc354 - smooth transition to preset
+void Sky_ApplyStoredIndex(GrObj *grobj);                  // 0x800dc4c0 - transition to stored index (+0x1C)
+void Sky_Update(GrObj *grobj);                            // 0x800dc640 - per-frame interpolation
+int Sky_GetPresetCount(void);                             // 0x800d5414 - total preset count from stage data
+void Sky_TransitionGlobal(int preset_index);              // 0x800d5444 - transition via stc_grobj
+void Sky_RestoreGlobal(void);                             // 0x800d546c - restore default sky preset
+void Sky_SetupLights(GrObj *grobj, int jobj_idx);         // 0x800db774 - toggle JOBJ visibility flags (no LOBJ creation)
+void Sky_InitFog(GrObj *grobj);                           // 0x800dbfa8 - build the fog GObj at grobj+0x168
+void Sky_AllocFade(GrObj *grobj);                         // 0x800eef04 - alloc lbfade slot 3 at grobj+0x714
+void Sky_BeginFade(GrObj *grobj, u32 *color, int frames); // 0x800eef50 - fire screen tint via ScreenFade_Begin
+void Sky_FreeFade(GrObj *grobj);                          // 0x800eefb0 - free lbfade slot at scene teardown
+int Gm_Roll(int *weights, int count);                     // 0x800db2b8 - weighted random selection
 
 // Global EFB/erase color written each frame by Sky_Update step 4 and read
 // by World_CObj+0x144 to drive HSD_SetEraseColor for the next CopyDisp.
@@ -256,18 +256,18 @@ static u32 *stc_global_fog_color = (u32 *)0x80557484;
 
 // First INFINITE non-HIDDEN LOBJ in the primary stage-light chain. Cached
 // at stage init by Light_CreateForStage (via 0x80057598 walker). For City
-// Trial this is the warm-white directional light at (-1000, 700, 1500) —
+// Trial this is the warm-white directional light at (-1000, 700, 1500) -
 // the one that lights terrain. Write to its color (+0x10) / hw_color (+0x14)
 // to re-tint terrain at runtime. NULL outside CT-style stages.
 static struct LOBJ **stc_main_light = (struct LOBJ **)(0x805dd0e0 + 0x5fc);
 
-// Spline path system — enemy walking paths embedded in stage data.
+// Spline path system - enemy walking paths embedded in stage data.
 // Spline data is stored at GrObj+0x11C as a header {void *entries, int count}.
 // Each entry (stride 0x18) contains forward/backward HSD spline pointers.
 // Access via the functions below (they read from stc_grobj internally).
-int Spline_GetCount(void);                               // 0x800cf38c — number of spline segments in current stage
-void *Spline_GetForward(int segment);                    // 0x800cf3ac — forward HSD spline pointer for segment
-void *Spline_GetBackward(int segment);                   // 0x800cf44c — backward HSD spline pointer for segment
+int Spline_GetCount(void);                               // 0x800cf38c - number of spline segments in current stage
+void *Spline_GetForward(int segment);                    // 0x800cf3ac - forward HSD spline pointer for segment
+void *Spline_GetBackward(int segment);                   // 0x800cf44c - backward HSD spline pointer for segment
 
 // HSD spline evaluation. param is in [0.0, 1.0] range:
 // 0.0 = first control point, 1.0 = last control point.

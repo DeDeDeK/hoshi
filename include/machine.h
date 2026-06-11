@@ -1025,7 +1025,7 @@ typedef struct MachineData
     u8 xc35_40 : 1;                       // 0xc35, 0x40
     u8 is_dead : 1;                       // 0xc35, 0x20
     u8 xc36;                              // 0xc36
-    u8 xc37;                              // 0xc37. bit 7 (0x80): set by Machine_SetFallDead. bit 6 (0x40): use_backup_checkpoint — set when spline lookup fails, cleared on success. bit 4 (0x10): cleared by Machine_RespawnStateEntry. bit 0 (0x01): cleared by Machine_InitRuntimeState.
+    u8 xc37;                              // 0xc37. bit 7 (0x80): set by Machine_SetFallDead. bit 6 (0x40): use_backup_checkpoint - set when spline lookup fails, cleared on success. bit 4 (0x10): cleared by Machine_RespawnStateEntry. bit 0 (0x01): cleared by Machine_InitRuntimeState.
     int xc38;                             // 0xc38
     int xc3c;                             // 0xc3c
 
@@ -1067,11 +1067,10 @@ void Machine_HealTick(MachineData *md); // fixed-amount heal, simplified variant
 void Machine_GiveCandy(MachineData *md, int duration); // applies candy visual effect (rainbow color anim), clears hurt data. duration param unused
 void Machine_GivePatchOrCandy(MachineData *md, int type, float amount); // dispatches type 27 = candy, types 21-24 = patches
 void Machine_PatchPickupEffect(MachineData *md, int patch_kind); // visual/SFX effect on patch pickup
-void Machine_ApplyHurt(void *hurt_subsystem, int index, HurtParams *hurt_params); // 0x8018d1a8. Applies hurt via HitColl system. hurt_subsystem = MachineData.hurt_data, index = 0, hurt_params = 0x34-byte struct from Trigger_ClearParameterStruct. Calls Trigger_InitParameters then HitColl_SetDamageLog
-void Machine_ApplyHurtFinal(void *hurt_data, void *hurt_entry, void *hitcoll_data, void *trigger_params); // 0x8018cf94. Alias for HitColl_SetDamageLog. Calculates damage via getDamageDealt, stores in collision log, applies knockback
+void Machine_ApplyHurt(void *hurt_subsystem, int index, HurtParams *hurt_params); // 0x8018d1a8. Applies hurt via HitColl system. hurt_subsystem = MachineData.hurt_data, index = 0, hurt_params = 0x34-byte struct from Trigger_ClearParameterStruct. Calls Trigger_InitParameters then HitColl_SetDamageLog (see hurt.h)
 void Machine_GiveDamage(MachineData *md, float damage, GOBJ *source_gobj); // 0x801e1ee8. High-level damage: adds to dmg accumulator (MachineData+0x6AC), subtracts HP (MachineData+0xA18), triggers death if HP<=0, applies low-HP color anim. Checks Gm_IsDamageEnabled() before HP reduction. float is passed in f1. source_gobj is used by Machine_OnDamageVisual for hit spark direction (reads +0x20 as forward vector); must not be NULL in City Trial. Does NOT cause knockback/bounce
 void Machine_EnterHitReaction(MachineData *md);        // 0x801e05bc. Transitions machine to hit reaction state (state 5). Causes the "bounce up" animation. Checks if not already in state 5. Calls Machine_OnEnterHitReaction which triggers MachineStateChange to substate 9, plays hit reaction animation. Set HurtData.kb_mag before calling for knockback physics
-void Machine_ActOnHitCollision(MachineData *md);       // 0x801d7308. Per-frame post-collision step inside Machine_UpdateHitColl. Runs after HitColl_ActOnCollision: reads HurtData.kb_mag (offset 0x24); if 0, returns immediately. Otherwise looks up the strongest log entry via HurtData.hitcoll_log_idx (0x1C), then dispatches by attacker kind (cmplwi r0,6 / jump table at 0x804b0d30) into the actual damage / knockback / state-transition handlers (HP loss, Machine_EnterHitReaction, etc.). This — not Machine_EnterHitReaction alone — is what fully consumes a logged hit.
+void Machine_ActOnHitCollision(MachineData *md);       // 0x801d7308. Per-frame post-collision step inside Machine_UpdateHitColl. Runs after HitColl_ActOnCollision: reads HurtData.kb_mag (offset 0x24); if 0, returns immediately. Otherwise looks up the strongest log entry via HurtData.hitcoll_log_idx (0x1C), then dispatches by attacker kind (cmplwi r0,6 / jump table at 0x804b0d30) into the actual damage / knockback / state-transition handlers (HP loss, Machine_EnterHitReaction, etc.). This - not Machine_EnterHitReaction alone - is what fully consumes a logged hit.
 void Machine_InitHurtData(MachineData *md);            // 0x801d6e84. Creates HurtData for machine via HurtData_Create(HURTKIND_MACHINE), sets callback at HurtData+0x8C, configures hurt descriptors from itData
 HurtData *MachineGObj_GetHurtData(GOBJ *machine_gobj); // 0x801c8660. Returns *(MachineData+0x660) from GOBJ userdata
 

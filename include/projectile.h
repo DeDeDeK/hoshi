@@ -17,17 +17,17 @@ typedef struct RiderData RiderData;
 //
 // Mapping assembled from the per-kind spawn functions and their ability
 // callers. "Thrown" kinds fly and damage on impact; "Aura" kinds are spawned
-// with zero velocity and stored at rider+0x3F0 — they hover on the rider as
+// with zero velocity and stored at rider+0x3F0 - they hover on the rider as
 // the visual/hitbox representation of the active copy ability. (The rider+0xfc
 // offset in earlier drafts was wrong; Fire/Spike/Ice *_AbilityInit all do
-// `stw r3, 0x3F0(rider)` — confirmed in docs/projectile-system.md §6.3.)
+// `stw r3, 0x3F0(rider)` - confirmed in docs/projectile-system.md §6.3.)
 typedef enum ProjectileKind
 {
     PROJKIND_SWORD_STAR_A       = 0,  // spawnStarBullet @ 0x801a8c80 (flag=0)
     PROJKIND_SWORD_STAR_B       = 1,  // spawnStarBullet @ 0x801a8c80 (flag=1)
-    PROJKIND_FIRE_BULLET        = 2,  // spawnFireBullet — Fire ability thrown shot
-    PROJKIND_FIRE_AURA          = 3,  // spawnFireAura — Fire ability on-rider aura
-    PROJKIND_BOMB               = 4,  // spawnBomb — Bomb ability thrown bomb
+    PROJKIND_FIRE_BULLET        = 2,  // spawnFireBullet - Fire ability thrown shot
+    PROJKIND_FIRE_AURA          = 3,  // spawnFireAura - Fire ability on-rider aura
+    PROJKIND_BOMB               = 4,  // spawnBomb - Bomb ability thrown bomb
     PROJKIND_PLASMA_A           = 5,  // spawnPlasmaBullet, charge mode 5
     PROJKIND_PLASMA_B           = 6,  // spawnPlasmaBullet, charge mode 6
     PROJKIND_PLASMA_SPREAD_MID  = 7,  // spawnPlasmaSpread, mode-7 center shot
@@ -35,11 +35,11 @@ typedef enum ProjectileKind
     PROJKIND_PLASMA_C           = 9,  // spawnPlasmaBullet, charge mode 9
     PROJKIND_PLASMA_D           = 10, // spawnPlasmaBullet, charge mode 10
     PROJKIND_SWORD_STAR_CHARGED = 11, // spawnStarBullet @ 0x801a8df8 (alt/charged variant)
-    PROJKIND_SPIKE_AURA         = 12, // spawnSpikeAura — Spike (Needle) ability on-rider aura
-    PROJKIND_ICE_AURA           = 13, // spawnIceAura — Ice ability on-rider aura
-    PROJKIND_FIRECRACKER        = 14, // spawnCrackerBullet — Firecracker powerup projectile
-    PROJKIND_SENSORBOMB         = 15, // spawnSensorBomb — Bomb ability sensor variant
-    PROJKIND_GORDO              = 16, // spawnGordo — Phan Phan enemy throw
+    PROJKIND_SPIKE_AURA         = 12, // spawnSpikeAura - Spike (Needle) ability on-rider aura
+    PROJKIND_ICE_AURA           = 13, // spawnIceAura - Ice ability on-rider aura
+    PROJKIND_FIRECRACKER        = 14, // spawnCrackerBullet - Firecracker powerup projectile
+    PROJKIND_SENSORBOMB         = 15, // spawnSensorBomb - Bomb ability sensor variant
+    PROJKIND_GORDO              = 16, // spawnGordo - Phan Phan enemy throw
     PROJKIND_NUM                = 17,
 } ProjectileKind;
 
@@ -64,7 +64,7 @@ typedef struct ProjectileDesc
     int type_flag;          // 0x44: every traced vanilla spawner passes 1 (BOMB confirmed via disasm).
                             //       Copied verbatim to proj+0x78; no routing into per-frame branches has been found.
                             //       Older notes that called out a 1/3/4 aura/directed/thrown enum were speculation
-                            //       and are contradicted by BOMB writing 1 — treat values >1 as uncharted.
+                            //       and are contradicted by BOMB writing 1 - treat values >1 as uncharted.
     float charge;           // 0x48: vanilla reads md->projectile_charge_scale
 } ProjectileDesc;
 
@@ -74,7 +74,7 @@ typedef struct ProjectileDesc
 // is the only disambiguator.
 //
 // For single-state kinds, Projectile_Create already leaves the projectile in
-// its one flying state — no Projectile_SetState call is needed.
+// its one flying state - no Projectile_SetState call is needed.
 
 typedef enum BombState {
     BOMB_STATE_HELD      = 0, // pinned to rider hand; no physics, no detonate
@@ -107,7 +107,7 @@ typedef enum FireBulletState {
 // Auras share structure across fire/spike/ice: IDLE re-snaps to the rider
 // hand every frame; FIRING is per-kind (spike differs only in anim flags,
 // ice runs real per-frame work, fire has a watchdog fn0). SETTLED is a
-// plausibility label — could equally be "idle2" or "retract".
+// plausibility label - could equally be "idle2" or "retract".
 typedef enum FireAuraState {
     FIRE_AURA_STATE_IDLE    = 0,
     FIRE_AURA_STATE_FIRING  = 1,
@@ -137,7 +137,7 @@ typedef enum FirecrackerState {
     FIRECRACKER_STATE_ABSORBED = 1,
 } FirecrackerState;
 
-// Plasma D has two active entries — initial shot and trail fragment.
+// Plasma D has two active entries - initial shot and trail fragment.
 // Plausible naming; could instead be split-phase.
 typedef enum PlasmaDState {
     PLASMA_D_STATE_FLYING   = 0,
@@ -145,7 +145,7 @@ typedef enum PlasmaDState {
 } PlasmaDState;
 
 // Single-state kinds (SWORD_STAR_A/B/CHARGED, PLASMA_SPREAD_MID/SIDE) all
-// map index 0 to their only flying state. No enum provided — just pass 0.
+// map index 0 to their only flying state. No enum provided - just pass 0.
 
 // 24-byte state-table entry. Each kind's state table is an array of these;
 // Projectile_SetState indexes it by entry index and copies fn0..fn3 into
@@ -168,7 +168,7 @@ typedef struct ProjectileStateEntry
 } ProjectileStateEntry;
 
 // Per-kind data struct at *(0x8055a9a8 + kind*4). The table itself is NULL
-// in the main-menu memory dump — it's populated at stage load (writers live
+// in the main-menu memory dump - it's populated at stage load (writers live
 // in .data, not executable code, so they don't appear in disassembly). The
 // unload-side clearer is at 0x8022011c (zeroes all 17 slots). Field layout
 // from traced reads across Projectile_Create, Projectile_SetState, and
@@ -178,7 +178,7 @@ typedef struct ProjectileStateEntry
 //   +0x04: always NULL                             (Solid)
 //   +0x08: pointer, purpose unknown                (Plausible: read by
 //          Projectile_Create as a struct whose first two words land at
-//          proj+0x18 and proj+0x1c — model-data candidates)
+//          proj+0x18 and proj+0x1c - model-data candidates)
 //   +0x0c: void * state_anim_spec_array            (Solid; 16-byte stride,
 //          indexed by state_id, result at proj+0x38)
 //   +0x10: void * hurt_region_spec                 (Solid; 0x18-byte stride
@@ -211,7 +211,7 @@ typedef struct ProjKindVTable
     void                      (*aux_b)(void *proj);         // 0x1c: per-frame kind-specific hook; NULL for some kinds
 } ProjKindVTable;
 
-// Inner projectile data — 0x220 bytes, allocated by Projectile_Create from
+// Inner projectile data - 0x220 bytes, allocated by Projectile_Create from
 // the HSD object pool at 0x8055a8f8 and reached via *(handle + 0x2c). Known
 // fields only; unknown regions are padding. See `docs/projectile-system.md`
 // for the complete offset map and field confidence levels.
@@ -229,7 +229,7 @@ typedef struct ProjectileData
     int            state_table_split;    // 0x28: cutoff for the two-table switch in Projectile_SetState:
                                          //       if state_index < split, use proj+0x30; else use proj+0x34.
                                          //       Projectile_Create hardcodes this to 0, and no vanilla code
-                                         //       rewrites it, so the proj+0x30 branch is dead — every state
+                                         //       rewrites it, so the proj+0x30 branch is dead - every state
                                          //       transition falls into the proj+0x34 branch. Left as a field
                                          //       in case a future caller wants an extension table at +0x30.
     s32            state_id;             // 0x2c: table entry's state_id field, written by Projectile_SetState
@@ -240,7 +240,7 @@ typedef struct ProjectileData
                                          //       from kind_data+0x00 (which is vtable[0].state_table).
                                          //       Every vanilla SetState dispatch reads from here.
     void          *state_anim_spec;      // 0x38: per-state animation/blend data, written by Projectile_SetState
-                                         //       as `kind_data[0x0C] + state_id*16` — a 16-byte array indexed by
+                                         //       as `kind_data[0x0C] + state_id*16` - a 16-byte array indexed by
                                          //       state_id. Not the 24-byte state_table entry; the entry itself
                                          //       is used transiently and not stored back on proj.
     u8             pad_3c[0x70 - 0x3c];  // 0x3c..0x6f: anim accumulator + sub-vtable refs (internal)
@@ -292,7 +292,7 @@ typedef struct ProjectileData
 // outbound one where the projectile walks the rider/machine/box lists, and
 // an inbound one where each victim walks the projectile global list. Each
 // scan gates owner-exclusion on a *different* flag bit, so a projectile
-// that needs to damage its own owner-player has to set both — setting only
+// that needs to damage its own owner-player has to set both - setting only
 // PROJ_ALLOW_SELF_HIT_INBOUND can drop the hit if the outbound scan
 // resolves it first, and vice versa. Custom-spawned trap projectiles
 // (where owner = the trapped player) are the most common case for this.
@@ -303,20 +303,20 @@ typedef struct ProjectileData
 //
 // Outbound side (Projectile_CheckRiderCollision @ 0x802215a4) reads
 // proj+0x1b5 bit 4. Vanilla never sets this bit on bomb / sensor bomb /
-// gordo at create time — vanilla projectiles target *other* players, so
+// gordo at create time - vanilla projectiles target *other* players, so
 // the default exclusion is what they want.
 #define PROJ_ALLOW_SELF_HIT_INBOUND  0x01  // OR into proj->flag_a (proj+0x1b4)
 #define PROJ_ALLOW_SELF_HIT_OUTBOUND 0x10  // OR into proj->flag_b (proj+0x1b5)
 
 // Creates a projectile from a pre-filled descriptor. Does not touch rider
-// bones or rider state — takes everything it needs from the desc. The
+// bones or rider state - takes everything it needs from the desc. The
 // `kind` field indexes global tables at 0x8055a9a8 and 0x804b4338, so
 // only kinds in 0..PROJKIND_NUM-1 are valid.
 //
 // Returns an opaque proc handle. Use Projectile_GetData() to reach the inner
 // struct. Post-init leaves the projectile in state index 0; for bomb/sensor
 // bomb/gordo that state is "held in the rider's hand" and requires a separate
-// state transition before physics/detonation logic runs — see
+// state transition before physics/detonation logic runs - see
 // Projectile_SetState and the recipe in docs/projectile-system.md.
 void *Projectile_Create(ProjectileDesc *desc); // 0x8021f428
 
@@ -324,7 +324,7 @@ void *Projectile_Create(ProjectileDesc *desc); // 0x8021f428
 // index. Copies the entry's fn0..fn3 into proj+0x150..0x15c, writes
 // proj+0x24 = state_index and proj+0x2c = state_id.
 //
-// Does NOT touch physics velocity at proj+0x94..0x9c — set that yourself
+// Does NOT touch physics velocity at proj+0x94..0x9c - set that yourself
 // before calling, mirroring vanilla throw() ordering. `f_blend_a`/`f_blend_b`
 // are animation blend params (vanilla passes 1.0 for both). `flags` bit 0
 // set skips a rider-attached cleanup path (vanilla throw passes 1 for
@@ -347,13 +347,14 @@ void Projectile_DespawnGObj(void *projGObj); // 0x802230a0
 // bytes (proj+0x17c / 0x184 / 0x18a / 0x18b). Called by Projectile_SetState
 // every time a new entry is selected; not something mod code normally calls
 // directly, but listed here because it's the site where flags semantics are
-// finally consumed — useful when investigating animation-class behavior.
+// finally consumed - useful when investigating animation-class behavior.
 void Projectile_AssignStateFlags(void *proj, int flags); // 0x80222298
 
 // Convenience: return the inner ProjectileData from the outer handle.
 // Implemented by callers as `*(ProjectileData **)((u8 *)handle + 0x2c)`;
 // not a vanilla symbol, exposed here only as a documented pattern.
-static inline ProjectileData *Projectile_GetData(void *handle) {
+static inline ProjectileData *Projectile_GetData(void *handle)
+{
     return *(ProjectileData **)((u8 *)handle + 0x2c);
 }
 
@@ -385,7 +386,7 @@ int  Rider_IsGordoThrowable(void *projGObj);                           // 0x801a
 // reads pos/forward/up from `*(proj+0x6c)+8`, a hand-bone matrix that only
 // exists when a rider is actively holding the projectile), this function
 // reads orientation directly from `proj->owner_gobj`'s rider data fields
-// (rd+0x324, rd+0x330) — so it works as long as owner_gobj is a valid rider
+// (rd+0x324, rd+0x330) - so it works as long as owner_gobj is a valid rider
 // GObj, even when no Phan-Phan ability has been initialised. Beyond the
 // state transition it sets up all per-kind scratch (proj+0x1d8 = 2,
 // proj+0x1e0..0x1e8 = velocity, proj+0x1dc = randomized angular velocity,

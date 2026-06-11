@@ -64,14 +64,14 @@
 80006e9c 00001c 80006e9c 0 zz_80006e9c_
 80006eb8 000034 80006eb8 0 zz_80006eb8_
 80006eec 000260 80006eec 0 memcard_storeValuesIntoMemory
-8000714c 0004f4 8000714c 0 Gm_InitData (including GameData)\
+8000714c 0004f4 8000714c 0 Gm_InitData
 80007660 000010 80007660 0 gmGetLanguage
 80007670 000010 80007670 0 gmSetLanguage
 80007680 000010 80007680 0 gmGetLanguage2?
 80007690 000010 80007690 0 gmSetLanguage2?
 8000714c 0004f4 8000714c 0 memcard_StoreDefaultValues
 80007640 000020 80007640 0 fn_hwActivateStudio
-800076a0 00007c 800076a0 0 gmGetClearcheckerTypeP(r3=mode)
+800076a0 00007c 800076a0 0 gmGetClearcheckerTypeP
 8000771c 000010 8000771c 0 gmGetClearcheckerType0Ptr
 8000772c 000010 8000772c 0 gmGetClearcheckerType1Ptr
 8000773c 000010 8000773c 0 gmGetClearcheckerType1_2Ptr
@@ -92,8 +92,8 @@
 80007af0 000120 80007af0 0 Checklist_BuildUnlockBitfields
 80007c10 0000d4 80007c10 0 zz_80007c10_
 80007ce4 000150 80007ce4 0 zz_80007ce4_
-80007e34 000058 80007e34 0 Checklist_CheckCachedUnlock_AirRide(r3=reward_index)
-80007e8c 000058 80007e8c 0 Checklist_CheckCachedUnlock_CityTrial(r3=reward_index)
+80007e34 000058 80007e34 0 Checklist_CheckCachedUnlock_AirRide
+80007e8c 000058 80007e8c 0 Checklist_CheckCachedUnlock_CityTrial
 80007ee4 000088 80007ee4 0 Gm_StadiumCheckUnlocked
 80007f6c 0000cc 80007f6c 0 Gm_StadiumWriteUnlocked
 80008038 000088 80008038 0 Gm_StadiumCheckNewLabel
@@ -155,7 +155,7 @@
 800098c0 000048 800098c0 0 Ply_IsViewOn
 80009908 000038 80009908 0 Ply_GetViewIndex
 80009940 000060 80009940 0 Ply_CheckIfViewOn
-800099a0 000090 800099a0 0 Ply_GetViewIndex (returns -1 if not present)
+800099a0 000090 800099a0 0 Ply_GetViewIndex
 80009a30 000068 80009a30 0 zz_80009a30_
 80009a98 000104 80009a98 0 zz_80009a98_
 80009b9c 000020 80009b9c 0 fn_cMiniGameMain_GphProc
@@ -290,14 +290,14 @@
 8000c054 00003c 8000c054 0 zz_8000c054_
 8000c090 000024 8000c090 0 zz_8000c090_
 8000c0b4 00002c 8000c0b4 0 zz_8000c0b4_
-8000c0e0 000068 8000c0e0 0 AirRide_CheckCourseUnlocked(r3=input)
+8000c0e0 000068 8000c0e0 0 AirRide_CheckCourseUnlocked
 8000c148 000034 8000c148 0 CityTrial_CheckIfStadiumIsDefaultUnlocked
 8000c17c 0000ac 8000c17c 0 CityTrial_CheckStadiumIsUnlocked
 8000c228 00013c 8000c228 0 Gm_StadiumIsAvailable
-8000c364 000124 8000c364 0 AirRide_CheckMachineUnlocked(r3=machine_class,r4=machine_id)
-8000c488 000080 8000c488 0 AirRide_CheckCharacterUnlocked(r3=character)
-8000c508 00007c 8000c508 0 CityTrial_CheckLegendaryMachineUnlocked(r3=machine)
-8000c584 000080 8000c584 0 AirRide_CheckBonusUnlocked(r3=bonus)
+8000c364 000124 8000c364 0 AirRide_CheckMachineUnlocked
+8000c488 000080 8000c488 0 AirRide_CheckCharacterUnlocked
+8000c508 00007c 8000c508 0 CityTrial_CheckLegendaryMachineUnlocked
+8000c584 000080 8000c584 0 AirRide_CheckBonusUnlocked
 8000c604 0000ec 8000c604 0 ClearChecker_ResetAllData
 8000c6f0 000044 8000c6f0 0 zz_8000c6f0_
 8000c734 000034 8000c734 0 zz_8000c734_
@@ -802,17 +802,17 @@
 80049b68 000034 80049b68 0 zz_80049b68_
 80049b9c 000044 80049b9c 0 zz_80049b9c_
 80049be0 000040 80049be0 0 zz_80049be0_
-80049c20 000064 80049c20 0 Checklist_GetRewardNum(r3=group)
+80049c20 000064 80049c20 0 Checklist_GetRewardNum
 80049c84 00008c 80049c84 0 Checklist_GetClearKindFromRewardIndex
 80049d10 000088 80049d10 0 zz_80049d10_
 80049d98 00008c 80049d98 0 zz_80049d98_
-80049e24 0000a0 80049e24 0 ClearChecker_CheckUnlocked(r3=mode,r4=kind)
+80049e24 0000a0 80049e24 0 ClearChecker_CheckUnlocked
 80049ec4 000108 80049ec4 0 ClearChecker_GetRewardFromClearKind
 80049fcc 000088 80049fcc 0 ClearChecker_SetNewUnlockSilent
-8004a054 0000b8 8004a054 0 ClearChecker_SetNewUnlock(r3=mode,r4=kind)
+8004a054 0000b8 8004a054 0 ClearChecker_SetNewUnlock
 8004a10c 000024 8004a10c 0 zz_8004a10c_
-8004a130 000074 8004a130 0 ClearChecker_GetKindClear(r3=mode,r4=kind)
-8004a1a4 000118 8004a1a4 0 ClearChecker_CheckForNewUnlocks(r3=mode)
+8004a130 000074 8004a130 0 ClearChecker_GetKindClear
+8004a1a4 000118 8004a1a4 0 ClearChecker_CheckForNewUnlocks
 8004a2bc 00038c 8004a2bc 0 Checklist_InitGridMapping
 8004a648 000120 8004a648 0 Checklist_MinorThink
 8004a768 000068 8004a768 0 zz_8004a768_
@@ -1087,7 +1087,7 @@
 8005d6dc 000188 8005d6dc 0 AudioEmitterData_GetSoundGenerator(0x42)
 8005d864 0002bc 8005d864 0 _AudioEmitter_Alloc
 8005db20 000024 8005db20 0 zz_8005db20_
-8005db44 000054 8005db44 0 AudioEmitter_SetPosition(r3=id, r4=pos)
+8005db44 000054 8005db44 0 AudioEmitter_SetPosition
 8005db98 000030 8005db98 0 zz_8005db98_
 8005dbc8 000094 8005dbc8 0 Rider_AllocAudioEmitter
 8005dc5c 000090 8005dc5c 0 Player_AllocAudioEmitter
@@ -2543,7 +2543,7 @@
 800ceab8 000014 800ceab8 0 grGetStageMinimapScale
 800ceacc 000028 800ceacc 0 grGetStageMinimapPlayerAdjust
 800ceaf4 000024 800ceaf4 0 zz_800ceaf4_
-800ceb18 000110 800ceb18 0 Game_GetDownVector? (r4=out)
+800ceb18 000110 800ceb18 0 Gm_GetDownVector
 800cec28 00001c 800cec28 0 grGetGroundTypeFromTriangleID
 800cec44 000014 800cec44 0 zz_800cec44_
 800cec58 000014 800cec58 0 grGetUnkFromGroundType
@@ -2872,7 +2872,7 @@
 800df068 000434 800df068 0 zz_800df068_
 800df49c 000014 800df49c 0 cAnimInventory::GetEndPhase(int)
 800df4b0 000010 800df4b0 0 cAnimInventory::GetAnim(int)
-800df4c0 000018 800df4c0 0 cSHierarchy::GetChild( (int, int))
+800df4c0 000018 800df4c0 0 cSHierarchy::GetChild(int, int)
 800df4d8 000014 800df4d8 0 cAnimInventory::GetEndPhase(int)
 800df4ec 000198 800df4ec 0 zz_800df4ec_
 800df64c 000038 800df64c 0 zz_800df64c_
@@ -3009,9 +3009,9 @@
 800eb300 000074 800eb300 0 CityItemSpawn_AllocItemFall
 800eb374 0001f4 800eb374 0 CityItemSpawn_InitItemFallChances
 800eb568 00027c 800eb568 0 CityItemSpawn_SetEventsItemFallChances(r3=EventKind)
-800eb7e4 00028c 800eb7e4 0 CityItemSpawn_GetRandomItemID (-1 = any, 0 = patches, 1 = )
+800eb7e4 00028c 800eb7e4 0 CityItemSpawn_GetRandomItemID
 800eba70 000194 800eba70 0 CityBox_DecideSubsequentPatch
-800ebc04 000240 800ebc04 0 GrBoxGeneratorDetermine (int *Gr_Box_Col, int *Gr_Box_Size)
+800ebc04 000240 800ebc04 0 GrBoxGeneratorDetermine
 800ebe44 00012c 800ebe44 0 _CityItem_GetEventItem
 800ebf70 0003f4 800ebf70 0 CityItemSpawn_Init
 800ec364 000168 800ec364 0 CityItemSpawn_InitGrBoxGeneInfo
@@ -4342,7 +4342,7 @@
 80132828 000020 80132828 0 zz_80132828_
 80132848 000020 80132848 0 zz_80132848_
 80132868 000020 80132868 0 zz_80132868_
-80132888 000020 80132888 0 Updates ON/OFF Rumble
+80132888 000020 80132888 0 MainMenu_UpdateOptionToggle
 801328a8 000038 801328a8 0 zz_801328a8_
 801328d4 00000c 801328d4 0 zz_801328d4_
 801328e0 0000a0 801328e0 0 zz_801328e0_
@@ -6606,7 +6606,7 @@
 8018a5b8 000558 8018a5b8 0 HitColl_CalcContactPoint
 8018ab10 000080 8018ab10 0 HitColl_CalcKnockbackDir
 8018ab90 000154 8018ab90 0 HitColl_CalcKnockback
-8018ace4 000180 8018ace4 0 getDamageDealt
+8018ace4 000180 8018ace4 0 HitColl_GetDamageDealt
 8018ad1c 000148 8018ad1c 0 zz_8018ad1c_
 8018ae64 000180 8018ae64 0 zz_8018ae64_
 8018afe4 0000dc 8018afe4 0 Trigger_Init
@@ -6621,7 +6621,7 @@
 8018bd74 00035c 8018bd74 0 zz_8018bd74_
 8018c0d0 00001c 8018c0d0 0 zz_8018c0d0_
 8018c0ec 0000dc 8018c0ec 0 zz_8018c0ec_
-8018c1c8 00011c 8018c1c8 0 HurtData_Create(r3=x4, r4=x0, r5=xc_obj_kind, r6=x14_obj_kind, r7=x68_obj_kind))
+8018c1c8 00011c 8018c1c8 0 HurtData_Create
 8018c2e4 0000d0 8018c2e4 0 zz_8018c2e4_
 8018c3b4 000134 8018c3b4 0 zz_8018c3b4_
 8018c4e8 0000b0 8018c4e8 0 HurtData_UpdatePerFrame
@@ -6673,7 +6673,7 @@
 8018ee28 0006c0 8018ee28 0 Rider_InputThink
 8018f4e8 00024c 8018f4e8 0 Rider_Phys
 8018f734 000068 8018f734 0 Rider_EnvColl
-8018f79c 000064 8018f79c 0 zz_8018f79c_
+8018f79c 000064 8018f79c 0 Rider_ModelMatrixThink
 8018f800 0000e0 8018f800 0 Rider_UnkThink
 8018f8e0 00007c 8018f8e0 0 zz_8018f8e0_
 8018f95c 0000c4 8018f95c 0 Rider_UpdateHitColl
@@ -6705,7 +6705,7 @@
 8019079c 000020 8019079c 0 zz_8019079c_
 801907bc 00002c 801907bc 0 zz_801907bc_
 801907e8 000060 801907e8 0 Rider_UpdateGroundedMovementVectors
-80190848 000040 80190848 0 zz_80190848_
+80190848 000040 80190848 0 Rider_ApplyModelMatrix
 80190888 000060 80190888 0 zz_80190888_
 801908e8 000060 801908e8 0 zz_801908e8_
 80190948 000140 80190948 0 zz_80190948_
@@ -6933,8 +6933,8 @@
 80194ac0 000070 80194ac0 0 zz_80194ac0_
 80194b30 000174 80194b30 0 zz_80194b30_
 80194ca4 0000dc 80194ca4 0 zz_80194ca4_
-80194d80 0000e0 80194d80 0 Stats_ClampValues?(r3=stat_arr, r4=stat_idx, r5=unk)
-80194e60 000104 80194e60 0 Stats_ClampValues2?(r3=stat_arr, r4=stat_idx)
+80194d80 0000e0 80194d80 0 Stat_AddClamped
+80194e60 000104 80194e60 0 Stat_AddClampedAll
 80194f64 000144 80194f64 0 zz_80194f64_
 801950a8 000034 801950a8 0 zz_801950a8_
 801950dc 000040 801950dc 0 zz_801950dc_
@@ -9706,7 +9706,6 @@
 801ded8c 0000cc 801ded8c 0 zz_801ded8c_
 801dee58 000154 801dee58 0 zz_801dee58_
 801defac 00045c 801defac 0 CityMachineSpawn_DecideAndSpawn (f1 = match_progress)
-801df0a0 000368 801df0a0 0 CityMachineSpawn_DecideAndSpawn (f1 = match_progress)
 801df408 000438 801df408 0 cityTrialSpawnFormationStar
 801df840 000234 801df840 0 CityMachineSpawn_Think
 801dfa74 00002c 801dfa74 0 zz_801dfa74_
@@ -15577,7 +15576,7 @@
 802e1a4c 0002c8 802e1a4c 0 zz_802e1a4c_
 802e1d14 00092c 802e1d14 0 zz_802e1d14_
 802e2640 00009c 802e2640 0 zz_802e2640_
-802e26dc 0001e8 802e26dc 0 zz_802e26dc_
+802e26dc 0001e8 802e26dc 0 TopRide_KirbyModelThink
 802e28c4 0006c8 802e28c4 0 zz_802e28c4_
 802e2f8c 0002d0 802e2f8c 0 zz_802e2f8c_
 802e325c 00059c 802e325c 0 zz_802e325c_
@@ -18598,7 +18597,7 @@
 803ec1d8 00001c 803ec1d8 0 zz_803ec1d8_
 803ec1f4 000094 803ec1f4 0 zz_803ec1f4_
 803ec288 000080 803ec288 0 AXFreeVoice
-803ec308 000174 803ec308 0 AXAcquireVoice(r3=priority,r4=callback,r5=userContext)
+803ec308 000174 803ec308 0 AXAcquireVoice
 803ec47c 0000a8 803ec47c 0 AXSetVoicePriority
 803ec524 0000e4 803ec524 0 __AXAuxInit
 803ec608 000034 803ec608 0 __AXGetAuxAInput
@@ -19632,7 +19631,7 @@
 80442588 0000a4 80442588 0 zz_80442588_
 8044262c 000048 8044262c 0 Audio_InitUnkSFXRelated
 80442674 00039c 80442674 0 _SFX_Play
-80442a10 000044 80442a10 0 SFX_Play(r3 = sfx, r4 = volume, r5 = pan, r6 = audio_emitter?, r7 = sg)
+80442a10 000044 80442a10 0 SFX_Play
 80442a54 000134 80442a54 0 zz_80442a54_
 80442b88 000174 80442b88 0 AudioEmitter_AdjustVoicePan
 80442cfc 000134 80442cfc 0 zz_80442cfc_

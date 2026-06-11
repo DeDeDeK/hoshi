@@ -3,12 +3,12 @@
 
 #include "datatypes.h"
 
-// Top Ride Kirby (player) system — completely separate from 3D mode Rider/Machine.
+// Top Ride Kirby (player) system - completely separate from 3D mode Rider/Machine.
 // Top Ride does NOT use Player_Create, Rider_Create, Machine_Create, stc_playerdata,
 // RiderData, or MachineData. It uses minor 19 (not 18), so On3DLoadEnd doesn't fire.
 // See docs/topride-system.md for full documentation.
 
-// Charge component — inline sub-object starting at TopRideKirby+0x80.
+// Charge component - inline sub-object starting at TopRideKirby+0x80.
 // Initialized by TopRide_KirbyChargeInit (0x802d1fe8).
 // Per-frame update in TopRide_ChargeUpdate (0x802df900).
 typedef struct TopRideChargeComponent
@@ -38,13 +38,13 @@ typedef struct TopRideKirby
     void *vtable;                       // 0x00
     void *session_data;                 // 0x04
     u8 x08[0x04];                       // 0x08
-    u8 player_slot;                     // 0x0C, controller slot 0..3 — pass to TopRide_GetPlayerKind for HMN/CPU/NONE
+    u8 player_slot;                     // 0x0C, controller slot 0..3 - pass to TopRide_GetPlayerKind for HMN/CPU/NONE
     u8 char_type;                       // 0x0D
-    u8 start_position;                  // 0x0E, Fisher-Yates shuffled grid position (0..3) — NOT a CPU level. Set per-round in TopRide_FielderInit from KirbyMgr+0x4024+i.
+    u8 start_position;                  // 0x0E, Fisher-Yates shuffled grid position (0..3) - NOT a CPU level. Set per-round in TopRide_FielderInit from KirbyMgr+0x4024+i.
     u8 x0F;                             // 0x0F
-    u8 is_active;                       // 0x10, set on race start; stays 0 in Time Attack and Free Run even while playing — don't gate on this in solo modes
+    u8 is_active;                       // 0x10, set on race start; stays 0 in Time Attack and Free Run even while playing - don't gate on this in solo modes
     u8 x11[0x3B];                       // 0x11
-    Vec3 position;                      // 0x4C, spawn / default pos — NOT tracked per frame. For actual in-world position use charge.position (0x88).
+    Vec3 position;                      // 0x4C, spawn / default pos - NOT tracked per frame. For actual in-world position use charge.position (0x88).
     Vec3 target_pos;                    // 0x58
     int angles[3];                      // 0x64
     u8 x70[0x0C];                       // 0x70
@@ -52,7 +52,21 @@ typedef struct TopRideKirby
     TopRideChargeComponent charge;      // 0x80, inline charge component
 } TopRideKirby;
 
-// KirbyMgr singleton — top-level manager for all Top Ride players.
+// Model fields living in the large charge sub-object's tail, past the part
+// mapped by TopRideChargeComponent:
+//   +0x4E0  void*  model_jobj   - root JObj of the Kirby model
+//   +0x524  float  model_scale  - initialized to 1.0; the per-frame model
+//                                 transform pass (zz_802e26dc_) multiplies it
+//                                 into the model JObj's scale every frame, so a
+//                                 write persists until the kirby is recreated.
+// Exposed as an accessor (rather than padded struct fields) to match the raw
+// offset style used elsewhere for these deep charge-tail fields.
+static inline float *TopRide_KirbyModelScalePtr(TopRideKirby *kirby)
+{
+    return (float *)((char *)kirby + 0x524);
+}
+
+// KirbyMgr singleton - top-level manager for all Top Ride players.
 // Created by TopRide_FielderInit (0x802dafb4). ~0x4080 bytes total.
 typedef struct TopRideKirbyMgr
 {
@@ -80,8 +94,8 @@ typedef enum TopRidePlayerKind
 // VCKIND_FREE / VCKIND_STEER for unlock-mask checks.
 typedef enum TopRideMachineKind
 {
-    TR_MACHINE_FREE  = 0,   // Free Star — analog stick freely steers (VCKIND_FREE)
-    TR_MACHINE_STEER = 1,   // Steer Star — left/right only (VCKIND_STEER)
+    TR_MACHINE_FREE  = 0,   // Free Star - analog stick freely steers (VCKIND_FREE)
+    TR_MACHINE_STEER = 1,   // Steer Star - left/right only (VCKIND_STEER)
     TR_MACHINE_NUM,
 } TopRideMachineKind;
 
@@ -113,7 +127,7 @@ void TopRide_SetMachineKind(int slot, TopRideMachineKind machine);   // 0x8000bf
 //
 // These are the **multiplayer race** lobby thinks, dispatched from
 // TopRide_PreGameThink (TopRide_GetMode() == 0). The solo Free Run / Time
-// Attack lobby uses a completely separate think — see TopRide_SoloPanelThink.
+// Attack lobby uses a completely separate think - see TopRide_SoloPanelThink.
 void TopRide_CSS_SelectingThink(int slot);  // 0x8002ac68
 void TopRide_CSS_ReadyThink(int slot);      // 0x8002b094
 void TopRide_CSS_PanelThink(int slot);      // 0x8002b8a8
@@ -123,7 +137,7 @@ void TopRide_CSS_PanelThink(int slot);      // 0x8002b8a8
 // the solo counterpart to TopRide_CSS_PanelThink and carries its OWN copy of
 // the "Control Type" L/R machine cycler at 0x8002cb88..0x8002cbec
 // (reads/writes panel_machine[panel] at lobby offset 0x2f, tests RIGHT
-// 0x80002 / LEFT 0x40001 — identical bits to the race cycler). Because solo
+// 0x80002 / LEFT 0x40001 - identical bits to the race cycler). Because solo
 // never routes through TopRide_CSS_PanelThink, this cycler needs its own
 // unlock gate (see gate_machines.c, hook at 0x8002cb98).
 void TopRide_SoloPanelThink(int slot);      // 0x8002ca80
@@ -137,7 +151,7 @@ void TopRide_InitSelectData(void);                                   // 0x8002cf
 // See docs/topride-kirby-states.md for the full state machine and class table.
 typedef enum TopRideKirbyStateId
 {
-    TR_KSTATE_DAMAGE_BASE   = 0,   // KirbyDamage abstract base — should not be observed live
+    TR_KSTATE_DAMAGE_BASE   = 0,   // KirbyDamage abstract base - should not be observed live
     TR_KSTATE_NORMAL        = 1,
     TR_KSTATE_PRESS         = 2,
     TR_KSTATE_CRUSH         = 3,
@@ -161,10 +175,10 @@ typedef enum TopRideKirbyStateId
 // Read the current state ID via state_handler->vt[+0x0C](). Safe once
 // round_state == 2; state_handler is NULL / partially wired before that.
 //
-// **Caveat:** only some states override the get_state_id slot — KirbyNormal
+// **Caveat:** only some states override the get_state_id slot - KirbyNormal
 // and the abstract KirbyDamage base inherit a stub (0x802e4a44) that returns
 // 0, so the return value is unreliable for "am I in state X?" checks. (Note:
-// KirbyBurn DOES override it — its slot at 0x802fcc7c returns 10.) Use
+// KirbyBurn DOES override it - its slot at 0x802fcc7c returns 10.) Use
 // TopRide_KirbyHasStateVtable for reliable state identification instead.
 static inline TopRideKirbyStateId TopRide_KirbyGetStateId(TopRideKirby *kirby)
 {
@@ -175,7 +189,7 @@ static inline TopRideKirbyStateId TopRide_KirbyGetStateId(TopRideKirby *kirby)
 
 // State class vtable addresses (from docs/topride-kirby-states.md "State
 // Classes"). Compare against state_handler->vtable to reliably identify the
-// kirby's current state — this is what dynamic_cast does inside the Group A
+// kirby's current state - this is what dynamic_cast does inside the Group A
 // wrappers and doesn't depend on per-state get_state_id overrides.
 #define TR_KSTATE_VT_NORMAL      ((void *)0x804d6f5c)
 #define TR_KSTATE_VT_DAMAGE_BASE ((void *)0x804da158)
@@ -197,7 +211,7 @@ static inline TopRideKirbyStateId TopRide_KirbyGetStateId(TopRideKirby *kirby)
 #define TR_KSTATE_VT_SPEEDDOWN   ((void *)0x804dbac8)
 
 // True if the kirby's current state instance has the given vtable. Reliable
-// way to ask "is this kirby in state X right now?" — the wrapper at
+// way to ask "is this kirby in state X right now?" - the wrapper at
 // kirby->vtable[+offset] uses the same comparison via dynamic_cast.
 static inline int TopRide_KirbyHasStateVtable(TopRideKirby *kirby, void *state_vt)
 {
@@ -217,9 +231,9 @@ static inline int TopRide_KirbyHasStateVtable(TopRideKirby *kirby, void *state_v
 // which produces a static stun-style transition: the new state's animation
 // plays in place with default duration and no knockback impulse. For
 // vanilla-quality knockback you'd synthesize a source position and reuse
-// the per-effector math — not needed for trap effects.
+// the per-effector math - not needed for trap effects.
 
-// KirbyExplode ("tumble") — vanilla bomb / landmine state.
+// KirbyExplode ("tumble") - vanilla bomb / landmine state.
 // Wrapper: TopRide_KirbyExplodeMethod at 0x802d5834 (vtable[59], +0xEC).
 // Vanilla caller: EffectorExplode_ApplyToKirby at 0x802e6898.
 static inline void TopRide_KirbyExplode(TopRideKirby *kirby)
@@ -229,8 +243,8 @@ static inline void TopRide_KirbyExplode(TopRideKirby *kirby)
     ((Method)(((void **)kirby->vtable)[59]))(kirby, 0, &zero, 0, 0);
 }
 
-// KirbyCrush — heavy-machine collision state. The setter installs AC_TOBASARE
-// (knockback launch), the same animation as Explode/Strike — Crush is NOT the
+// KirbyCrush - heavy-machine collision state. The setter installs AC_TOBASARE
+// (knockback launch), the same animation as Explode/Strike - Crush is NOT the
 // squish/flatten visual despite the EffectorCrush_ApplyToKirby name; the
 // pancake animation lives in KirbyPress (AC_FLAT_START).
 // Wrapper at 0x802d5760 (vtable[58], +0xE8).
@@ -242,7 +256,7 @@ static inline void TopRide_KirbyCrush(TopRideKirby *kirby)
     ((Method)(((void **)kirby->vtable)[58]))(kirby, 0, &zero);
 }
 
-// KirbyStrike — generic hit reaction.
+// KirbyStrike - generic hit reaction.
 // Wrapper at 0x802d5900 (vtable[60], +0xF0).
 static inline void TopRide_KirbyStrike(TopRideKirby *kirby)
 {
@@ -251,7 +265,7 @@ static inline void TopRide_KirbyStrike(TopRideKirby *kirby)
     ((Method)(((void **)kirby->vtable)[60]))(kirby, 0, &zero, 0, 0);
 }
 
-// KirbyBurn — fire damage-over-time state. Blocked if currently in KirbyElec.
+// KirbyBurn - fire damage-over-time state. Blocked if currently in KirbyElec.
 // Wrapper at 0x802d55c0 (vtable[56], +0xE0). Arg2 is a u32* dereferenced at
 // 0x802d5674 (`lwz r0, 0(r30)`) before being copied onto the setter's stack
 // frame; passing a literal 0 here causes a DSI on null. Pass a stack-local
@@ -263,7 +277,7 @@ static inline void TopRide_KirbyBurn(TopRideKirby *kirby)
     ((Method)(((void **)kirby->vtable)[56]))(kirby, 0, &zero, 0);
 }
 
-// KirbyFreeze — frozen solid.
+// KirbyFreeze - frozen solid.
 // Wrapper at 0x802d56bc (vtable[57], +0xE4).
 static inline void TopRide_KirbyFreeze(TopRideKirby *kirby)
 {
@@ -271,7 +285,7 @@ static inline void TopRide_KirbyFreeze(TopRideKirby *kirby)
     ((Method)(((void **)kirby->vtable)[57]))(kirby);
 }
 
-// KirbyPress — pressed / squeezed.
+// KirbyPress - pressed / squeezed.
 // Wrapper at 0x802d54ec (vtable[55], +0xDC).
 static inline void TopRide_KirbyPress(TopRideKirby *kirby)
 {
@@ -279,7 +293,7 @@ static inline void TopRide_KirbyPress(TopRideKirby *kirby)
     ((Method)(((void **)kirby->vtable)[55]))(kirby);
 }
 
-// KirbySpin — spin-out. KirbySandSpin variant lives at vtable[62] / +0xF8.
+// KirbySpin - spin-out. KirbySandSpin variant lives at vtable[62] / +0xF8.
 // Wrapper at 0x802d59cc (vtable[61], +0xF4). The setter (0x802f7718) feeds
 // arg2 to PSVECMagnitude at 0x802f7998 to size the spin knockback; passing
 // a literal 0 in that slot crashes inside PSVECMagnitude on null deref.
@@ -293,7 +307,7 @@ static inline void TopRide_KirbySpin(TopRideKirby *kirby)
     ((Method)(((void **)kirby->vtable)[61]))(kirby, 0, &zero, 0);
 }
 
-// KirbyNumb — paralysis. Blocked if state ID == 13 (KirbyDoodlebugOut).
+// KirbyNumb - paralysis. Blocked if state ID == 13 (KirbyDoodlebugOut).
 // Wrapper at 0x802d5b74 (vtable[64], +0x100).
 static inline void TopRide_KirbyNumb(TopRideKirby *kirby)
 {
@@ -301,7 +315,7 @@ static inline void TopRide_KirbyNumb(TopRideKirby *kirby)
     ((Method)(((void **)kirby->vtable)[64]))(kirby);
 }
 
-// KirbyElec — electrified. Blocked if state ID == 13 (KirbyDoodlebugOut).
+// KirbyElec - electrified. Blocked if state ID == 13 (KirbyDoodlebugOut).
 // Wrapper at 0x802d5be4 (vtable[65], +0x104).
 static inline void TopRide_KirbyElec(TopRideKirby *kirby)
 {
@@ -309,7 +323,7 @@ static inline void TopRide_KirbyElec(TopRideKirby *kirby)
     ((Method)(((void **)kirby->vtable)[65]))(kirby, 0);
 }
 
-// KirbyConfuse — controls reversed / scrambled (AC_PANIC animation).
+// KirbyConfuse - controls reversed / scrambled (AC_PANIC animation).
 // Blocked if state ID == 13 (KirbyDoodlebugOut).
 // Wrapper at 0x802d5c64 (vtable[66], +0x108).
 static inline void TopRide_KirbyConfuse(TopRideKirby *kirby)
@@ -318,7 +332,7 @@ static inline void TopRide_KirbyConfuse(TopRideKirby *kirby)
     ((Method)(((void **)kirby->vtable)[66]))(kirby, 0);
 }
 
-// KirbySpeedDown — speed debuff (matches the SpeedDown TR item).
+// KirbySpeedDown - speed debuff (matches the SpeedDown TR item).
 // Has an extra predicate guard at state_handler->vt[+0x48].
 // Wrapper at 0x802d5da4 (vtable[68], +0x110).
 static inline void TopRide_KirbySpeedDown(TopRideKirby *kirby)

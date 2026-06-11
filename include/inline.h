@@ -297,7 +297,7 @@ static inline int abs(int x)
 }
 
 // SWAR popcount for u64. Hand-rolled because the freestanding PPC build
-// has no libgcc helper — __popcountdi2 is undefined at link time.
+// has no libgcc helper - __popcountdi2 is undefined at link time.
 static inline int Popcount64(u64 x)
 {
     x = x - ((x >> 1) & 0x5555555555555555ULL);
