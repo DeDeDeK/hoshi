@@ -9,7 +9,7 @@ typedef enum CollShapeKind
     Mp_CollShapeKind_Sphere,
 } CollShapeKind;
 
-// mpCollInfo — floor/wall/ceiling collision results sub-struct.
+// mpCollInfo - floor/wall/ceiling collision results sub-struct.
 // Allocated internally by mpColl_Create via mpColl_AllocCollInfo (0x802416cc).
 // Pointed to by CollData+0x44.
 typedef struct mpCollInfo mpCollInfo;
