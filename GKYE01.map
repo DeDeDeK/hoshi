@@ -294,7 +294,7 @@
 8000c148 000034 8000c148 0 CityTrial_CheckIfStadiumIsDefaultUnlocked
 8000c17c 0000ac 8000c17c 0 CityTrial_CheckStadiumIsUnlocked
 8000c228 00013c 8000c228 0 Gm_StadiumIsAvailable
-8000c364 000124 8000c364 0 AirRide_CheckMachineUnlocked
+8000c364 000124 8000c364 0 TitleScreen_CheckMachineUnlocked
 8000c488 000080 8000c488 0 AirRide_CheckCharacterUnlocked
 8000c508 00007c 8000c508 0 CityTrial_CheckLegendaryMachineUnlocked
 8000c584 000080 8000c584 0 AirRide_CheckBonusUnlocked
@@ -303,7 +303,7 @@
 8000c734 000034 8000c734 0 zz_8000c734_
 8000c768 000044 8000c768 0 Pause_CheckStatsUnlocked
 8000c7ac 000188 8000c7ac 0 zz_8000c7ac_
-8000c934 000030 8000c934 0 Gm_IsStadiumMode
+8000c934 000030 8000c934 0 Gm_IsLegendaryAssembling
 8000c964 000030 8000c964 0 zz_8000c964_
 8000c994 000030 8000c994 0 zz_8000c994_
 8000c9c4 000030 8000c9c4 0 zz_8000c9c4_
@@ -329,9 +329,9 @@
 8000d8c4 00006c 8000d8c4 0 zz_8000d8c4_
 8000d930 000104 8000d930 0 zz_8000d930_
 8000da34 00006c 8000da34 0 TitleScreen_MajorEnter
-8000daa0 000148 8000daa0 0 AirRide_SelectRandomMachine
+8000daa0 000148 8000daa0 0 TitleScreen_SelectRandomMachine
 8000dabc 00012c 8000dabc 0 zz_8000dabc_
-8000dbe8 000164 8000dbe8 0 zz_8000dbe8_
+8000dbe8 000164 8000dbe8 0 TitleScreen_SetupDemoMachines
 8000dd4c 00013c 8000dd4c 0 AirRide_RandomStageSelect
 8000de88 00012c 8000de88 0 zz_8000de88_
 8000df18 00009c 8000df18 0 zz_8000df18_
