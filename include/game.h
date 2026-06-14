@@ -2892,7 +2892,7 @@ TopRideStats *TopRide_GetStats(void);                                    // 8028
 
 // Clear Checker reward query callers
 int AirRide_CheckCourseUnlocked(s8 input);                              // 8000c0e0, checks reward index 34 (Nebula Belt) when input==8
-int AirRide_CheckMachineUnlocked(s8 machine_class, s8 machine_id);      // 8000c364, maps to Air Ride reward indices 19-31 (machines 0x09-0x15)
+int TitleScreen_CheckMachineUnlocked(s8 machine_class, s8 machine_id);  // 8000c364, clearchecker machine-unlock query (reward indices 19-31, machines 0x09-0x15); only reached via the title-screen attract demo (TitleScreen_SelectRandomMachine 8000daa0), NOT real CPU gameplay
 int AirRide_CheckCharacterAvailable(CharacterKind ckind);               // 8002090c, checks if a CharacterKind is selectable on the Air Ride select screen
 int AirRide_CheckCharacterUnlocked(s8 character);                       // 8000c488, maps 1→32 (Dedede), 2→33 (Meta Knight)
 int CityTrial_CheckLegendaryMachineUnlocked(int machine);               // 8000c508, maps 4→34 (Hydra), 8→30 (Dragoon)

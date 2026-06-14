@@ -147,5 +147,11 @@ void CityEvent_ShowHudText(int event_kind, int hud_display_frames); // 0x80113fb
 void CityEvent_SetSisText(int sis_text_index);                     // 0x801169fc - creates/replaces event HUD text object with SIS entry at given index. Stores text at Gm_Get3dData()+0x48. Pass -1 to destroy only.
 void *Event_GetInstanceData(EventCheckData *ev_chk); // table lookup: data[0x04][cur_kind * 20 + 16]. returns event instance data pointer
 void event_fakeItems_applyEffect(void *event_data); // applies fake item effect using the event data pointer
-int Gm_IsStadiumMode(); // returns 1 if in stadium mode, used as gate check for copy abilities in Machine_OnTouchItem
+// Returns 1 while a legendary-machine (Dragoon/Hydra) assembly cinematic is
+// running. Reads GameData+0xA8C, the active assembly cinematic GObj pointer:
+// set by LegendaryMachine_StartAssembly and cleared to 0 when the cinematic
+// completes. NOT a stadium check - Machine_OnTouchItem uses it to suppress
+// certain item pickups during the cutscene. For "in a stadium" use
+// CityTrial_IsInStadium(); for "on the open CT map" use Gm_IsInCity().
+int Gm_IsLegendaryAssembling(); // 0x8000c934
 #endif

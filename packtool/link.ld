@@ -428,7 +428,7 @@ SECTIONS
   ClearChecker_ShouldShowNewUnlocks = 0x8000c6f0;
   ClearChecker_MarkNewUnlocksShown = 0x8000c734;
   AirRide_CheckCourseUnlocked = 0x8000c0e0;
-  AirRide_CheckMachineUnlocked = 0x8000c364;
+  TitleScreen_CheckMachineUnlocked = 0x8000c364;
   AirRide_CheckCharacterAvailable = 0x8002090c;
   AirRide_RandomStageSelect = 0x8000dd4c;
   AirRideSelect_Init = 0x8003c114;
@@ -465,7 +465,7 @@ SECTIONS
   Gm_HidePauseHUD = 0x80113A24;
   Gm_ShowHUD = 0x80112464;
   Gm_SetCameraNormal = 0x800BC17C;
-  Gm_IsStadiumMode = 0x8000c934;
+  Gm_IsLegendaryAssembling = 0x8000c934;
   Gm_IsDamageEnabled = 0x8000a188;
   Gm_IsReplay = 0x8000aac4;
   Item_Create = 0x8024EEF4;
