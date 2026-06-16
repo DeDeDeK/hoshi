@@ -139,21 +139,28 @@ typedef union YakumonoParam
     // every visible yakumono in shipped stage data; NULL/empty for kinds
     // the stage doesn't actually use.
     //
-    //   +0x04  - read by GrYaku_AllocJObj (0x800f7308). Non-zero → full
-    //            JObj alloc with model joint data. Zero → empty alloc,
-    //            ydata+0x64 stays NULL (yakumono is invisible).
-    //   +0x0c  - read by GrYaku_AttachModel (0x800f6274). Non-zero →
-    //            model attach via grdata->model_section / grdata->motion.
-    //            Zero → no-model branch (no DObj/MObj/PObj attached).
-    //
-    // See docs/yakumono-system.md "Spawning yakumono in stages they don't
-    // normally appear in" for the full breakdown.
+    //   +0x04  - JObj data (a JObjDesc-ish block). Read by GrYaku_AllocJObj
+    //            (0x800f7308): non-zero → full JObj alloc; zero → empty alloc,
+    //            ydata+0x64 stays NULL (yakumono invisible). Doubles as the
+    //            anim gate: GrYaku_AttachAnim (0x800f6394) re-reads this same
+    //            field and checks jobj_data[0][0x10] - anim data is bundled
+    //            under the JObj descriptor, there is no separate param field
+    //            for animation.
+    //   +0x0c  - model data. Read by GrYaku_AttachModel (0x800f6274): non-zero
+    //            → model attach via grdata->model_section / grdata->motion;
+    //            zero → no-model branch (no DObj/MObj/PObj attached).
+    //   +0x14  - audio descriptor (the gyp->fgm source). Read by
+    //            GrYaku_InitAudio (0x800f77dc): non-zero → fills the fgm/audio
+    //            block at ydata+0x118. Layout {idData @0x00, idDataNum @0x04,
+    //            track_param @0x08, ... @0x0c/0x10}.
     struct
     {
-        int x0;          // 0x00 - kind-specific (cannon: read by tail-init)
-        void *jobj_data; // 0x04 - gates JObj alloc; typically a JObjDesc *
-        int x8;          // 0x08
-        void *model_data;// 0x0c - gates model attach
+        int x0;            // 0x00 - kind-specific (cannon: read by tail-init)
+        void *jobj_data;   // 0x04 - gates JObj alloc + anim attach
+        int x8;            // 0x08
+        void *model_data;  // 0x0c - gates model attach
+        int x10;           // 0x10
+        void *audio_desc;  // 0x14 - gates audio/fgm init (GrYaku_InitAudio)
     } *gates;
 
     // Generic catch-all when the kind layout is unknown.
@@ -187,7 +194,15 @@ typedef struct YakumonoData
     int prev_anim;          // 0x78
     int prev_joint;         // 0x7c
     int x80;
-    void *desc_subblock;    // 0x84 - descriptor's first int (set in InitData from stc_yaku_descs[desc_id][0])
+    void *state_table;      // 0x84 - per-kind STATE TABLE base (array of 16-byte
+                            //        state entries). Set in InitData from
+                            //        stc_yaku_descs[desc_id][0] (the descriptor's
+                            //        "back-pointer"). Gr_StateChange indexes it by
+                            //        state (entry = base + state*16) and installs the
+                            //        active state's handler into proc1 (+0xf0).
+                            //        All-zero for passive kinds (zones); holds real
+                            //        handlers for active kinds (cannon state 0 =
+                            //        GrYakuCannon_State0, state 1 = GrYakuCannon_State1).
     Vec3 axis_right;        // 0x88 - right/forward axis (init (0,0,1) in InitData)
     Vec3 axis_up;           // 0x94 - up axis (init (0,0,1) in InitData)
     int xa0;                // 0xa0 - (init 0)
@@ -213,10 +228,17 @@ typedef struct YakumonoData
     void *misc_table;       // 0x10c - alloc'd by zz_802364e0_ (purpose: ?)
     int x110;               // 0x110 - (init 0)
     int x114;               // 0x114 - (init 0)
-    int audio_anim;         // 0x118 - set from anim event list (GrYaku_InitAudio)
-    int audio_loop;         // 0x11c
-    void *audio_track;      // 0x120 - Map_AllocAudioTrack
-    void *audio_source;     // 0x124 - Map_AllocAudioSource
+    // gyp->fgm substruct (FGM = field SFX / effect-id manager). Populated by
+    // GrYaku_InitAudio when param+0x14 (the audio descriptor) is non-NULL; the
+    // descriptor is {idData @0x00, idDataNum @0x04, track_param @0x08, ...}.
+    // The BREAK families read this region as gyp->fgm. fgm.idDataNum lives at
+    // +0x11c: the gryakubreakcoll.c bounds check `0 <= fgmId && fgmId <
+    // gyp->fgm.idDataNum` (fgmId statically 0) reduces to `idDataNum > 0`,
+    // which the compiler emits as a compare of +0x11c.
+    void *fgm_iddata;       // 0x118 - gyp->fgm.idData    (= audio descriptor[0x00])
+    int fgm_iddatanum;      // 0x11c - gyp->fgm.idDataNum  (= audio descriptor[0x04])
+    void *audio_track;      // 0x120 - Map_AllocAudioTrack(audio descriptor[0x08])
+    void *audio_emitter;    // 0x124 - Map_AllocAudioEmitter(1)
     u8 x128[4];             // 0x128
     u8 flags;               // 0x12c - flag byte. Bit 7 = "ctrl" variant of the
                             //         generic dispatch kind (set by GrYakuFlags_SetCtrl,
@@ -378,17 +400,22 @@ static inline YakumonoData **Yaku_GetArray(void)
     return grobj ? *(YakumonoData ***)((char *)grobj + 0x710) : (YakumonoData **)0;
 }
 
-// Read-only descriptor table - 70 pointers, indexed by desc_id.
-// Two distinct sections (see docs/yakumono-system.md "Descriptor table"):
+// Read-only descriptor table - 70 pointers, indexed by desc_id. Two sections:
 //   indices 0..15  - paired generic descriptors (8 unique 40-byte blocks,
-//                    each used by two consecutive desc_ids; function ptr at
+//                    each used by two consecutive desc_ids; DescFunc ptr at
 //                    +0x1c). Used by the entries[] walker via grYakuFuncTable.
-//   indices 16..69 - per-instance descriptors (variable-size blocks; function
-//                    ptr at +0x08; embedded source-file + assertion strings
-//                    starting at +0x1c). Hardcoded by per-grkind hooks like
-//                    grDataCity1_CreateYakumono.
-// GrYaku_InitData stores *(stc_yaku_descs[desc_id]) into yd->desc_subblock
-// (+0x84) - that field is the descriptor's "back-pointer" (16 bytes earlier).
+//   indices 16..69 - per-instance descriptors (variable-size blocks; a kind
+//                    init/check fn ptr at +0x08 for some kinds; embedded
+//                    source-file + assertion strings, typically starting near
+//                    +0x14). Hardcoded by per-grkind hooks like
+//                    grDataCity1_CreateYakumono. The source string names the
+//                    YakuKind (e.g. desc 48 = "gryakucannon.c").
+// The descriptor's +0x00 field (its "back-pointer") points to the per-kind
+// STATE TABLE that immediately precedes the descriptor - NOT uniform 16-byte
+// padding: the gap is 0x10 for passive zone kinds and 0x20 for the cannon, and
+// the bytes are real state-handler pointers (all-zero only for passive kinds).
+// GrYaku_InitData copies it into yd->state_table (+0x84); Gr_StateChange
+// indexes it by state (entry = base + state*16).
 static void **stc_yaku_descs = (void **)0x804a5be8;
 
 // 16-entry function-pointer table indexed by YakumonoEntry.kind (the small
