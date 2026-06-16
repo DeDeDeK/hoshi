@@ -840,7 +840,9 @@ void Enemy_CheckAndLoad(int actor_id); // 0x801fd060, validates actor ID, calls 
 void Enemy_LoadFile(int actor_id); // 0x801fd348, loads enemy archive data from disc. No-ops if already loaded.
 
 // Spawning
-void Enemy_SpawnActor(int spawn_slot, int enemy_id_packed, int position_index); // 0x800f13a8, spawn-slot wrapper: builds descriptor and calls EventActor_Create. enemy_id_packed = (variant << 8) | enemy_id. Pass -1 to skip creation.
+void Enemy_SpawnActor(int spawn_slot, int enemy_id_packed, int position_index); // 0x800f13a8, spawn-slot wrapper (modes 1/3): builds descriptor and calls EventActor_Create. enemy_id_packed = (variant << 8) | enemy_id. Pass -1 to skip creation.
+void Enemy_SpawnActorMode2(int spawn_slot, int position_index); // 0x800f16c0, mode 2 (STKIND_MELEE1) spawn helper: builds descriptor from spawn_entries[position_index] and calls EventActor_Create. Called only from Enemy_SpawnerDecide's mode-2 branch.
+int Enemy_SpawnerDecideMode2(int *out_entry_index); // 0x800f0efc, mode 2 picker: weighted-picks a meta-enemy category from secondary_table[0] (biased by EnemyMgr.time_progress), then a concrete enemy from that category's per-entry weight column. Writes the chosen spawn-entry index to *out_entry_index and returns the enemy_id (-1 if none).
 GOBJ *EventActor_Create(void *desc); // 0x801fbb50, universal actor factory. Creates GOBJ for any ActorID (0x00–0x4E). desc points to an EventActorDesc struct. Returns GOBJ* (0 on failure).
 void EventActor_Destroy(GOBJ *gobj); // 0x801fbf2c, proper actor destruction. Recursively destroys child/attached actors, clears inter-actor references, runs cleanup, then calls GObj_Destroy. Use this instead of raw GObj_Destroy.
 void EventActor_CleanupCollisionSphere(EnemyData *ed); // 0x8021f1bc, destroys xB74 collision sphere if non-null and nulls it.
@@ -956,6 +958,72 @@ void EnemyActor_FindNearestPlayerFOV(EnemyData *ed); // 0x801ff8d8, targeting wi
 // Archive root pointers: pointer per data_index (22 entries)
 #define stc_archive_root_pointers ((void **)0x8055a228) // 0x8055a228
 
+// One entry of the per-stage spawn table (EnemySpawnData.spawn_entries), 0x38
+// bytes. Static data loaded verbatim from the stage .dat file - the game only
+// reads it. Each entry describes one spawn position: where to draw the position
+// vectors from, what enemy IDs may spawn there with what weights, plus per-spawn
+// scale and lifetime.
+//
+// The id/weight arrays sit at mode-dependent offsets (the union below) because
+// the three spawn modes pack them differently. Field readers:
+//   - location_index, scale, lifetime, variant: Enemy_SpawnActor (0x800f13a8)
+//     and the mode-2 spawn helper (0x800f16c0)
+//   - ids/weights: Enemy_SpawnerDecide (0x800f1a14) and the mode-2 picker
+//     (0x800f0efc)
+// location_index indexes the stage enemy-position table (GrData+0x138, stride
+// 0x24 of three Vec3s) via loadEnemy_spawnXYLocation; the resulting position /
+// direction / ground-normal are stored into the runtime per-position extended
+// data, NOT into this entry.
+typedef struct EnemySpawnEntry
+{
+    short location_index;       // 0x00, index into the stage enemy-position table
+    short pad02;                // 0x02
+    short entry_type;           // 0x04, sub-kind selector (modes 2/3; e.g. spline vs point)
+    union
+    {
+        // mode 2 (STKIND_MELEE1): two-stage select. A meta-enemy category is
+        // chosen from secondary_table[0], then one enemy is drawn from that
+        // category's weight column here. enemy_id is this entry's enemy; the
+        // weight_columns array has one short per meta-enemy category.
+        struct
+        {
+            short enemy_id;          // 0x06
+            short weight_columns[1]; // 0x08, one weight per meta-enemy category (variable count)
+        } mode2;
+        // mode 3 (STKIND_MELEE2): up to 5 {id, weight} pairs, weight -1 terminates.
+        struct
+        {
+            short ids[5];           // 0x06
+            short weights[5];       // 0x10
+        } mode3;
+        // mode 1 (Air Ride courses): up to 4 {id, weight} pairs, weight -1
+        // terminates. lifetime jitter shares the 0x1A/0x1C pair (see below).
+        struct
+        {
+            char pad06[0x18];       // 0x06..0x1D
+            short ids[4];           // 0x1E
+            short weights[4];       // 0x26
+        } mode1;
+        // Lifetime base/jitter for modes 1 and 3 (read by Enemy_SpawnActor).
+        // Mode 2 instead uses lifetime2_base/lifetime2_range below.
+        struct
+        {
+            char pad_lt[0x14];      // 0x06..0x19
+            short lifetime_base;    // 0x1A, lifetime in frames (abs); 0/1 = no lifetime
+            short lifetime_range;   // 0x1C, +/- random jitter applied when > 1 (abs)
+        } life13;
+        // Lifetime base/jitter for mode 2 (read by the mode-2 spawn helper).
+        struct
+        {
+            char pad_lt2[0x1e];     // 0x06..0x23
+            short lifetime2_base;   // 0x24, lifetime in frames (abs)
+            short lifetime2_range;  // 0x26, +/- random jitter (abs)
+        } life2;
+    };
+    float scale;                // 0x30, model scale (negated if negative, 1.0 if 0)
+    int variant;               // 0x34, copied into the actor descriptor (parent/variant slot)
+} EnemySpawnEntry; // 0x38 bytes
+
 // Per-stage enemy spawn data, pointed to by r13 + 0x630.
 // NULL when the per-stage "enemies enabled" flag (GameData+0xAA6 bit 4) is off
 // (City Trial city map, Top Ride, and stadiums without enemies like Air Glider /
@@ -964,14 +1032,6 @@ void EnemyActor_FindNearestPlayerFOV(EnemyData *ed); // 0x801ff8d8, targeting wi
 // secondary_table is a pointer-array indexed by meta-enemy ID (0x50-0x5E offset
 // by -0x50). Each entry points to a sub-table of {enemy_id, weight} short pairs,
 // -1 terminated. May be NULL.
-//
-// Per-entry layout differs by config.mode and is parsed as raw bytes off
-// spawn_entries (stride 0x38):
-//   mode 1 (Air Ride courses):    short ids[4] at +0x1E, short weights[4] at +0x26
-//   mode 2 (STKIND_MELEE1):       short enemy_id at +0x06, short weight_columns[N] at +0x08
-//                                 (two-stage: meta-enemy category from secondary[0], then
-//                                  individual enemy from that column)
-//   mode 3 (STKIND_MELEE2):       short ids[5] at +0x06, short weights[5] at +0x10
 typedef struct EnemySpawnConfig
 {
     char x00[0x28];     // 0x00, layout TBD
@@ -982,7 +1042,7 @@ typedef struct EnemySpawnData
 {
     short spawn_count;          // 0x00, number of entries in spawn_entries
     short pad02;                // 0x02
-    char *spawn_entries;        // 0x04, primary spawn table (stride 0x38)
+    EnemySpawnEntry *spawn_entries; // 0x04, primary spawn table (stride 0x38)
     int x08;                    // 0x08
     int **secondary_table;      // 0x0C, pointer-array of meta-enemy sub-tables (may be NULL)
     EnemySpawnConfig *config;   // 0x10

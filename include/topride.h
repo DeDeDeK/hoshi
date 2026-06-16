@@ -11,63 +11,117 @@
 // Charge component - inline sub-object starting at TopRideKirby+0x80.
 // Initialized by TopRide_KirbyChargeInit (0x802d1fe8).
 // Per-frame update in TopRide_ChargeUpdate (0x802df900).
+//
+// This is the large body of the Kirby object - it holds the in-world movement
+// state, the visual-effects sub-object, the rumble/sound controllers, and the
+// model/animation JObjs. Offsets are listed from the component base; add 0x80
+// for the absolute TopRideKirby offset. TopRideKirby.session_data (+0x04)
+// points at this component, which is how the model thinker reaches model_jobj /
+// model_scale via session_data[+0x460] / session_data[+0x4A4].
 typedef struct TopRideChargeComponent
 {
     void *kirby_ptr;          // 0x00, pointer back to TopRideKirby base
-    u8 x04[0x04];            // 0x04
-    Vec3 position;            // 0x08
-    Vec3 facing_dir;          // 0x14
-    Vec3 velocity;            // 0x20
+    u8 x04[0x04];             // 0x04
+    Vec3 position;            // 0x08, current in-world 2D position
+    Vec3 facing_dir;          // 0x14, facing-direction unit vector
+    Vec3 velocity;            // 0x20, current velocity vector (mod code zeroes this for trap states)
     u8 is_charging;           // 0x2C, 1 = A button held (charging), 0 = idle
     u8 charge_ready;          // 0x2D, 1 = charge depleted to 0.0, can accumulate again
-    u8 x2E[0x02];            // 0x2E
+    u8 x2E[0x02];             // 0x2E
     float speed_factor;       // 0x30, per-frame speed scaling
     float charge_value;       // 0x34, current charge level (0.0 to ~1.0)
     float prev_charge;        // 0x38, previous frame's charge value
     float charge_at_release;  // 0x3C, snapshot of charge_value at moment of A release
     float angular_velocity;   // 0x40, rotation rate from steering
     u8 x44[0x10];             // 0x44
-    float boost_speed;        // 0x54, calculated boost speed
+    float boost_speed;        // 0x54, calculated boost speed from charge + angle tables
     u32 total_frames;         // 0x58, increments every frame (per-kirby frame counter)
-} TopRideChargeComponent;
+    u32 frame_counter_1;      // 0x5C, swapped with frame_counter_2 on charge start
+    u32 frame_counter_2;      // 0x60, stores previous frame_counter_1
+    u32 frame_counter_3;      // 0x64, cleared on max charge
+    u8 x68[0x04];             // 0x68
+    u32 aerial_frames;        // 0x6C, frames since airborne
+    u8 x70[0x2C];             // 0x70
+    float distance_traveled;  // 0x9C, accumulated distance this run
+    float wobble_scale_x;     // 0xA0, spring-damped visual oscillation (X)
+    float wobble_scale_z;     // 0xA4, spring-damped visual oscillation (Z)
+    u8 xA8[0x38];             // 0xA8
+    u8 effects_system[0x2B0]; // 0xE0, visual-effects sub-object (slide-blur etc.)
+    u8 x390[0x3C];            // 0x390
+    void *rumble_controller;  // 0x3CC, rumble feedback controller
+    u8 x3D0[0x54];            // 0x3D0
+    void *charge_sfx_ctrl;    // 0x424, charge sound-effect controller
+    u8 x428[0x28];            // 0x428
+    Vec3 position_offset;     // 0x450, position adjustment, cleared each frame
+    u8 x45C[0x04];            // 0x45C
+    void *model_jobj;         // 0x460 (kirby+0x4E0), root JObj of the Kirby+star model
+    u8 x464[0x04];            // 0x464
+    void *arrow_jobj;         // 0x468, direction-arrow JObj
+    u8 x46C[0x14];            // 0x46C
+    void *charge_anim_1;      // 0x480, AC_S_CHARGE animation object
+    u8 x484[0x0C];            // 0x484
+    void *charge_anim_2;      // 0x490, second charge animation object
+    u8 x494[0x10];            // 0x494
+    float model_scale;        // 0x4A4 (kirby+0x524), init 1.0; multiplied into the
+                              //   model JObj scale every frame by TopRide_KirbyModelThink,
+                              //   so a write persists until the kirby is recreated.
+    u8 x4A8[0x04];            // 0x4A8
+    void *anim_controller;    // 0x4AC, animation state controller
+} TopRideChargeComponent;     // mapped through 0x4B0; the object continues past this
 
 // Per-player Kirby object. Vtable at 0x804d2304, RTTI name "Kirby".
-// Created by TopRide_KirbyInit (0x802d4d64). ~0x500+ bytes total.
+// Created by TopRide_KirbyInit (0x802d4d64). Object is >0x1400 bytes total
+// (Absorber sub-object at +0xD00, etc.); this struct maps the head + the inline
+// charge component, which covers the 0x00..~0x530 region.
 typedef struct TopRideKirby
 {
     void *vtable;                       // 0x00
-    void *session_data;                 // 0x04
+    void *session_data;                 // 0x04, points at the inline charge component (kirby+0x80)
     u8 x08[0x04];                       // 0x08
     u8 player_slot;                     // 0x0C, controller slot 0..3 - pass to TopRide_GetPlayerKind for HMN/CPU/NONE
     u8 char_type;                       // 0x0D
-    u8 start_position;                  // 0x0E, Fisher-Yates shuffled grid position (0..3) - NOT a CPU level. Set per-round in TopRide_FielderInit from KirbyMgr+0x4024+i.
-    u8 x0F;                             // 0x0F
-    u8 is_active;                       // 0x10, set on race start; stays 0 in Time Attack and Free Run even while playing - don't gate on this in solo modes
-    u8 x11[0x3B];                       // 0x11
+    u8 start_position;                  // 0x0E, Fisher-Yates shuffled grid position (0..3) - NOT a CPU level. Set per-round in TopRide_KirbyMgrInit from KirbyMgr+0x4024+i.
+    u8 place;                           // 0x0F, current race placement / finish rank, written each frame by the ranking pass in TopRide_KirbyMgrUpdate (0 while still racing); gated as "== 0" for "not yet finished".
+    u8 is_active;                       // 0x10, final standings byte set by the same ranking pass on race start; stays 0 in Time Attack and Free Run even while playing - don't gate on this in solo modes
+    u8 x11[0x03];                       // 0x11, x11 init 0xFF
+    int lap_progress;                   // 0x14, accumulates the per-frame CheckLine cross result (init -1); going positive completes a lap/segment
+    u8 lap_pending;                     // 0x18, set when a checkpoint is crossed backward; gates the lap-completion branch
+    u8 x19[0x03];                       // 0x19
+    u32 finish_time;                    // 0x1C, total frame counter; latched to the master race timer (KirbyMgr+0x402C) when the kirby finishes (finished flag set)
+    u32 prev_lap_frames;                // 0x20, snapshot of cur_lap_frames at lap completion
+    u32 cur_lap_frames;                 // 0x24, current-lap frame counter (reset to 0 on lap completion, incremented every frame)
+    u8 x28[0x04];                       // 0x28
+    float mass;                         // 0x2C, per-character mass / scale base (read constantly in physics)
+    float gravity;                      // 0x30, gravity / vertical accel base
+    float accel_param;                  // 0x34, frame-scaled acceleration parameter
+    float decel_param;                  // 0x38, frame-scaled deceleration parameter
+    u8 x3C;                             // 0x3C, init 0
+    u8 x3D;                             // 0x3D, init 1
+    u8 finished;                        // 0x3E, set to 1 when the kirby crosses the finish line; gates the per-frame counter increments in TopRide_KirbyPhysUpdate
+    u8 x3F;                             // 0x3F, init 1
+    u8 direction_sign;                  // 0x40, movement-direction sign flag, refreshed each frame from the run mode
+    u8 x41;                             // 0x41
+    u16 screen_w;                       // 0x42, init 320 (viewport width)
+    u16 screen_h;                       // 0x44, init 240 (viewport height)
+    u16 x46;                            // 0x46
+    void *input_reader;                 // 0x48, controller / input source object (vt+0x14 = poll stick)
     Vec3 position;                      // 0x4C, spawn / default pos - NOT tracked per frame. For actual in-world position use charge.position (0x88).
-    Vec3 target_pos;                    // 0x58
-    int angles[3];                      // 0x64
-    u8 x70[0x0C];                       // 0x70
+    Vec3 target_pos;                    // 0x58, initial camera target / lookat
+    u8 history[0x18];                   // 0x64, 10-entry circular history ring (head index + paired byte values), pushed by TopRide_KirbyHistoryPush (0x80311f88) / queried by TopRide_KirbyHistoryQuery (0x80312000) for the anti-jitter snap
     void *state_handler;                // 0x7C, input/state handler (charge state machine)
     TopRideChargeComponent charge;      // 0x80, inline charge component
 } TopRideKirby;
 
-// Model fields living in the large charge sub-object's tail, past the part
-// mapped by TopRideChargeComponent:
-//   +0x4E0  void*  model_jobj   - root JObj of the Kirby model
-//   +0x524  float  model_scale  - initialized to 1.0; the per-frame model
-//                                 transform pass (zz_802e26dc_) multiplies it
-//                                 into the model JObj's scale every frame, so a
-//                                 write persists until the kirby is recreated.
-// Exposed as an accessor (rather than padded struct fields) to match the raw
-// offset style used elsewhere for these deep charge-tail fields.
+// model_scale lives inside the inline charge component (kirby->charge.model_scale,
+// i.e. TopRideKirby+0x524). Kept as a raw-offset accessor for back-compat with
+// existing call sites; equivalent to &kirby->charge.model_scale.
 static inline float *TopRide_KirbyModelScalePtr(TopRideKirby *kirby)
 {
-    return (float *)((char *)kirby + 0x524);
+    return &kirby->charge.model_scale;
 }
 
 // KirbyMgr singleton - top-level manager for all Top Ride players.
-// Created by TopRide_FielderInit (0x802dafb4). ~0x4080 bytes total.
+// Created by TopRide_KirbyMgrInit (0x802dafb4). ~0x4080 bytes total.
 typedef struct TopRideKirbyMgr
 {
     void *vtable;                       // 0x00
