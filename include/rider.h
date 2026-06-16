@@ -133,6 +133,77 @@ typedef struct rdDataKirby
     } *jostle;        // 0x18, sphere that detects walking nudge collision
 } rdDataKirby;
 
+// CPU rider AI state (the "virtual pad"), pointed to by RiderData.cpu (+0x778).
+// Allocated only for CPU riders (NULL for humans). Its leading fields are the
+// synthesized controller output that Rider_InputThink reads back via
+// Rider_GetCPUStickX/Y/Buttons into the rider's effective input fields (held/
+// stickX/stickY). Rider_UpdateCPU fills it each frame: perceive -> decide ->
+// process -> emit (command stream). Partial map - only confirmed fields.
+// Two layers drive a CPU rider:
+//   - ai_state (0x08)  : the AI PROFILE - chosen once at init by Rider_CPUSelectProfile
+//                        from stage/city/ply (1..10; state 0 asserts) and FIXED for the
+//                        match. Dispatched by Rider_CPUDecideState; its handler picks the
+//                        tactical maneuver each frame. NOT a per-frame transitioning FSM.
+//   - maneuver (0x10)  : TACTICAL maneuver, dispatched by Rider_ProcessCPUManeuver
+//                        (0..0x15). Emits a fresh command stream into cmd_buffer,
+//                        but ONLY when the command VM is idle (cmd_read_ptr==0 &&
+//                        cmd_timer==0) - so one maneuver plays to completion before
+//                        the next is chosen.
+// The command VM (Rider_CPUProcessCmd) then plays cmd_buffer back into the pad
+// fields (buttons/stick_x/stick_y). Confirmed fields only; gaps are padding.
+typedef struct CpuData
+{
+    int buttons;           // 0x00, synthesized button mask -> RiderData.held (0x3d8)
+    s8  stick_x;           // 0x04, synthesized stick X -> RiderData.stickX (0x3ec)
+    u8  x05;               // 0x05
+    s8  stick_y;           // 0x06, synthesized stick Y -> RiderData.stickY (0x3ed)
+    u8  x07;               // 0x07
+    int ai_state;          // 0x08, AI profile (1..10; 0 asserts) set once at init, dispatched by Rider_CPUDecideState
+    u8  machine_kind_a;    // 0x0c, cached machine id from RiderData.machine_gobj (refreshed each perceive)
+    u8  machine_kind_b;    // 0x0d, second cached machine id
+    u8  city_kind;         // 0x0e, Gm_GetCityKind() captured at init (selects the AI profile)
+    u8  stage_kind;        // 0x0f, stGetCurrentStageKind() captured at init (selects the AI profile)
+    int maneuver;          // 0x10, TACTICAL maneuver (0..0x15), dispatched by Rider_ProcessCPUManeuver
+    int base_maneuver;     // 0x14, fallback maneuver a strategic state parks on (set to 1 or 2); handlers return here via `maneuver = base_maneuver`
+    int scratch_18;        // 0x18, cleared at the top of each decide pass
+    uint desire_flags;     // 0x1c, cleared each decide pass; strategic handlers OR in intent bits
+    u8  suppress_timer;    // 0x20, countdown; while > 0 the perceive stage forces target_secondary = -1
+    u8  x21;               // 0x21
+    u8  difficulty_level;  // 0x22, AI skill level 0..8; Rider_CPUDifficultyScale scales every personality roll by it
+    u8  x23[5];            // 0x23
+    int frame_counter;     // 0x28, ++ every perceive pass
+    u8  behavior_flags;    // 0x2c, behavior flags rewritten per strategic state
+    u8  status_flags;      // 0x2d, bit 0x02 = velocity-stuck, bit 0x04 = position-stuck (set by perceive)
+    u8  x2e;               // 0x2e
+    u8  x2f;               // 0x2f
+    u16 vel_stuck_timer;   // 0x30, frames moving too slow / against facing (anti-stuck)
+    u8  x32[6];            // 0x32
+    int target_primary;    // 0x38, primary nav target id (-1 = none); resolved via Rider_CPUResolveTargetPos
+    float target_lead;     // 0x3c, lead/predict time applied when resolving the target position
+    int x40;               // 0x40
+    int target_secondary;  // 0x44, secondary nav target id (-1 = none); suppressed while suppress_timer > 0
+    int target_secondary_flag; // 0x48, modifies the secondary target's lead time
+    u8  x4c[0x14];         // 0x4c
+    Vec3 recorded_pos;     // 0x60, anti-stuck reference position (compared against pos each frame)
+    int pos_stuck_timer;   // 0x6c, frames spent within range of recorded_pos (anti-stuck)
+    int rival_player_idx;  // 0x70, target rival's player index (5 = none); resolved via Ply_GetPosition by the attack/patrol states
+    u8  x74[0x20];         // 0x74
+    int x94;               // 0x94
+    u8  x98[0x0c];         // 0x98
+    Vec3 *nav_target_ptr;  // 0xa4, -> the steering target position (track look-ahead point), or NULL
+    u8  xa8[0x10];         // 0xa8
+    Vec3 nav_target_pos;   // 0xb8, resolved navigation target, copied from *nav_target_ptr
+    u8  xc4[0x1c];         // 0xc4
+    void *xe0;             // 0xe0, current path/spline object pointer
+    u8  route_header;      // 0xe4, packed route cache header (bit7 = valid, bits 2..5 = entry count)
+    u8  xe5[3];            // 0xe5
+    struct { int id; int flag; } route_entries[5]; // 0xe8, upcoming nav-node route cache
+    int cmd_timer;         // 0x110, command countdown; reads next opcode when it hits 0
+    u8 *cmd_read_ptr;      // 0x114, command VM playback position within cmd_buffer (0 = idle)
+    u8 *cmd_write_ptr;     // 0x118, where maneuver handlers append opcodes (reset to cmd_buffer each maneuver)
+    u8  cmd_buffer[0x80];  // 0x11c, command opcode stream (ends at 0x19c)
+} CpuData;
+
 typedef struct RiderData
 {
     int x0;                               // 0x0
@@ -372,13 +443,13 @@ typedef struct RiderData
         float x3cc;         // 0x3cc
         float x3d0;         // 0x3d0
         int x3d4;           // 0x3d4
-        int held;           // 0x3d8
+        int held;           // 0x3d8, effective buttons this frame. For CPU riders set from Rider_GetCPUButtons; replays from 3DReplay_GetInputs.
         int x3dc;           // 0x3dc
         int x3e0;           // 0x3e0
         int down;           // 0x3e4
         int x3e8;           // 0x3e8
-        s8 stickX;          // 0x3ec, byte. used for replays i think
-        s8 stickY;          // 0x3ed, byte. used for replays i think
+        s8 stickX;          // 0x3ec, effective stick X (byte). For CPU riders set from Rider_GetCPUStickX; also used by replays.
+        s8 stickY;          // 0x3ed, effective stick Y (byte). For CPU riders set from Rider_GetCPUStickY; also used by replays.
         int x3f0;           // 0x3f0
     } input;
     GOBJ *machine_gobj;        // 0x3f4
@@ -419,9 +490,9 @@ typedef struct RiderData
     int x468;                  // 0x468
     int x46c;                  // 0x46c
     int x470;                  // 0x470
-    int x474;                  // 0x474
+    int track_spline_id;       // 0x474, course path/spline id (-1 = none); the CPU brain resolves it to a spline object and samples a look-ahead point for navigation
     int x478;                  // 0x478
-    int x47c;                  // 0x47c
+    float track_arc_pos;       // 0x47c, current arc-length position along track_spline_id; the CPU brain offsets from this for its steering look-ahead
     int x480;                  // 0x480
     int x484;                  // 0x484
     int x488;                  // 0x488
@@ -596,7 +667,7 @@ typedef struct RiderData
     int x76c;                  // 0x76c
     int x770;                  // 0x770
     int x774;                  // 0x774
-    void *cpu;                 // 0x778. 0x114 of this struct is cmd_read_ptr. u8 @ 0x0 of cmd_read_ptr is cmd
+    CpuData *cpu;              // 0x778, CPU rider AI state / virtual pad. NULL for human riders.
     int x77c;                  // 0x77c
     int x780;                  // 0x780
     int x784;                  // 0x784
@@ -850,6 +921,16 @@ typedef struct CopyWheelTable
 } CopyWheelTable;
 static CopyWheelTable *stc_copy_wheel_normal = (CopyWheelTable *)0x804af730; // count=11, list at 0x804af690
 static CopyWheelTable *stc_copy_wheel_melee = (CopyWheelTable *)0x804af738;  // count=29, list at 0x804af6bc
+
+// CPU rider AI ("virtual pad") pipeline. See docs/cpu-ai-system.md.
+void Rider_CPUThink(GOBJ *gobj);          // 0x8018fc58, rider proc: if CPU, runs the AI update
+void Rider_UpdateCPU(RiderData *rd);      // 0x8026beec, orchestrates perceive -> decide -> process -> emit
+void Rider_CPUDecideState(RiderData *rd); // 0x802716e8, AI state-machine dispatch (11 states, table 0x804b7a28)
+void Rider_CPUProcessCmd(RiderData *rd);  // 0x80275cbc, plays the command stream into the virtual pad (CpuData stick/buttons)
+int  Rider_GetCPUButtons(RiderData *rd);  // 0x80275cb0, returns CpuData.buttons (+0x00)
+int  Rider_GetCPUStickX(RiderData *rd);   // 0x80275c90, returns CpuData.stick_x (+0x04)
+int  Rider_GetCPUStickY(RiderData *rd);   // 0x80275ca0, returns CpuData.stick_y (+0x06)
+void Rider_InputThink(GOBJ *gobj);        // 0x8018ee28, rider proc: selects effective input (human / CPU / replay)
 
 void Rider_RespawnEnter(RiderData *);
 int Rider_GiveAbility(RiderData *, CopyKind);

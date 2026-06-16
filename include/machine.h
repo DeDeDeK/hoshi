@@ -986,27 +986,65 @@ typedef struct MachineData
     int xc24;                             // 0xc24
     int xc28;                             // 0xc28
     int xc2c;                             // 0xc2c
-    int charge_is_playing_skid_sfx : 1;   // 0xc30, 0x80
-    int charge_is_grounded : 1;           // 0xc30, 0x40. flag that dictates whether kirby should gain charge when holding A. it actually is raised when the machine touches the ground? bikes always seem to have this raised
-    int xc30_20 : 1;                      // 0xc30, 0x20
-    int xc30_10 : 1;                      // 0xc30, 0x10
-    int xc30_08 : 1;                      // 0xc30, 0x08
-    int xc30_04 : 1;                      // 0xc30, 0x04
-    int xc30_02 : 1;                      // 0xc30, 0x02
-    int xc30_01 : 1;                      // 0xc30, 0x01
+    u8 charge_is_playing_skid_sfx : 1;    // 0xc30, 0x80
+    u8 charge_is_grounded : 1;            // 0xc30, 0x40. flag that dictates whether kirby should gain charge when holding A. it actually is raised when the machine touches the ground? bikes always seem to have this raised
+    u8 xc30_20 : 1;                       // 0xc30, 0x20
+    u8 xc30_10 : 1;                       // 0xc30, 0x10
+    u8 xc30_08 : 1;                       // 0xc30, 0x08
+    u8 xc30_04 : 1;                       // 0xc30, 0x04
+    u8 xc30_02 : 1;                       // 0xc30, 0x02
+    u8 xc30_01 : 1;                       // 0xc30, 0x01
+    u8 pad_c31[3];                        // 0xc31, padding to 0xc34
     u8 xc34;                              // 0xc34
     u8 is_fall_dead : 1;                   // 0xc35, 0x80, set by Machine_SetFallDead
     u8 xc35_40 : 1;                       // 0xc35, 0x40
     u8 is_dead : 1;                       // 0xc35, 0x20
     u8 xc36;                              // 0xc36
-    u8 xc37;                              // 0xc37. bit 7 (0x80): set by Machine_SetFallDead. bit 6 (0x40): use_backup_checkpoint - set when spline lookup fails, cleared on success. bit 4 (0x10): cleared by Machine_RespawnStateEntry. bit 0 (0x01): cleared by Machine_InitRuntimeState.
-    int xc38;                             // 0xc38
-    int xc3c;                             // 0xc3c
-    // NOTE: this declaration is truncated. The real MachineData allocation is
-    // 0x1bc0 bytes (Machine_StoreVcDataPtr memsets that much). Known late fields
-    // past 0xc40 include the fall-death block at 0x1b48 (ground handle) / 0x1b4c
-    // (respawn spline params) / 0x1b58 (timestamp) used by Machine_SetFallDead,
-    // and flag bytes at 0x1bbd. Pad/extend here when those fields are mapped.
+    u8 xc37_80 : 1;                       // 0xc37, 0x80. set by Machine_SetFallDead
+    u8 use_backup_checkpoint : 1;         // 0xc37, 0x40. set when spline lookup fails, cleared on success; selects backup_respawn_pos over respawn_pos in Machine_CheckFallDeath
+    u8 xc37_20 : 1;                       // 0xc37, 0x20
+    u8 xc37_10 : 1;                       // 0xc37, 0x10. cleared by Machine_RespawnStateEntry
+    u8 xc37_08 : 1;                       // 0xc37, 0x08
+    u8 xc37_04 : 1;                       // 0xc37, 0x04
+    u8 xc37_02 : 1;                       // 0xc37, 0x02
+    u8 xc37_01 : 1;                       // 0xc37, 0x01. cleared by Machine_InitRuntimeState
+    u8 xc38;                              // 0xc38, flag byte; low 6 bits cleared by Machine_InitRuntimeState
+    u8 xc39;                              // 0xc39, flag byte (low nibble updated by Machine_SetFallDead)
+    u8 xc3a;                              // 0xc3a, flag byte
+    // 0xc3b: per-vehicle model/variant flag byte, populated by the vehicle's
+    // model-setup callback (vcDataCommon+0x18) at spawn. The sign bit
+    // (suppress_attr_recalc) is set only for the special transformation star
+    // variants (Wing Kirby kind 0x11 and Compact Star kind 0x1) whose derived
+    // attributes are fixed rather than patch-driven; Machine_GivePatch /
+    // Machine_GiveAllUp skip Machine_AdjustAttributes when it is set.
+    // Bits declared MSB-first (0x80 -> 0x01): on big-endian PPC, GCC assigns the
+    // first-declared bitfield to bit 0x80. Order must match the xc30/xc35/xc37
+    // groups so each named bit lands on its commented mask.
+    u8 suppress_attr_recalc : 1;          // 0xc3b, 0x80. set for the transformation star variants (Wing Kirby 0x11, Compact 0x1); gates the Machine_AdjustAttributes call in Machine_GivePatch/GiveAllUp
+    u8 xc3b_40 : 1;                       // 0xc3b, 0x40. set with suppress_attr_recalc by the wing/compact model-setup callback
+    u8 xc3b_20 : 1;                       // 0xc3b, 0x20
+    u8 xc3b_10 : 1;                       // 0xc3b, 0x10. from spawn desc byte 0x81 bit 4 (Machine_StoreVcDataPtr)
+    u8 xc3b_08 : 1;                       // 0xc3b, 0x08. from spawn desc byte 0x81 bit 1 (Machine_StoreVcDataPtr)
+    u8 xc3b_04 : 1;                       // 0xc3b, 0x04. set by Machine_SetFallDead path; cleared by Machine_InitRuntimeState
+    u8 xc3b_02 : 1;                       // 0xc3b, 0x02. ground-type state flag
+    u8 xc3b_01 : 1;                       // 0xc3b, 0x01. set for Wing Meta Knight (kind 0x12) variant
+    u8 xc3c;                              // 0xc3c, flag byte; bits cleared by Machine_InitRuntimeState
+    u8 pad_c3d[0x1b48 - 0xc3d];           // 0xc3d, unmapped interior gap
+    // --- Fall-death / respawn block (0x1b48-0x1b68) ------------------------
+    // Written by Machine_SetFallDead (0x801e6520) and Machine_RespawnStateEntry
+    // (0x801e1ae8) when the machine falls off the course. respawn_spline_params
+    // are mpColl spline params (segment index / progress / Y offset), not world
+    // XYZ; ground_handle resolves the surface the respawn rides on.
+    int fall_ground_handle;               // 0x1b48, ground handle for the fall-death respawn surface (Machine_SetFallDead arg)
+    float respawn_spline_params[3];       // 0x1b4c, mpColl spline params at the fall-death respawn point
+    int fall_timestamp;                   // 0x1b58, frame timestamp captured at fall death (GameData+0x16c)
+    Vec3 respawn_pos_world;               // 0x1b5c, respawn world position (written by Machine_RespawnStateEntry)
+    u8 pad_1b68[0x1bbd - 0x1b68];         // 0x1b68, unmapped interior gap
+    u8 x1bbd;                             // 0x1bbd, flag byte; bit 0x01 set by Machine_StoreVcDataPtr at spawn
+    u8 pad_1bbe[0x1bc0 - 0x1bbe];         // 0x1bbe, tail padding to the full 0x1bc0 allocation
+    // NOTE: the real MachineData allocation is 0x1bc0 bytes (memset by
+    // Machine_StoreVcDataPtr). Large interior gaps (the pad_* members) remain
+    // unmapped; the fields above are those read/written by named functions.
 } MachineData;
 
 static vcDataCommon **stc_vcDataCommon = (vcDataCommon **)(0x805dd0e0 + 0x758);
@@ -1031,6 +1069,8 @@ void Machine_ApplyStarStatScaling(MachineData *md); // 0x801e81e4, per-stat scal
 void Machine_ApplyBikeStatScaling(MachineData *md); // 0x801f3d44, per-stat scaling loop for wheelie bikes; same pattern, bike-specific attribute offsets
 void Machine_AdjustAttributesStar(MachineData *md); // 0x801e906c, vcDataCommon+0x20 callback for star machines; wraps Machine_ApplyStarStatScaling + post-adjustments
 void Machine_AdjustAttributesBike(MachineData *md); // 0x801f4dac, vcDataCommon+0x20 callback for wheelie bikes; wraps Machine_ApplyBikeStatScaling + post-adjustments
+void Machine_SetupModelWing(MachineData *md); // 0x801e7ad4, vcDataCommon+0x18 model-setup callback for the wing variants (Wing Kirby 0x11, Wing Meta Knight 0x12); configures model-section animations and writes the variant flag byte at 0xc3b (sets suppress_attr_recalc for Wing Kirby)
+void Machine_SetupModelStar(MachineData *md); // 0x801f37d4, vcDataCommon+0x18 model-setup callback for star variants (e.g. Compact 0x1, Slick 0x6); same pattern, writes the variant flag byte at 0xc3b (sets suppress_attr_recalc for Compact)
 void Machine_GivePatch(MachineData *, PatchKind, int num);
 void Machine_GiveAllUp(MachineData *, int num);
 void Machine_OnTouchItem(MachineData *, ItemData *);

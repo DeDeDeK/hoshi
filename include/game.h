@@ -652,7 +652,7 @@ typedef struct CityTrialClearData  // 0x114
     CityTrialClearRecords records; // 0x0F4
 } CityTrialClearData;
 
-typedef struct TopRideSlot   // 9 bytes; one slot, committed at TR scene-exit, read by TopRide_FielderInit (0x802dafb4)
+typedef struct TopRideSlot   // 9 bytes; one slot, committed at TR scene-exit, read by TopRide_KirbyMgrInit (0x802dafb4)
 {
     u8 pkind;            // 0x0, TopRidePlayerKind (HMN/CPU/NONE); TopRide_Get/SetPlayerKind
     u8 color;            // 0x1, Kirby color; TopRide_Get/SetColor
@@ -665,7 +665,7 @@ typedef struct TopRideSlot   // 9 bytes; one slot, committed at TR scene-exit, r
     u8 machine_kind;     // 0x8, TopRideMachineKind (0=Free Star, 1=Steer Star); TopRide_Get/SetMachineKind
 } TopRideSlot;
 
-typedef struct TopRideConfig // GameData+0xcc8; base returned by gmGetTopRideConfigP (0x80006c38). Slot block at +0x58 committed at TR scene-exit, read per-slot by TopRide_FielderInit
+typedef struct TopRideConfig // GameData+0xcc8; base returned by gmGetTopRideConfigP (0x80006c38). Slot block at +0x58 committed at TR scene-exit, read per-slot by TopRide_KirbyMgrInit
 {
     u8 header[0x58];         // 0x00, lobby/selection + timer state (mostly unmapped)
     TopRideSlot slots[4];    // 0x58 (GameData+0xd20), per-slot config
@@ -787,7 +787,7 @@ typedef struct GameData // 805359d8
         u8 panel_pkind[4];                // 0x1b2, per-panel state: 0=open, 1=HMN, 2=CPU, 3=OFF
         u8 panel_pkind_ui[4];             // 0x1b6, animated mirror of panel_pkind for UI transitions
         u8 color[4];                      // 0x1ba, per-panel Kirby color (L/R buttons cycle via CSS_topRide_colorChanger)
-        u8 panel_cpu_level[4];            // 0x1be, per-panel CPU level (0..4) - bottom row when panel is editing
+        u8 panel_cpu_level[4];            // 0x1be, per-panel CPU level 0..4 (display 1..5); 5-segment bar, clamp cmpwi 4 @ 0x8002bf8c - bottom row when panel is editing
         u8 panel_handicap[4];             // 0x1c2, per-panel handicap (0..4, "5 bars" bottom row when HMN)
         u8 panel_machine[4];              // 0x1c6, per-panel TR machine kind (0=Free Star, 1=Steer Star) - middle row "Control Type"
         u8 panel_field_d[4];              // 0x1ca, per-panel UI param_13 (uninvestigated)
@@ -820,7 +820,7 @@ typedef struct GameData // 805359d8
         u8 ply_color[4];                // 0x221
         u8 ply_hmn_handicap[4];         // 0x225
         u8 ply_cpu_handicap[4];         // 0x229
-        u8 ply_cpu_level[4];            // 0x22d
+        u8 ply_cpu_level[4];            // 0x22d, City Trial CPU difficulty 0..8 (display 1..9); drawn as a 9-segment CSS bar
         u8 ply_icon_ckind[4];           // 0x231, the ckind belonging to the currently selected icon
         struct
         {

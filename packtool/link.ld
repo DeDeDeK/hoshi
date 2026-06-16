@@ -545,6 +545,8 @@ SECTIONS
   Machine_ApplyBikeStatScaling = 0x801f3d44;
   Machine_AdjustAttributesStar = 0x801e906c;
   Machine_AdjustAttributesBike = 0x801f4dac;
+  Machine_SetupModelWing = 0x801e7ad4;
+  Machine_SetupModelStar = 0x801f37d4;
   RiderGObj_GetPly = 0x8019203c;
   Event_GetInstanceData = 0x800ee73c;
   event_fakeItems_applyEffect = 0x80111a60;
@@ -636,6 +638,30 @@ SECTIONS
   Ply_PlayFGM = 0x80277c84;
   Ply_OnLegendaryPieceCollect = 0x8027a4e8;
   LegendaryMachine_StartAssembly = 0x80283cf0;
+  Rider_CPUThink = 0x8018fc58;
+  Rider_CPUInit = 0x80262d6c;
+  Rider_CPUInitPlayer = 0x80275c04;
+  Rider_CPUInitPlayerFixed = 0x80275c40;
+  Rider_CPUSelectProfile = 0x802766fc;
+  _Rider_UpdateCPU = 0x80275c70;
+  Rider_UpdateCPU = 0x8026beec;
+  Rider_ProcessCPUDistance = 0x8026bbe0;
+  Rider_CPUDecideState = 0x802716e8;
+  Rider_ProcessCPUManeuver = 0x8026bf30;
+  Rider_CPUResolveTargetPos = 0x80263120;
+  Rider_CPUPickManeuver = 0x8026a734;
+  Rider_CPUEmitSteer = 0x8026d6a0;
+  Rider_CPUSeedDesire = 0x802762dc;
+  Rider_CPUDifficultyScale = 0x80276f00;
+  Rider_CPUPushCmd1 = 0x80275fcc;
+  Rider_CPUPushCmd2 = 0x80276050;
+  Rider_CPUPushCmd3 = 0x80276118;
+  Rider_CPUProcessCmd = 0x80275cbc;
+  Rider_GetCPUButtons = 0x80275cb0;
+  Rider_GetCPUStickX = 0x80275c90;
+  Rider_GetCPUStickY = 0x80275ca0;
+  Rider_InputThink = 0x8018ee28;
+  plGetPlayerKind = 0x8022c858;
   Rider_RespawnEnter = 0x801A1D70;
   Rider_GiveAbility = 0x801a81a4;
   Rider_CheckUnableAbility = 0x80191798;
@@ -697,6 +723,8 @@ SECTIONS
   Enemy_CheckAndLoad = 0x801fd060;
   Enemy_LoadFile = 0x801fd348;
   Enemy_SpawnActor = 0x800f13a8;
+  Enemy_SpawnActorMode2 = 0x800f16c0;
+  Enemy_SpawnerDecideMode2 = 0x800f0efc;
   Enemy_Think = 0x800f3904;
   Enemy_CityTrialThink = 0x800f33c0;
   EventActor_Create = 0x801fbb50;
@@ -969,4 +997,8 @@ SECTIONS
   Rider_GetHandBonePos = 0x80191ffc;
   Rider_GetForward = 0x80191ef8;
   Rider_GetUp = 0x80191f18;
+
+  /* Stage out-of-bounds death box. Reads StageNode.oob_min/oob_max
+     (gr_data->stage_node + 0xCC / +0xD8). See docs/collision-system.md. */
+  calcDistanceFromOOB = 0x800d4f20;
 }
