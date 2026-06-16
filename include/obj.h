@@ -932,7 +932,6 @@ void GObj_AddUserData(GOBJ *gobj, int userDataKind, void *destructor, void *user
 void GOBJ_InitCamera(GOBJ *gobj, void *cb, int gx_pri);
 void GObj_Anim(GOBJ *gobj);
 void *GObj_AddRenderObject(GOBJ *gobj, int width, int height);
-void GObj_ProcUnk(GOBJ *gobj);
 void GObj_DestroyByPLink(int p_link);                           // destroys all gobjs with p_link X
 void GObj_DestroyByPLinkRange(int p_link_low, int p_link_high); // destroys all gobjs of p_link_low -> p_link_high
 void GObj_UpdateAll();

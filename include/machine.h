@@ -480,7 +480,7 @@ typedef struct MachineData
     int x38c;                             // 0x38c
     int x390;                             // 0x390
     int x394;                             // 0x394
-    int x398;                             // 0x398
+    float top_speed_current;              // 0x398, top speed for the active state, set each Machine_AdjustAttributes from top_speed_ground (0x4f0) when grounded (action_state_class 0x754 == 0) or the airborne value (0x5ac) otherwise
     int x39c;                             // 0x39c
     int x3a0;                             // 0x3a0
     int x3a4;                             // 0x3a4
@@ -523,7 +523,7 @@ typedef struct MachineData
     int x450;                             // 0x450
     int x454;                             // 0x454
     int x458;                             // 0x458
-    int x45c;                             // 0x45c
+    int base_attributes;                  // 0x45c, start of the derived-attribute block (124 words) memcpy'd from md->vcData each Machine_AdjustAttributes; the real per-vehicle base stats (separate from the patch/cap stat arrays at 0x94C+)
     int x460;                             // 0x460
     int x464;                             // 0x464
     int x468;                             // 0x468
@@ -607,7 +607,7 @@ typedef struct MachineData
     int x5a0;                             // 0x5a0
     int x5a4;                             // 0x5a4
     int x5a8;                             // 0x5a8
-    u8 x5ac;                              // 0x5ac
+    u8 x5ac;                              // 0x5ac, Machine_AdjustAttributes reads a 4-byte value here as the airborne top speed (copied into top_speed_current 0x398) - likely a float overlapping the next bytes; reconcile with stadium_kind
     u8 stadium_kind;                      // 0x5ad
     u8 x5ae;                              // 0x5ae
     u8 x5af;                              // 0x5af
@@ -729,7 +729,7 @@ typedef struct MachineData
     int x748;                             // 0x748
     int x74c;                             // 0x74c
     int x750;                             // 0x750
-    int x754;                             // 0x754
+    int action_state_class;               // 0x754, 0 = grounded states, 1 = launched/airborne; splits PlayerStats drive-time & distance buckets
     int x758;                             // 0x758
     int x75c;                             // 0x75c
     int x760;                             // 0x760
@@ -852,7 +852,7 @@ typedef struct MachineData
     int x940;                             // 0x940
     int x944;                             // 0x944
     int x948;                             // 0x948
-    union {                               // 0x94C
+    union {                               // 0x94C, live patch stats - source 0 of the 5 stat arrays summed by Machine_GetStatRatio (see note below). Machine_GivePatch/GiveAllUp/ApplyStatClamped write here; seeded from PlayerData.stats via the spawn descriptor; read back into PlayerData by cityTrial_getMasterStats on writeback
         struct {
             float weight;
             float boost;
@@ -866,50 +866,24 @@ typedef struct MachineData
         };
         float values[9];
     } stats;
-    int x970;                             // 0x970
-    int x974;                             // 0x974
-    int x978;                             // 0x978
-    int x97c;                             // 0x97c
-    int x980;                             // 0x980
-    int x984;                             // 0x984
-    int x988;                             // 0x988
-    int x98c;                             // 0x98c
-    int x990;                             // 0x990
-    int x994;                             // 0x994
-    int x998;                             // 0x998
-    int x99c;                             // 0x99c
-    int x9a0;                             // 0x9a0
-    int x9a4;                             // 0x9a4
-    int x9a8;                             // 0x9a8
-    int x9ac;                             // 0x9ac
-    int x9b0;                             // 0x9b0
-    int x9b4;                             // 0x9b4
-    int x9b8;                             // 0x9b8
-    int x9bc;                             // 0x9bc
-    int x9c0;                             // 0x9c0
-    int x9c4;                             // 0x9c4
-    int x9c8;                             // 0x9c8
-    int x9cc;                             // 0x9cc
-    int x9d0;                             // 0x9d0
-    int x9d4;                             // 0x9d4
-    int x9d8;                             // 0x9d8
-    int x9dc;                             // 0x9dc
-    int x9e0;                             // 0x9e0
-    int x9e4;                             // 0x9e4
-    int x9e8;                             // 0x9e8
-    int x9ec;                             // 0x9ec
-    int x9f0;                             // 0x9f0
-    int x9f4;                             // 0x9f4
-    int x9f8;                             // 0x9f8
-    int x9fc;                             // 0x9fc
-    int xa00;                             // 0xa00
-    int xa04;                             // 0xa04
-    int xa08;                             // 0xa08
+    // --- Per-stat contribution arrays (0x970-0xA08) ------------------------
+    // Four more per-stat arrays parallel to `stats` (0x94C) above. All five are
+    // summed element-wise by Machine_GetStatRatio: ratio = (stats + stat_aux +
+    // statcap_a + statcap_b + statcap_c) / Patch_GetMaxValue(), clamped to [0,1];
+    // Machine_GetStatRatio2 lerps that ratio across the vcDataCommon attr pair.
+    // statcap_* are zero-inited at spawn (Machine_InitRuntimeState), cleared
+    // per-group by Machine_SetStatCap (item pickup) or all-groups by 0x801caf90;
+    // special items write per-stat cap points into them via the item attr list.
+    int statcap_a[9];                     // 0x970, stat-cap source group 0 (integer points)
+    int statcap_b[9];                     // 0x994, stat-cap source group 1
+    int statcap_c[9];                     // 0x9b8, stat-cap source group 2 (clearing this group also resets charge timer 0x790)
+    int statcap_scalar[3];                // 0x9dc, one scalar per statcap group; read+cleared with its group (old value passed to 0x801d5e34)
+    float stat_aux[9];                    // 0x9e8, secondary per-stat floats, seeded from PlayerData.stat_aux at spawn (0 in practice), reset to 0 by 0x801cae1c
     int xa0c;                             // 0xa0c
     int xa10;                             // 0xa10
     int xa14;                             // 0xa14
-    float hp;                             // 0xa18
-    int xa1c;                             // 0xa1c
+    float hp;                             // 0xa18, current HP. Seeded from spawn desc[0xc]; if sentinel 0.0, defaults to hp_max_override
+    float hp_max_override;                // 0xa1c, spawn-desc HP-max override (desc[0xd]): if != 0.0, copied into hp_max (0x4cc) by Machine_AdjustAttributes
     TriggerData trigger;                  // 0xa20
     int xa80;                             // 0xa80
     int xa84;                             // 0xa84
@@ -1028,7 +1002,11 @@ typedef struct MachineData
     u8 xc37;                              // 0xc37. bit 7 (0x80): set by Machine_SetFallDead. bit 6 (0x40): use_backup_checkpoint - set when spline lookup fails, cleared on success. bit 4 (0x10): cleared by Machine_RespawnStateEntry. bit 0 (0x01): cleared by Machine_InitRuntimeState.
     int xc38;                             // 0xc38
     int xc3c;                             // 0xc3c
-
+    // NOTE: this declaration is truncated. The real MachineData allocation is
+    // 0x1bc0 bytes (Machine_StoreVcDataPtr memsets that much). Known late fields
+    // past 0xc40 include the fall-death block at 0x1b48 (ground handle) / 0x1b4c
+    // (respawn spline params) / 0x1b58 (timestamp) used by Machine_SetFallDead,
+    // and flag bytes at 0x1bbd. Pad/extend here when those fields are mapped.
 } MachineData;
 
 static vcDataCommon **stc_vcDataCommon = (vcDataCommon **)(0x805dd0e0 + 0x758);
@@ -1045,8 +1023,8 @@ void Machine_ApplyStatClamped(float *stat_arr, int stat_idx, int delta); // 0x80
 void Machine_ApplyAllStatsClamped(float *stat_arr, int delta); // 0x801e096c, adds delta to all 9 stats and clamps each
 void Machine_UpdateAppearance(MachineData *md); // 0x801d6668, updates machine visual state: stat glow, candy, charge, invincibility, and vehicle-specific effects
 void Machine_AdjustAttributes(MachineData *md); // 0x801c7278, recalculates derived machine attributes from stats. Dispatches per-vehicle via vcDataCommon+0x1c (attribute memcpy) and +0x20 (Machine_AdjustAttributes{Star,Bike})
-float Machine_GetStatRatio(MachineData *md, int stat_idx);  // 0x801caa8c, returns sum(per-source stat contributions at md+0x94C/+0x970/+0x994/+0x9B8/+0x9E8) / Patch_GetMaxValue() as a float ratio
-float Machine_GetStatRatio2(MachineData *md, int stat_idx); // 0x801cabd4, sibling of Machine_GetStatRatio; same inputs, variant tail math (exact difference TBD)
+float Machine_GetStatRatio(MachineData *md, int stat_idx);  // 0x801caa8c, returns sum(per-stat source contributions: floats at md+0x94C/+0x9E8 plus ints at +0x970/+0x994/+0x9B8) / Patch_GetMaxValue(), clamped to [0,1]
+float Machine_GetStatRatio2(MachineData *md, int stat_idx); // 0x801cabd4, like Machine_GetStatRatio but returns the interpolated attribute value: lerps the summed ratio across the per-stat min/max attribute pair from stc_vcDataCommon+0x1c (fmadds), not the raw clamped ratio
 float Machine_ScaleFromRatio(float *low_high_pair, float ratio);  // 0x801cab4c, bipolar interpolator: ratio>0 -> 1 + ratio*(high-1); ratio<0 -> 1 + (-ratio)*(low-1); ratio==0 -> 1.0
 float Machine_ScaleFromRatio2(float *low_high_pair, float ratio); // 0x801cab94, sibling of Machine_ScaleFromRatio (near-identical structure, variant TBD)
 void Machine_ApplyStarStatScaling(MachineData *md); // 0x801e81e4, per-stat scaling loop for star machines; calls Machine_GetStatRatio then Machine_ScaleFromRatio against attribute pairs in vcDataKindStar

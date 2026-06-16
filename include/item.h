@@ -414,7 +414,7 @@ typedef struct ItemDesc // used to spawn an item
     int coll_kind;      // 0x4C, [param] stack param 2 of Item_InitDesc. Stored to ItemData[0x359] bits 2-4. 3=point coll (most items), 1=alloc CollData, 0=requires CollData
     int is_airborne;    // 0x50, [param] stack param 1 of Item_InitDesc. -1=skip initial raycast, other=do raycast. Maps to ItemData[0x1D4]
     int x54;            // 0x54, [computed] always 0. Stored as bit flag in ItemData[0x35B]
-    int flags;          // 0x58, [computed] based on item kind range and CityItem_GetUnkFlag(4). Maps to ItemData[0x48]
+    int flags;          // 0x58, [computed] by Item_InitDesc from the item kind range. Maps to ItemData[0x48]
 } ItemDesc;
 
 typedef struct ItemData

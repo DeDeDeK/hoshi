@@ -723,7 +723,7 @@ AudioEmitter AudioEmitter_Alloc(AudioEmitterKind kind, int idx); //
 void AudioEmitter_Free(AudioEmitter source); //
 void AudioEmitter_SetPosition(AudioEmitter source, Vec3 *pos, float unk); // 
 void AudioEmitter_Init(AudioEmitter source); // is called before playing. inits distance value
-int AudioEmitter_CheckUnk(AudioEmitter source);
+int AudioEmitter_CheckIfSGIsBeingUsed(AudioEmitter source); // 0x800623ec. Sums the active-voice counts of the emitter's two sound-group IDs (+0x37c/+0x37e); 0 if neither is in use
 void AudioEmitter_Play(int sfx, int audio_track, AudioEmitter source); // you can play multiple sounds per track and prox?
 int AudioTrack_Alloc(); // 
 void AudioTrack_Free(int audio_track); // 

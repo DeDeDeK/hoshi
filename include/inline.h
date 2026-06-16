@@ -230,7 +230,7 @@ static inline GOBJ *GOBJ_EZCreator(int entity_class, int p_link, int flags, int 
 
 static inline GOBJ *JObj_LoadSet_SetPri(int is_hidden, JOBJSet *set, int anim_id, float frame, int p_link, int gx_link, int is_add_anim, void *cb, int pri)
 {
-    void (*JObj_AnimUnk)(JOBJ *j, int flags) = (void *)0x800550bc;
+    void (*JObj_SetAllAOBJRateByFlags)(JOBJ *j, int flags) = (void *)0x800550bc;
 
     GOBJ *g = GOBJ_EZCreator(14, p_link, 0,
                              0, 0,
@@ -262,7 +262,7 @@ static inline GOBJ *JObj_LoadSet_SetPri(int is_hidden, JOBJSet *set, int anim_id
         // JObj_AnimAll(g->hsd_object);
 
         // set to last frame?
-        // JObj_AnimUnk(g->hsd_object, 0xffff);
+        // JObj_SetAllAOBJRateByFlags(g->hsd_object, 0xffff);
 
         if (is_hidden)
             JObj_SetFlagsAll(g->hsd_object, JOBJ_HIDDEN);
