@@ -87,8 +87,6 @@ typedef struct StadiumResults
     float ply_dist[4];    // 0xc14
 } StadiumResults;
 
-static u8 *stc_stadium_option_to_kind = (u8 *)0x80535a9c;
-
 StadiumGroup Gm_GetStadiumGroupFromKind(StadiumKind st_kind);
 StadiumKind Gm_GetCurrentStadiumKind();
 StadiumGroup Gm_GetCurrentStadiumGroup();
