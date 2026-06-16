@@ -176,25 +176,29 @@ typedef struct ProjectileStateEntry
 //
 //   +0x00: ProjectileStateEntry * state_table      (Solid; vtable[0] copy)
 //   +0x04: always NULL                             (Solid)
-//   +0x08: pointer, purpose unknown                (Plausible: read by
-//          Projectile_Create as a struct whose first two words land at
-//          proj+0x18 and proj+0x1c - model-data candidates)
+//   +0x08: void * model_desc                       (Solid; Projectile_Create
+//          reads word0 -> proj+0x18 and loads it via HSD_JObjLoadJoint to
+//          build the projectile's model joint; word1 -> proj+0x1c. When this
+//          pointer is NULL, a global default model is used instead.)
 //   +0x0c: void * state_anim_spec_array            (Solid; 16-byte stride,
 //          indexed by state_id, result at proj+0x38)
-//   +0x10: void * hurt_region_spec                 (Solid; 0x18-byte stride
-//          per region, used by Projectile_InitHurtData at 0x80221440)
-//   +0x14..0x30: per-kind scalars (damage / knockback / radius / timers).
-//          Explosion-class kinds (BOMB, SENSORBOMB) read from this range;
-//          exact per-offset mapping has not been fully traced since the
-//          table is unpopulated in the main-menu dump.
+//   +0x10: void * hurt_region_spec                 (Solid; +0x00 = region-desc
+//          array base, +0x04 = region count; consumed by
+//          Projectile_InitHurtData at 0x80221440 -> HurtData_Create +
+//          HurtData_InitRegion, 0x18-byte stride. This is where a kind's
+//          damage/knockback/radius live - baked into HurtData at create.)
+//   +0x14..0x30: unknown / possibly unused. Earlier notes assumed explosion-
+//          class kinds read damage scalars here, but no traced bomb state
+//          function dereferences kind_data at all. Undumpable from the main-
+//          menu snapshot (the whole table is NULL there).
 typedef struct ProjKindData
 {
     const ProjectileStateEntry *state_table;           // +0x00
     void                       *reserved_04;            // +0x04: always NULL
-    void                       *unknown_08;             // +0x08: model-data candidate
+    void                       *model_desc;             // +0x08: model joint descriptor (HSD_JObjLoadJoint)
     const void                 *state_anim_spec_array;  // +0x0c: 16-byte stride by state_id
-    const void                 *hurt_region_spec;       // +0x10: 0x18-byte stride HurtData regions
-    // +0x14 onward: per-kind scalars, untyped here until a runtime dump lands.
+    const void                 *hurt_region_spec;       // +0x10: +0x00 region base, +0x04 count; 0x18 stride
+    // +0x14 onward: unknown / possibly unused; untyped until a runtime dump lands.
 } ProjKindData;
 
 // Per-kind vtable at *(0x804b4338 + kind*4). One vtable per ProjectileKind;
@@ -254,12 +258,18 @@ typedef struct ProjectileData
     Vec3           position;             // 0xac: live world position
     Vec3           position_prev;        // 0xb8: previous frame (used by swept collision)
     Vec3           position_init;        // 0xc4: spawn position (collision anchor)
-    u8             pad_d0[0x108 - 0xd0]; // 0xd0..0x107: rotation basis, sub-object refs (internal)
-    void          *hurt_data;            // 0x108: HurtData allocated by Projectile_InitHurtData
+    u8             pad_d0[0x104 - 0xd0]; // 0xd0..0x103: rotation basis, sub-object refs (internal)
+    void          *render_state;         // 0x104: HSD_ObjAlloc'd block (alloc'd by 0x802205b0) holding the
+                                         //        alpha/color/scale ramp fields the FADE state reads
+                                         //        (+0x10 alpha, +0x14 lifetime, +0x2c/0x30 fade endpoints).
+                                         //        Per-projectile - NOT the per-kind data table.
+    void          *hurt_data;            // 0x108: HurtData (Projectile_InitHurtData); +0x0c = region array (0xC8 stride)
     int            lifetime;             // 0x10c: frames remaining; prio-1 decrements
     int            frame_counter;        // 0x110: monotonic, incremented by prio-0
-    void          *audio_voice_a;        // 0x114
-    void          *audio_voice_b;        // 0x118
+    void          *effect_handle_a;      // 0x114: particle-effect handle (Effect module). Allocated by
+                                         //        0x802364e0, passed to Effect_SpawnSync as attach parent;
+                                         //        freed in the dtor. NOT an audio voice.
+    void          *effect_handle_b;      // 0x118: second particle-effect handle, freed alongside 0x114
     u8             pad_11c[0x14c - 0x11c]; // 0x11c..0x14b
     float          charge;               // 0x14c: desc.charge copy
     void         (*state_fn0)(void *p);  // 0x150: copied from state entry by Projectile_SetState
@@ -280,9 +290,13 @@ typedef struct ProjectileData
                                           //        Inbound and outbound scans are gated by *separate* flags;
                                           //        a projectile that needs to damage its own owner-player must
                                           //        set both. See PROJ_ALLOW_SELF_HIT_OUTBOUND below.
-    u8             flag_c;               // 0x1b6: audio + anim-dirty bits
+    u8             flag_c;               // 0x1b6: effect/anim-state bits. Bit 7 = state-changed-this-frame
+                                          //        (set by every transition); lower bits flag effect liveness.
     u8             pad_1b7;              // 0x1b7
-    u8             kind_scratch[0x218 - 0x1b8]; // 0x1b8..0x217: per-kind scratch (owner info Vec3 / audio handles / timers)
+    u8             kind_scratch[0x218 - 0x1b8]; // 0x1b8..0x217: per-kind scratch (timers / particle-effect handles).
+                                          //        BOMB: 0x1c0 = detonation countdown, then reused as a FADE effect
+                                          //        handle; 0x1c8/0x1cc = positional FADE effect (reaped by aux_a);
+                                          //        0x1f8/0x1fc = EXPLODING burst effect; 0x1d0..0x1ec = fade ramp.
     u8             flag_d;               // 0x218: subproc-gating; bit 0 always set
     u8             pad_219[0x220 - 0x219]; // 0x219..0x21f
 } ProjectileData;

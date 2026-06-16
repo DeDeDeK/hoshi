@@ -855,7 +855,7 @@ void Rider_RespawnEnter(RiderData *);
 int Rider_GiveAbility(RiderData *, CopyKind);
 int Rider_CheckUnableAbility(RiderData *); // checks if the rider can receive an ability?
 void Rider_AbilityRemoveModel(RiderData *);
-void Rider_AbilityRemoveUnk(RiderData *);
+void Rider_AbilityClearQueued(RiderData *); // 0x801915c4. Cancels queued copy-ability + power-up grants: frees their pending objects (RiderData+0x8fc/+0x904) and resets queued_ability_kind/queued_powerup_kind to -1
 void Rider_LoseAbilityState_Enter(RiderData *);
 void Rider_GiveIntangibility(RiderData *, int time);
 void Rider_GiveInvincibility(RiderData *, int time);
