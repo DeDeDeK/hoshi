@@ -131,20 +131,57 @@ typedef struct ModelSection
     void *unk_c;         // 0x0C
 } ModelSection;
 
+// Forward declaration for the sky-block pointer chain (full SkyPresetEntry
+// definition is further down this file). HSD_FogDesc comes from obj.h.
+struct SkyPresetEntry;
+
+// SkyPresetSubHeader - the {array, count} pair pointed at by SkyBlock+0x04.
+// Sky_GetPresetCount (0x800d5414) returns preset_count; Sky_LoadPreset reads
+// preset_array[index] (stride 0x48). custom_weather repoints both fields to
+// swap in an extended preset array.
+typedef struct SkyPresetSubHeader
+{
+    struct SkyPresetEntry *preset_array; // 0x00 - base of the 0x48-byte preset entries
+    s32 preset_count;                    // 0x04 - number of presets in the array
+} SkyPresetSubHeader;
+
+// SkyBlock - the GrData+0x34 sub-block from the stage file. Two pointers:
+// the initial fog descriptor and the preset sub-header. Reachable as
+// grobj->gr_data->sky_block.
+typedef struct SkyBlock
+{
+    HSD_FogDesc *fog_desc;             // 0x00 - initial fog parameters
+    SkyPresetSubHeader *preset_header; // 0x04 - sky preset array + count
+} SkyBlock;
+
+// StageNode - the GrData+0x04 sub-block (HSDLib KAR_grStageNode). Holds the
+// stage's physics constants, the world gravity vector, and the axis-aligned
+// out-of-bounds death box. The OoB box at +0xCC/+0xD8 is read by
+// calcDistanceFromOOB (0x800d4f20) every frame to compute how far a position
+// is from leaving the playfield. See docs/collision-system.md.
+typedef struct StageNode
+{
+    int x0;                 // 0x00
+    float machine_accel;    // 0x04 - base machine acceleration scalar
+    float scale;            // 0x08 - stage model scale (applied to stage JObjs)
+    float gravity_unk;      // 0x0C - flight dropoff?
+    Vec3 gravity_force;     // 0x10 - world gravity direction
+    int fog_flags;          // 0x1C
+    u8 _pad_20[0x60 - 0x20];
+    float minimap_scale;    // 0x60
+    u8 _pad_64[0x80 - 0x64];
+    int node_flags;         // 0x80
+    u8 _pad_84[0xCC - 0x84];
+    Vec3 oob_min;           // 0xCC - out-of-bounds box minimum corner (X,Y,Z)
+    Vec3 oob_max;           // 0xD8 - out-of-bounds box maximum corner (X,Y,Z)
+} StageNode;
+
 typedef struct GrData // exists in the stage file
 {                     //
-    int flags;        // 0x0
-    struct
-    {
-        int x0;
-        float machine_accel;
-        float scale;
-        float gravity_unk; // flight dropoff?
-        Vec3 gravity_force; // actually gravity direction?
-        int fog_flags;
-    } *stage_node;                  // 0x4
-    int x8;                         // 0x8
-    ModelSection *model_section;    // 0xc - terrain + backdrop JObj descs
+    int flags;                      // 0x00
+    StageNode *stage_node;          // 0x04 - physics + gravity + OoB death box
+    int x8;                         // 0x08
+    ModelSection *model_section;    // 0x0c - terrain + backdrop JObj descs
     GrModelMotion *motion;          // 0x10, pointer placed at runtime
     void *spline;          // 0x14
     void *pos_data;        // 0x18
@@ -154,7 +191,7 @@ typedef struct GrData // exists in the stage file
     int x28;               // 0x28
     int x2c;               // 0x2c
     EventConfigData *event_config; // 0x30 - set by fn_grSetupCityEventData (0x8010f7c4) when entering City Trial. Loaded regardless of the events on/off setting; same pointer is also stored as EventCheckData.data when events are enabled.
-    int x34;               // 0x34
+    SkyBlock *sky_block;   // 0x34 - sky/fog descriptor pair: [0] HSD_FogDesc, [1] preset sub-header (array base + count)
     int x38;               // 0x38
     int x3c;               // 0x3c
     YakumonoTable *yakumono; // 0x40 - per-stage yakumono manifest (see yakumono.h)
@@ -191,6 +228,12 @@ static GrObj **stc_grobj = (GrObj **)(0x805dd0e0 + 0x5ec);
 StageKind Gm_GetCurrentStageKind();
 GroundKind Gm_GetCurrentGrKind();
 GroundKind Gm_GetGrKindFromStageKind(StageKind stage_kind);
+
+// Signed clearance from the stage out-of-bounds death box. pos is a world
+// Vec3. Returns the minimum signed distance to any of the six
+// StageNode.oob_min/oob_max planes (positive = inside the box, negative =
+// already past a wall). Reads the box from (*stc_grobj)->gr_data->stage_node.
+float calcDistanceFromOOB(Vec3 *pos);          // 0x800d4f20
 
 // Gr_StateChange and other yakumono framework APIs are declared in yakumono.h.
 
