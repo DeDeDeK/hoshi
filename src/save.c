@@ -31,6 +31,99 @@ static int stc_hoshi_save_hash;
 extern ModloaderData *stc_modloader_data;
 
 /*---------------------------------------------------------------------*
+Name:           KARPlusSave_SetIcon
+
+Description:    Public API (Hoshi_SetSaveIcon). Lets a mod give the shared
+                "hoshi" save file a card-manager comment + animated icon.
+                Writes straight into the live save struct's embedded tile;
+                it is committed to the card when the save is next written.
+                Call at mod boot (the save struct already exists by then).
+
+Arguments:      title        - card title string (<= 31 chars used)
+                description  - card description string (<= 31 chars used)
+                frames_rgb5a3- frame_num * 32x32 RGB5A3 frames, packed
+                frame_num    - 1..HOSHI_SAVE_ICON_FRAMES
+                speed        - CARD_STAT_SPEED_FAST/MIDDLE/SLOW (all frames)
+
+Returns:        none.
+
+*---------------------------------------------------------------------*/
+void KARPlusSave_SetIcon(const char *title, const char *description, const void *frames_rgb5a3, int frame_num, int speed)
+{
+    if (!stc_hoshi_save)
+        return;
+
+    if (frame_num < 1)
+        frame_num = 1;
+    if (frame_num > HOSHI_SAVE_ICON_FRAMES)
+        frame_num = HOSHI_SAVE_ICON_FRAMES;
+    if (speed < CARD_STAT_SPEED_FAST || speed > CARD_STAT_SPEED_SLOW)
+        speed = CARD_STAT_SPEED_MIDDLE;
+
+    KARPlusSaveTile *tile = &stc_hoshi_save->tile;
+
+    memset(tile, 0, sizeof(*tile));
+    // comment is two 32-byte halves: title then description (strncpy leaves the rest zeroed)
+    if (title)
+        strncpy(&tile->comment[0], title, (CARD_COMMENT_SIZE / 2) - 1);
+    if (description)
+        strncpy(&tile->comment[CARD_COMMENT_SIZE / 2], description, (CARD_COMMENT_SIZE / 2) - 1);
+    if (frames_rgb5a3)
+        memcpy(tile->icon, frames_rgb5a3, frame_num * CARD_ICON_SIZE_RGB5A3);
+    tile->frame_num = frame_num;
+    tile->speed = speed;
+    tile->is_set = 1;
+
+    LOG_INFO("Save icon set (%d frame(s), speed %d).", frame_num, speed);
+}
+
+/*---------------------------------------------------------------------*
+Name:           KARPlusSave_ApplyTile
+
+Description:    Points the open file's CARDStat directory entry at the tile
+                bytes embedded in the save (comment + RGB5A3 icon frames).
+                The icon pixels themselves are persisted as part of the save
+                struct via CARDWrite.
+
+Arguments:      fileInfo - an open CARDFileInfo for the "hoshi" file.
+
+Returns:        cardResult.
+
+*---------------------------------------------------------------------*/
+static int KARPlusSave_ApplyTile(CARDFileInfo *fileInfo)
+{
+    CARDStat stat;
+    KARPlusSaveTile *tile = &stc_hoshi_save->tile;
+
+    s32 cardResult = CARDGetStatus(0, fileInfo->fileNo, &stat);
+    if (cardResult != CARD_RESULT_READY)
+    {
+        LOG_WARN("Failed to get status for save icon (%d).", cardResult);
+        return cardResult;
+    }
+
+    stat.bannerFormat = CARD_STAT_BANNER_NONE;
+    stat.commentAddr = (u32)((int)&tile->comment - (int)stc_hoshi_save);
+    stat.iconAddr = (u32)((int)&tile->icon - (int)stc_hoshi_save);
+
+    // 2 bits/frame: RGB5A3 format + speed for each valid frame, 0 (NONE) past the end stops the loop
+    u16 icon_format = 0, icon_speed = 0;
+    for (int i = 0; i < tile->frame_num && i < CARD_ICON_MAX; i++)
+    {
+        icon_format |= (u16)(CARD_STAT_ICON_RGB5A3 << (i * 2));
+        icon_speed |= (u16)((tile->speed & CARD_STAT_SPEED_MASK) << (i * 2));
+    }
+    stat.iconFormat = icon_format;
+    stat.iconSpeed = icon_speed;
+
+    cardResult = CARDSetStatus(0, fileInfo->fileNo, &stat);
+    if (cardResult != CARD_RESULT_READY)
+        LOG_WARN("Failed to set save icon status (%d).", cardResult);
+
+    return cardResult;
+}
+
+/*---------------------------------------------------------------------*
 Name:           KARPlusSave_OnSetDefault
 
 Description:    Inserted after initializing default save file settings.
@@ -267,6 +360,10 @@ int KARPlusSave_CreateOrLoad()
         }
     }
 
+    // point the card directory entry at the embedded tile so the icon shows in the card manager
+    if (cardResult == CARD_RESULT_READY && stc_hoshi_save->tile.is_set)
+        KARPlusSave_ApplyTile(&fileInfo);
+
     CARDClose(&fileInfo);
     CARDUnmount(0);
 
@@ -362,10 +459,22 @@ void *KARPlusSave_Alloc(GlobalMod *mod, int menu_size, int user_size)
     // copy mod hash
     stc_hoshi_save->metadata[stc_hoshi_save->mod_num].mod_hash = mod_hash;
 
-    // get data offset
+    // Reject the alloc if it would not fit in the data region. Without this an
+    // over-budget mod silently writes past SAVE_SIZE into whatever the persistent
+    // allocator placed next (the mod-loader registry), zeroing it on save load.
+    if (menu_size + user_size > KARPlusSave_CheckFreeData())
+    {
+        LOG_ERROR("Save: no room for mod %s (need 0x%x, free 0x%x)",
+                  mod->desc->name, menu_size + user_size, KARPlusSave_CheckFreeData());
+        return 0;
+    }
+
+    // Data offsets are relative to data[] (mod 0 starts at 0). All readers index
+    // &stc_hoshi_save->data[offset], which already adds offsetof(data) - so the
+    // offset must NOT include it again.
     int menu_offset;
     if (stc_hoshi_save->mod_num == 0)
-        menu_offset = (int)&stc_hoshi_save->data - (int)stc_hoshi_save;
+        menu_offset = 0;
     else
     {
         menu_offset = stc_hoshi_save->metadata[stc_hoshi_save->mod_num - 1].user_data.offset +
@@ -385,10 +494,10 @@ void *KARPlusSave_Alloc(GlobalMod *mod, int menu_size, int user_size)
     stc_hoshi_save->metadata[stc_hoshi_save->mod_num].user_data.offset = user_offset;
     stc_hoshi_save->metadata[stc_hoshi_save->mod_num].user_data.size = user_size;
 
-    // get mem ptr
+    // get mem ptr (data[]-relative, matching mod->save.user_data below)
     void *save_data_ptr = 0;
     if (user_size > 0)
-        save_data_ptr = (void *)((int)stc_hoshi_save + user_offset);
+        save_data_ptr = (void *)&stc_hoshi_save->data[user_offset];
 
     LOG_DEBUG("alloc'd mod %s index %d hash 0x%x metadata @ %p",
               mod->desc->name,
@@ -618,6 +727,7 @@ void KARPlusSave_Init()
     stc_hoshi_save->version_major = VERSION_MAJOR;
     stc_hoshi_save->version_minor = VERSION_MINOR;
     stc_hoshi_save->mod_num = 0;
+    stc_hoshi_save->tile.is_set = 0; // no card tile unless a mod calls Hoshi_SetSaveIcon
 
     // install functions
     CODEPATCH_HOOKAPPLY(0x80047834);
@@ -626,6 +736,7 @@ void KARPlusSave_Init()
 
     CODEPATCH_HOOKAPPLY(0x800189a4);
     CODEPATCH_REPLACEFUNC(Hoshi_WriteSave, KARPlusSave_Write);
+    CODEPATCH_REPLACEFUNC(Hoshi_SetSaveIcon, KARPlusSave_SetIcon);
     CODEPATCH_HOOKAPPLY(0x80007630);
 
     CODEPATCH_REPLACEFUNC(Hoshi_GetBackupSize, _Hoshi_GetBackupSize);

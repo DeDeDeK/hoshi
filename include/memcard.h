@@ -38,6 +38,13 @@ typedef struct SaveInfo
     int save_size; // 0x54c
 } SaveInfo;
 
+// Vanilla game-save card tile (managed by the threaded GCP_MemCard worker, 0x8045xxxx):
+//   *(stc_save_info + 0x64) -> icon format/speed descriptor (byte[0..1] feed bannerFormat;
+//     per-frame entries carry format at +2 and speed at +10).
+//   Tile assets are publics in LbMcGame.dat: MemCardBanner_01 (96x32 RGB5A3),
+//     MemCardIcon_01 (8-frame 32x32 CI8 + 256-entry RGB5A3 TLUT).
+//   The create path writes commentAddr=0, iconAddr=0x40, bannerFormat=NONE (icon-only tile).
+
 MemcardStatus Memcard_GetState();
 void Memcard_RequestCheckExist(int slot, char *save_name);
 MemcardSaveStatus Memcard_GetSaveStatus();

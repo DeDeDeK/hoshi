@@ -39,6 +39,8 @@ SECTIONS
   CARDWrite = 0x803E7E04;
   CARDWriteAsync = 0x803E7CF0;
   CARDSetStatusAsync = 0x803E836C;
+  CARDSetStatus = 0x803E84E0; /* sync wrapper: CARDSetStatusAsync + __CARDSync */
+  CARDDelete = 0x803E8000;    /* sync wrapper: CARDDeleteAsync + __CARDSync */
   CARDUnmount = 0x803E65D0;
   CARDGetXferredBytes = 0x803126B4;
   EXIInit = 0x803eb1ac;
@@ -855,6 +857,7 @@ SECTIONS
   Hoshi_GetBackupSize = 0x80495184;
   Hoshi_BackupModSave = 0x80495188;
   Hoshi_RestoreModSave = 0x8049518c;
+  Hoshi_SetSaveIcon = 0x80495190;
 
   /* Sky/lighting system. See docs/sky-lighting-system.md. */
   Sky_Init = 0x8010f114;

@@ -66,9 +66,34 @@ char *strrchr(const char *, int);
 #define CARD_MAX_FILE 127
 #define CARD_FILENAME_MAX 32
 #define CARD_ICON_MAX 8
-#define CARD_COMMENT_SIZE 64
+#define CARD_COMMENT_SIZE 64 // two 32-byte strings: title + description
 #define CARD_WORKAREA_SIZE (5 * 8 * 1024)
 #define CARD_READ_SIZE 512
+
+// CARDStat.bannerFormat (low 2 bits)
+#define CARD_STAT_BANNER_NONE 0
+#define CARD_STAT_BANNER_C8 1     // CI8 indexed + 256-entry RGB5A3 TLUT
+#define CARD_STAT_BANNER_RGB5A3 2 // direct color
+#define CARD_STAT_BANNER_MASK 3
+// CARDStat.iconFormat / iconSpeed are 2-bit-per-frame bitfields, indexed by frame (0..CARD_ICON_MAX-1)
+#define CARD_STAT_ICON_NONE 0
+#define CARD_STAT_ICON_C8 1     // CI8 indexed, shares one 256-entry RGB5A3 TLUT across all frames
+#define CARD_STAT_ICON_RGB5A3 2 // direct color
+#define CARD_STAT_ICON_MASK 3
+#define CARD_STAT_SPEED_NONE 0 // also marks the end of the animation
+#define CARD_STAT_SPEED_FAST 1
+#define CARD_STAT_SPEED_MIDDLE 2
+#define CARD_STAT_SPEED_SLOW 3
+#define CARD_STAT_SPEED_MASK 3
+// tile image geometry / byte sizes
+#define CARD_BANNER_WIDTH 96
+#define CARD_BANNER_HEIGHT 32
+#define CARD_ICON_WIDTH 32
+#define CARD_ICON_HEIGHT 32
+#define CARD_BANNER_SIZE_RGB5A3 (CARD_BANNER_WIDTH * CARD_BANNER_HEIGHT * 2) // 6144
+#define CARD_ICON_SIZE_RGB5A3 (CARD_ICON_WIDTH * CARD_ICON_HEIGHT * 2)       // 2048
+#define CARD_ICON_SIZE_C8 (CARD_ICON_WIDTH * CARD_ICON_HEIGHT)              // 1024 (per frame, + shared 512B TLUT)
+#define CARD_TLUT_SIZE 512                                                  // 256 entries * RGB5A3
 #define CARD_RESULT_UNLOCKED 1
 #define CARD_RESULT_READY 0
 #define CARD_RESULT_BUSY -1
@@ -700,9 +725,11 @@ s32 CARDProbeEx(s32 chan, s32 *memSize, s32 *sectorSize);
 s32 CARDCheckAsync(s32 chan, void *callback);
 s32 CARDFreeBlocks(s32 chan, s32 *byteNotUsed, s32 *filesNotUsed);
 s32 CARDDeleteAsync(s32 chan, char *fileName, void *callback);
+s32 CARDDelete(s32 chan, char *fileName); // sync wrapper around CARDDeleteAsync + __CARDSync (0x803e8000)
 s32 CARDCreate(s32 chan, char *fileName, u32 size, CARDFileInfo *fileInfo);
 s32 CARDCreateAsync(s32 chan, char *fileName, u32 size, CARDFileInfo *fileInfo, void *callback);
 s32 CARDSetStatusAsync(s32 chan, s32 fileNo, CARDStat *stat, void *callback);
+s32 CARDSetStatus(s32 chan, s32 fileNo, CARDStat *stat); // sync wrapper around CARDSetStatusAsync + __CARDSync (0x803e84e0)
 s32 CARDRead(CARDFileInfo *fileInfo, void *buf, s32 length, s32 offset);
 s32 CARDReadAsync(CARDFileInfo *fileInfo, void *buf, s32 length, s32 offset, void *callback);
 s32 CARDWrite(CARDFileInfo *fileInfo, void *buf, s32 length, s32 offset);
