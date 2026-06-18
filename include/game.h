@@ -535,8 +535,8 @@ typedef struct PlayerDesc
     u8 rumble;                   // 0x05
     u8 ply;                      // 0x06
     s8 x7;                       // 0x07
-    u8 cpu_level;                // 0x08
-    s8 x9;                       // 0x09
+    u8 cpu_level;                // 0x08, nominal CPU level (unsigned). NOT the byte the runtime reads - the effective signed level at +0x09 is what Player_Create / the stat-growth seeder use.
+    s8 cpu_level_eff;            // 0x09, effective signed CPU level: -1 = not a CPU, else 0..8. Player_Create copies it into PlayerData.cpu_level (+0xAC, Ply_GetCpuLevel); SceneLoad_3D reads it directly as the City Trial stat-growth table index.
     u8 xa;                       // 0x0a
     u8 xb;                       // 0x0b
     int xc;                      // 0x0c
@@ -945,11 +945,7 @@ typedef struct GameData // 805359d8
         u8 prev_stadium_kind[5];     // 0x45e
         int x464;                    // 0x464
         int x468;                    // 0x468
-        int x46c;                    // 0x46c
-        int x470;                    // 0x470
-        int x474;                    // 0x474
-        int x478;                    // 0x478
-        int x47c;                    // 0x47c
+        float cpu_stat_budget[5];    // 0x46c, per-slot City Trial passive CPU stat-growth pool. Seeded at CT load by SceneLoad_3D (0x8001442c) to gmGameParams.ct_cpu_stat_seed[cpu_level] for CPU slots (0 for humans); drained over the round by CityTrial_GrowCpuStats (0x80015a00) into the slot's stat_aux block. Slot 4 unused (mirrors ply_desc[5]).
         int x480;                    // 0x480
         int x484;                    // 0x484
         int x488;                    // 0x488
@@ -2265,6 +2261,13 @@ typedef struct gmGameParams
     int x14;             // 0x14
     int patch_max;       // 0x18, max stat patch value (returned by Patch_GetMaxValue as s8)
     int patch_min;       // 0x1c, min stat patch value (returned by Patch_GetMinValue as s8)
+    u8 _pad20[0x154 - 0x20];           // 0x20, unmapped match params
+    // City Trial passive CPU stat-growth tables, indexed by cpu_level (0..8). Read
+    // by SceneLoad_3D (seed) and CityTrial_GrowCpuStats (rate/interval). Shipped
+    // defaults below.
+    float ct_cpu_stat_seed[9];         // 0x154, per-cpu_level starting stat pool {3,5,10,15,20,25,30,35,42}
+    float ct_cpu_stat_rate[9];         // 0x178, per-cpu_level per-tick drain amount {1,1,1,1,1.2,1.5,2,2.5,3}
+    int ct_cpu_stat_interval;          // 0x19c, frames between growth ticks (180 = ~3s @ 60fps)
 } gmGameParams;
 
 typedef struct gmDataAll
@@ -2412,7 +2415,7 @@ typedef struct PlayerData
         };
         float values[9];
     } stats;
-    float stat_aux[9];         // 0x68, secondary per-stat array seeded into the machine alongside stats[] (-> MachineData word 0x27a) at (re)spawn. Only Player_InitAll writes it (to 0) - no gameplay writeback - so 0 in practice; Ply_ClampStats adds it (truncated to int) into stats[] before the save, a no-op while it stays 0. NOT the machine base attributes (those load from the static vcDataLookup table into MachineData+0x45c)
+    float stat_aux[9];         // 0x68, per-stat block accessed by Ply_GetStatAux/Ply_SetStatAux (8022d0cc/8022d128). Ply_SetStatAux, while the player is riding, clamps this block into the machine's added-patch array (Machine_SetStatBlockClamped -> MachineData+0x9e8) and runs Machine_AdjustAttributes, so it feeds the live machine stats. In City Trial CityTrial_GrowCpuStats accrues passive CPU stat growth here each tick (this is the CPU stat-budget sink). Also seeded into the machine alongside stats[] (-> MachineData word 0x27a) at (re)spawn; Ply_ClampStats folds it (truncated to int) into stats[] at the City->Stadium save. Stays 0 for players that never receive growth. NOT the machine base attributes (those load from the static vcDataLookup table into MachineData+0x45c)
     u8 player_color;           // 0x8C, plGetPlayerColor/plSetPlayerColor
     u8 controller_index;       // 0x8D, Ply_GetControllerIndex. Setter (8022c6e4) also maintains the controller->slot reverse map at 0x805dd898 (port 4 -> excluded)
     u8 is_bike;                // 0x8E, Ply_GetIsBike/Ply_SetIsBike
@@ -2425,7 +2428,7 @@ typedef struct PlayerData
     s16 x96;                   // 0x96, set from a per-player float (truncated) at spawn (8022cac0); purpose unclear
     u8 x98[0xA8 - 0x98];       // 0x98, unknown
     int all_up_collected;      // 0xA8, Ply_GetAllUpCollected/Ply_SetAllUpCollected
-    int xac;                   // 0xAC, set from a PlayerDesc byte at spawn (8022d798); purpose unclear
+    int cpu_level;             // 0xAC, signed CPU difficulty: -1 = not a CPU, else 0..8. Ply_GetCpuLevel (8022d7b0) / Ply_SetCpuLevel (8022d798); Player_Create copies it from ply_desc[slot].cpu_level_eff (PlayerDesc+0x09). Indexes the City Trial stat-growth tables.
     PlayerStats stat_record;   // 0xB0, per-player gameplay-stat record; Ply_GetItemCollectArray returns &this
 } PlayerData;
 
@@ -2834,6 +2837,20 @@ void Ply_SetHP(int ply, float hp);
 int Ply_GetAllUpCollected(int ply);
 int Ply_SetAllUpCollected(int ply, int num);
 
+// Per-player live machine stats (PlayerData.stats, +0x44).
+void Ply_GetAllStats(int ply, float *out_stats);                        // 8022cf6c, copies PlayerData.stats[9] into out_stats
+void Ply_SetAllStats(int ply, float *stats);                            // 8022cfc8, writes PlayerData.stats[9] (no machine sync)
+// Per-player auxiliary stat block (PlayerData.stat_aux, +0x68). The setter, while
+// the player is riding, clamps the block into the machine and recombines attributes.
+void Ply_GetStatAux(int ply, float *out_stats);                         // 8022d0cc, copies PlayerData.stat_aux[9] into out_stats
+void Ply_SetStatAux(int ply, float *stats);                             // 8022d128, writes stat_aux[9]; if riding, cityTrial_setMasterStats pushes it into MachineData+0x9e8 + Machine_AdjustAttributes
+int Ply_GetCpuLevel(int ply);                                           // 8022d7b0, signed CPU level (-1 = not a CPU, else 0..8); reads PlayerData.cpu_level (+0xAC)
+void Ply_SetCpuLevel(int ply, int level);                               // 8022d798, writes PlayerData.cpu_level (+0xAC)
+
+// City Trial passive CPU stat growth (see gmGameParams.ct_cpu_stat_* tables).
+int Gm_GetCityTrialFrame(void);                                         // 800132b8, current City Trial frame counter
+void CityTrial_GrowCpuStats(void);                                      // 80015a00, per-tick: drains each CPU's cpu_stat_budget pool into random stat_aux entries
+
 void Gm_FadeOutMusic(int frame_duration);
 int Gm_GetPlyViewNum();
 ItemGroup Gm_GetItemGroup(ItemKind it_kind);
@@ -2904,7 +2921,16 @@ void Gm_PlayPauseSFX();
 void Gm_PauseAllSFX();
 void Gm_ResumeAllSFX();
 
-float Gm_GetDownVector(Vec3 *pos, Vec3 *out); // 800ceb18. unsure what the float is
+// Resolves the gravity at a world position. Writes the unit down DIRECTION into
+// *out and returns the gravity STRENGTH (fall-acceleration scalar). Consults the
+// stage's gravity zones first (point zones, then spline zones - grgravity.c); if
+// none apply, falls back to the global stage gravity (StageNode.gravity_dir for
+// the direction, StageNode.gravity_strength for the returned scalar). Machines,
+// items, enemies, and the camera all source their "down"/"up" from this. A
+// machine caches the returned scalar at RiderData+0x764, the direction at +0x768,
+// and stores -direction as its up vector at +0x774 (so the direction must stay
+// unit-length). City Trial returns ~0.025.
+float Gm_GetDownVector(Vec3 *pos, Vec3 *out); // 800ceb18
 
 void Gm_SetCameraNormal();
 int Gm_IsDamageEnabled();

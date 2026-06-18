@@ -930,6 +930,8 @@ void GObj_AddObject(GOBJ *gobj, u8 obj_kind, void *object);
 void GObj_FreeObject(GOBJ *gobj);
 void GObj_AddUserData(GOBJ *gobj, int userDataKind, void *destructor, void *userData);
 void GOBJ_InitCamera(GOBJ *gobj, void *cb, int gx_pri);
+void CObj_SetInterest(COBJ *cobj, Vec3 *pos);    // 0x804017d4 - writes cobj->interest (+0x28) WObj pos
+void CObj_SetEyePosition(COBJ *cobj, Vec3 *pos); // 0x804018ac - writes cobj->eye (+0x24) WObj pos
 void GObj_Anim(GOBJ *gobj);
 void *GObj_AddRenderObject(GOBJ *gobj, int width, int height);
 void GObj_DestroyByPLink(int p_link);                           // destroys all gobjs with p_link X

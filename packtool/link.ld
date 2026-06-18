@@ -415,6 +415,28 @@ SECTIONS
   TopRide_SetHandicap = 0x8000bf04;
   TopRide_GetMachineKind = 0x8000bf4c;
   TopRide_SetMachineKind = 0x8000bf8c;
+  /* Top Ride CPU AI (source: a2d_cpu_kirby.cpp). The CPU "brain" is the CPU
+     input-reader's get-command vtable slot; hook TopRide_CpuInputThink to
+     replace or post-adjust CPU steering. See docs/cpu-ai-system.md. */
+  TopRide_KirbyGetSlot = 0x802d4d5c;        /* kirby vt[0x30]: returns player_slot (kirby+0x0c) */
+  TopRide_PadInputRead = 0x802d4c4c;        /* human input-reader vt[0x0c]: reads the GC pad */
+  TopRide_PadInputPoll = 0x802a06bc;        /* human input-reader vt[0x14] */
+  TopRide_CpuInputThink = 0x802eee90;       /* CPU input-reader vt[0x0c]: per-frame steering brain */
+  TopRide_CpuInputPoll = 0x80291dec;        /* CPU input-reader vt[0x14] */
+  TopRide_CpuInputReaderInit = 0x802eed00;  /* CPU input-reader constructor (level <= 4 asserted) */
+  TopRide_CpuPerceive = 0x802eb094;         /* CPU brain: per-frame perception/situation scan -> stack blackboard */
+  TopRide_CpuDetectHazard = 0x802ed434;     /* detector 1: incoming projectiles (grenade/missile/mine/ember/smoke) -> dodge swerve */
+  TopRide_CpuDetectItem = 0x802ecc54;       /* detector 2: ItemMgr -> steer toward good item / away from bad */
+  TopRide_CpuDetectRival = 0x802eda78;      /* detector 3: rival kirbys -> block/ram intercept */
+  TopRide_CpuDetectObstacle = 0x802ee210;   /* detector 4: CpuObstacleMgr walls/air-currents -> avoid or boost-into */
+  TopRide_CpuRouteFollowFull = 0x802ebb98;  /* selector A: perfect-line route follow (reaction_budget==0; dead in normal play) */
+  TopRide_CpuRouteFollowLagged = 0x802ec890;/* selector B: reaction-lagged route follow (the normal-play path) */
+  TopRide_CpuCommitSwerve = 0x802eec54;     /* reseed steer_noise (+0x20), reset reseed timer (+0x6c=180), set commit hold (+0x28=5) */
+  TopRide_ClassifyItem = 0x802ecb7c;        /* item kind (Item+0x60) -> +good / 0 neutral / -bad (kind 3 = only BAD) */
+  TopRide_CpuAggressionRoll = 0x802eebe4;   /* per-detector aggression-gate roll */
+  TopRide_ApexGridScan = 0x802cf83c;        /* reads/evaluates the per-sector apex grid (EnemyMgr+0x30dc) */
+  TopRide_PackStickInput = 0x80311db0;      /* stick floats (+ flag) -> packed history short */
+  TopRide_UnpackStickInput = 0x80311ea0;    /* packed short -> stick floats */
   TopRide_CSS_SelectingThink = 0x8002ac68;
   TopRide_CSS_ReadyThink = 0x8002b094;
   TopRide_CSS_PanelThink = 0x8002b8a8;
@@ -537,8 +559,11 @@ SECTIONS
   Patch_GetPlySavedValue = 0x8000ab48;
   Machine_ApplyStatClamped = 0x801e094c;
   Machine_ApplyAllStatsClamped = 0x801e096c;
+  Machine_SetStatBlockClamped = 0x80194f64;
   Machine_UpdateAppearance = 0x801d6668;
   Machine_AdjustAttributes = 0x801c7278;
+  cityTrial_setMasterStats = 0x801c8258;
+  cityTrial_getMasterStats = 0x801c81c0;
   Machine_GetStatRatio = 0x801caa8c;
   Machine_GetStatRatio2 = 0x801cabd4;
   Machine_ScaleFromRatio = 0x801cab4c;
@@ -549,6 +574,7 @@ SECTIONS
   Machine_AdjustAttributesBike = 0x801f4dac;
   Machine_SetupModelWing = 0x801e7ad4;
   Machine_SetupModelStar = 0x801f37d4;
+  Machine_ApplyModelMatrix = 0x801c9074;
   RiderGObj_GetPly = 0x8019203c;
   Event_GetInstanceData = 0x800ee73c;
   event_fakeItems_applyEffect = 0x80111a60;
@@ -651,8 +677,30 @@ SECTIONS
   Rider_CPUDecideState = 0x802716e8;
   Rider_ProcessCPUManeuver = 0x8026bf30;
   Rider_CPUResolveTargetPos = 0x80263120;
-  Rider_CPUPickManeuver = 0x8026a734;
+  Rider_CPUArbitrateManeuver = 0x80274ec0; /* the real maneuver chooser: priority cascade gated by behavior/desire flags, commits CpuData+0x10 */
+  Rider_CPUBuildRoute = 0x8026a734;        /* (was misnamed Rider_CPUPickManeuver) walks the course spline graph ahead, lays look-ahead waypoints into scratch 0x8055e964; returns 0 = route invalid */
+  Rider_CPUWalkRoute = 0x80264924;         /* advance one node along the spline graph by arc-length (used by Rider_CPUBuildRoute) */
+  Rider_CPUUpdateNavTarget = 0x8026b6d0;   /* shared nearest-node query -> assigns CpuData+0x38/+0x3c (nav target id + arc) */
+  Rider_CPUCollectHazards = 0x80269928;    /* obstacle/threat collector into scratch 0x8055e698 (behavior bit 0x02 adds a 5th pass) */
+  Rider_CPUForwardLookahead = 0x80269f10;  /* forward-collision anticipation (behavior bit 0x80 gates it) */
   Rider_CPUEmitSteer = 0x8026d6a0;
+  Rider_CPUEmitSteerStick = 0x8026c4ec;    /* yaw error -> opcode 190 nudge / 192 ramp (stick_x), 129 (stick_y); per-difficulty envelope 0x804b7f54 */
+  Rider_CPUResolveAvoidVector = 0x8026d1fc; /* rotates a heading off the nearest imminent hazard (reads 0x8055e698) */
+  Rider_CPUEmitAbilityAction = 0x80273d1c; /* post-maneuver copy-ability press emitter (dispatch on RiderData.kind + copy_kind +0x454); hazard-timed */
+  Rider_CPUTerminateCmdStream = 0x80276228; /* caps the per-maneuver command stream (opcode 0x7f), arms the VM */
+  Rider_CPUEmitChargeStutter = 0x8026da40; /* velocity-stuck charge-pump (press -> hold-20 -> hold-40) */
+  Rider_CPUTrackStuckProgress = 0x8026ccec; /* ticks the stuck counter (+0x5c) vs the machine's max-turn tolerance */
+  Rider_CPURivalSelect = 0x80264210;       /* scores 5 slots -> rival_player_idx (+0x70); shared by states 1/2/4/8/10 */
+  Rider_CPUScanItems = 0x80263c4c;         /* top-5 ranked item scan -> item_target (+0x74) (states 3/8) */
+  Rider_CPUScanCityObjects = 0x802638a4;   /* top-5 ranked city-object scan -> city_object (+0x84) (state 3) */
+  Rider_CPUScanRouteGoal = 0x80263fd0;     /* single-best route-goal scan -> route_goal (+0x94) (states 5/6) */
+  Rider_CPUSelectChargeAnchor = 0x80263610; /* resolves charge anchor -> charge_anchor (+0xb0/+0xb4) (state 7) */
+  Rider_CPUBlendRoutePoints = 0x80267238;  /* blends item/interaction/path-point positions into the steering route */
+  Rider_CPUCollectRiderHazards = 0x80268234; /* hazard pass 1: rider bodies + hurt-volumes -> 0x8055e698 */
+  Rider_CPUForwardLookaheadSetup = 0x8026a498; /* wrapper: builds basis then calls Rider_CPUForwardLookahead */
+  Rider_CPUGetAbilityPressHold = 0x802765d4; /* per-difficulty ability press-hold frames (table 0x804b7f30) */
+  Rider_CPUGetSteerEnvelope = 0x80276650;  /* per-difficulty (step,cap) steer envelope (table 0x804b7f54) */
+  Rider_CPUGetMachineTurnTolerance = 0x802776c4; /* per-machine max-turn angle (table 0x804b8f30) */
   Rider_CPUSeedDesire = 0x802762dc;
   Rider_CPUDifficultyScale = 0x80276f00;
   Rider_CPUPushCmd1 = 0x80275fcc;
@@ -664,6 +712,14 @@ SECTIONS
   Rider_GetCPUStickY = 0x80275ca0;
   Rider_InputThink = 0x8018ee28;
   plGetPlayerKind = 0x8022c858;
+  Ply_GetAllStats = 0x8022cf6c;
+  Ply_SetAllStats = 0x8022cfc8;
+  Ply_GetStatAux = 0x8022d0cc;
+  Ply_SetStatAux = 0x8022d128;
+  Ply_GetCpuLevel = 0x8022d7b0;
+  Ply_SetCpuLevel = 0x8022d798;
+  Gm_GetCityTrialFrame = 0x800132b8;
+  CityTrial_GrowCpuStats = 0x80015a00;
   Rider_RespawnEnter = 0x801A1D70;
   Rider_GiveAbility = 0x801a81a4;
   Rider_CheckUnableAbility = 0x80191798;
