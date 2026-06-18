@@ -810,6 +810,14 @@ SECTIONS
   EnemyActor_CombatAI = 0x802069e8;
   EnemyActor_FindNearestPlayer = 0x801ffd78;
   EnemyActor_FindNearestPlayerFOV = 0x801ff8d8;
+  EnemyActor_PlayerAheadDist = 0x801fea60;
+  EnemyActor_FindNearestPlayerAhead = 0x801fe5d4;
+  EnemyActor_FindPlayerInRangeFwd = 0x801fe764;
+  EnemyActor_FindDiveTarget = 0x801fe8dc;
+  EnemyActor_FlyMovement = 0x8020354c;
+  EnemyActor_FlyForward = 0x8020335c;
+  EnemyActor_ClassifyRange = 0x80206cc0;
+  Enemy_LoadCommonParams = 0x801fd580;
   Meteor_BehaviorInit = 0x8021e1a0;
   Meteor_Landing = 0x8021ea5c;
   Meteor_HitTransition = 0x8021e7c4;
