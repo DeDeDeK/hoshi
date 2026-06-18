@@ -120,6 +120,77 @@ static inline float *TopRide_KirbyModelScalePtr(TopRideKirby *kirby)
     return &kirby->charge.model_scale;
 }
 
+// === Top Ride CPU rider AI (source: a2d_cpu_kirby.cpp) ===
+//
+// Top Ride's input is polymorphic: every kirby holds an `input_reader` at
+// TopRideKirby+0x48. Human slots get a pad reader (vtable 0x804d25e0); CPU slots
+// get the CPU brain reader (vtable 0x804d8710, this struct). TopRide_KirbyPhysUpdate
+// polls the reader each frame via vt[0x14] (the *Poll fns), which dispatch to
+// vt[0x0c] (the *Read/*Think fns) to produce a steer float + a press/charge byte,
+// then pack them into the kirby's history ring. For CPU slots vt[0x0c] is
+// TopRide_CpuInputThink (0x802eee90) - the per-frame steering brain.
+//
+// Difficulty (0..4) is read at construction from the per-slot config byte
+// game_config[slot*9 + 0x5b] (= GameData[slot*9 + 0xD23], the "+3" byte set by
+// TopRide_SetHandicap) and cached at +0x1c. That byte is the CSS per-slot skill
+// control - shown as "Handicap" for human slots and "CPU Level" for CPU slots (one
+// shared field; CSS 1..5 -> internal 0..4). **The "+2" byte (config +0x5a /
+// GameData[slot*9+0xD22], TopRide_SetCpuLevel) is inert - it stays 0 and is NOT
+// read by the brain, despite its name.** Level scales steering gain, reaction
+// frames (60->0 as level 0->4), and commit thresholds via the per-level tables at
+// 0x804d80d0 / 0x804d8058 / 0x804d80bc (indexed by +0x1c).
+//
+// Allocated as a ~0x80-byte object; confirmed fields below, gaps are scratch/uncertain.
+typedef struct TopRideCpuInputReader
+{
+    void *vtable;            // 0x00, 0x804d8710 (CPU); human readers use 0x804d25e0
+    TopRideKirby *kirby;     // 0x04, back-pointer to the owning kirby
+    Vec3 heading;            // 0x08, desired heading vector (crossed with the kirby facing to steer)
+    int  reaction_budget;    // 0x14, DAT_804d7f90[+0x18]; frames of reaction lag
+    int  x18;                // 0x18, index into DAT_804d7f90 (0 in observed races)
+    int  difficulty;         // 0x1c, AI skill 0..4 (= handicap byte); indexes the per-level tables
+    float steer_noise;       // 0x20, HSD_Randf-seeded steering jitter magnitude
+    u8   x24[0x04];          // 0x24
+    int  hold_frames;        // 0x28, counts down a committed steer/charge hold
+    u8   x2c[0x04];          // 0x2c
+    u8   debug_draw;         // 0x30, when set, writes a heading arrow to EnemyMgr+0x3da0
+    u8   x31[0x03];          // 0x31
+    float steer_hist[9];     // 0x34, ring of recent |steer delta| (oscillation damping)
+    float last_steer;        // 0x58, previous frame's steer output
+    int  hist_index;         // 0x5c, steer_hist write cursor (wraps at 9)
+    u8   last_charge;        // 0x60, previous frame's press/charge byte
+    u8   x61[0x03];          // 0x61
+    int  x64;                // 0x64
+    int  prev_state;         // 0x68, the CPU's own current Kirby state ID (TopRideKirbyStateId, read via kirby vt[0x28]); the brain's switch dispatches on THIS, not an invented maneuver enum
+    int  reseed_timer;       // 0x6c, frames until the next steer_noise reseed
+    int  lowspeed_frames;    // 0x70, frames spent below the speed threshold (stuck detect)
+    TopRideKirby *kirby_dup; // 0x74, second copy of the kirby pointer
+} TopRideCpuInputReader;
+
+// Per-frame Top Ride CPU steering brain. Reached as the CPU input-reader's
+// vt[0x0c]; CPU-gated by construction. Writes *steer_out (lateral stick) and
+// returns the press/charge byte. The cleanest mod hook for replacing or
+// post-adjusting CPU steering (analogous to _Rider_UpdateCPU for City Trial /
+// Air Ride). Reach the kirby via reader->kirby (+0x04).
+char TopRide_CpuInputThink(TopRideCpuInputReader *reader, float *steer_out); // 0x802eee90
+char TopRide_CpuInputPoll(TopRideCpuInputReader *reader, float *sx, float *sy); // 0x80291dec, CPU vt[0x14]
+u8   TopRide_KirbyGetSlot(TopRideKirby *kirby);                              // 0x802d4d5c, returns kirby+0x0c
+
+// CPU brain helpers, all reached from TopRide_CpuInputThink. TopRide_CpuPerceive
+// fills a stack "blackboard" (sector look-ahead, nearest rival/item/obstacle, per-
+// difficulty weights) that is handed to the four situation detectors. The detectors
+// run in order; the FIRST that commits short-circuits the rest and suppresses the
+// route-followers. If none commit, one of the two route-followers steers the racing
+// line. All write reader->heading (+0x08) + a press/charge flag. (blackboard arg is
+// a float* stack scratch; signatures approximate.)
+int  TopRide_CpuPerceive(TopRideCpuInputReader *reader, void *blackboard);        // 0x802eb094
+int  TopRide_CpuDetectHazard(TopRideCpuInputReader *reader, void *blackboard);    // 0x802ed434, incoming projectiles -> dodge swerve
+int  TopRide_CpuDetectItem(TopRideCpuInputReader *reader, void *blackboard);      // 0x802ecc54, ItemMgr -> steer to good / away from bad
+int  TopRide_CpuDetectRival(TopRideCpuInputReader *reader, void *blackboard);     // 0x802eda78, rival kirbys -> block / ram intercept
+int  TopRide_CpuDetectObstacle(TopRideCpuInputReader *reader, void *blackboard);  // 0x802ee210, CpuObstacleMgr walls/air-currents -> avoid or boost-into
+int  TopRide_CpuRouteFollowFull(TopRideCpuInputReader *reader, void *blackboard); // 0x802ebb98, perfect-line follow (reaction_budget==0; dead in normal play)
+int  TopRide_CpuRouteFollowLagged(TopRideCpuInputReader *reader, void *blackboard);// 0x802ec890, reaction-lagged follow (the normal-play path)
+
 // KirbyMgr singleton - top-level manager for all Top Ride players.
 // Created by TopRide_KirbyMgrInit (0x802dafb4). ~0x4080 bytes total.
 typedef struct TopRideKirbyMgr
@@ -164,8 +235,8 @@ TopRidePlayerKind TopRide_GetPlayerKind(int slot);                   // 0x8000bd
 void TopRide_SetPlayerKind(int slot, TopRidePlayerKind kind);        // 0x8000bda8, writes byte +0
 u8   TopRide_GetColor(int slot);                                     // 0x8000bdf0, reads byte +1
 void TopRide_SetColor(int slot, u8 color);                           // 0x8000be2c, writes byte +1
-void TopRide_SetCpuLevel(int slot, u8 level);                        // 0x8000be74, writes byte +2 (0..4)
-void TopRide_SetHandicap(int slot, u8 handicap);                     // 0x8000bf04, writes byte +3 (0..4)
+void TopRide_SetCpuLevel(int slot, u8 level);                        // 0x8000be74, writes byte +2 (0..4). NOTE: inert - NOT the CSS "CPU Level"; that control is the +3 byte below. Stays 0 in normal play, not read by the CPU AI.
+void TopRide_SetHandicap(int slot, u8 handicap);                     // 0x8000bf04, writes byte +3 (0..4). The CSS per-slot skill control ("Handicap" for humans / "CPU Level" for CPUs); this byte drives the Top Ride CPU steering AI (see TopRideCpuInputReader.difficulty).
 void TopRide_SetControllerPort(int slot, u8 port);                   // 0x8000bebc, writes byte +6
 TopRideMachineKind TopRide_GetMachineKind(int slot);                 // 0x8000bf4c, reads byte +8
 void TopRide_SetMachineKind(int slot, TopRideMachineKind machine);   // 0x8000bf8c, writes byte +8
