@@ -165,35 +165,51 @@ typedef struct CpuData
     u8  stage_kind;        // 0x0f, stGetCurrentStageKind() captured at init (selects the AI profile)
     int maneuver;          // 0x10, TACTICAL maneuver (0..0x15), dispatched by Rider_ProcessCPUManeuver
     int base_maneuver;     // 0x14, fallback maneuver a strategic state parks on (set to 1 or 2); handlers return here via `maneuver = base_maneuver`
-    int scratch_18;        // 0x18, cleared at the top of each decide pass
-    uint desire_flags;     // 0x1c, cleared each decide pass; strategic handlers OR in intent bits
+    int scratch_18;        // 0x18, cleared at the top of each decide pass but never read (vestigial)
+    uint desire_flags;     // 0x1c, INHIBITOR bits (set = suppress a reaction) seeded from the rider's action state by Rider_CPUSeedDesire; cleared each decide pass. 0x100 no-ram-press, 0x200 no-avoidance, 0x400 no-dodge/attack-scan, 0x1000000 no-charge/intercept
     u8  suppress_timer;    // 0x20, countdown; while > 0 the perceive stage forces target_secondary = -1
     u8  x21;               // 0x21
     u8  difficulty_level;  // 0x22, AI skill level 0..8; Rider_CPUDifficultyScale scales every personality roll by it
-    u8  x23[5];            // 0x23
+    u8  x23;               // 0x23
+    float random_seed;     // 0x24, per-CPU jitter seed = HSD_Randf() at Rider_CPUInit; read by route/targeting helpers
     int frame_counter;     // 0x28, ++ every perceive pass
-    u8  behavior_flags;    // 0x2c, behavior flags rewritten per strategic state
+    u8  behavior_flags;    // 0x2c, ENABLE bits rewritten per strategic state, read by Rider_CPUArbitrateManeuver. 0x01 opportunistic-action, 0x02 extra-hazard-pass, 0x08 target-steer maneuvers, 0x20 predictive-lead, 0x40 rival-pursuit, 0x80 forward-lookahead (0x04/0x10 unused)
     u8  status_flags;      // 0x2d, bit 0x02 = velocity-stuck, bit 0x04 = position-stuck (set by perceive)
     u8  x2e;               // 0x2e
     u8  x2f;               // 0x2f
     u16 vel_stuck_timer;   // 0x30, frames moving too slow / against facing (anti-stuck)
-    u8  x32[6];            // 0x32
+    s16 maneuver_step;     // 0x32, multi-step sequencer counter (charge-stutter press/hold cycle); gated by status bit 0x02
+    s16 route_scratch_34;  // 0x34, route/target scratch (init -1)
+    s16 ramcharge_phase;   // 0x36, RamCharge (maneuver 3) phase counter, read modulo-N
     int target_primary;    // 0x38, primary nav target id (-1 = none); resolved via Rider_CPUResolveTargetPos
-    float target_lead;     // 0x3c, lead/predict time applied when resolving the target position
-    int x40;               // 0x40
+    float target_lead;     // 0x3c, the target node's arc-length [0,1] position (NOT a predict time); Rider_CPUResolveTargetPos projects +/-100/segment_length of arc to lead a moving target
+    float secondary_lead;  // 0x40, signed secondary-target lead/direction scalar (+/-1); set by Rider_CPUBuildRoute - a sign flip clears target_secondary
     int target_secondary;  // 0x44, secondary nav target id (-1 = none); suppressed while suppress_timer > 0
     int target_secondary_flag; // 0x48, modifies the secondary target's lead time
-    u8  x4c[0x14];         // 0x4c
+    int  blocked_node_id;  // 0x4c, anti-stuck: cached unreachable nav-node id (-1 = none); set by the stuck-recovery sweep (states 3/6)
+    Vec3 escape_offset;    // 0x50, anti-stuck: escape-direction offset added to position when re-pathing out of a stuck spot
+    u8  blocked_counter;   // 0x5c, consecutive-blocked counter (wraps >8) from the maneuver-feasibility probe
+    u8  path_retry_counter; // 0x5d, path-retry / stuck counter (wraps >4), states 3/6
+    s16 wander_timer;      // 0x5e, Patrol (state 10) wander/oscillation countdown (init 0x4b0; reloads 900)
     Vec3 recorded_pos;     // 0x60, anti-stuck reference position (compared against pos each frame)
     int pos_stuck_timer;   // 0x6c, frames spent within range of recorded_pos (anti-stuck)
-    int rival_player_idx;  // 0x70, target rival's player index (5 = none); resolved via Ply_GetPosition by the attack/patrol states
-    u8  x74[0x20];         // 0x74
-    int x94;               // 0x94
-    u8  x98[0x0c];         // 0x98
+    s16 rival_player_idx;  // 0x70, target rival's player index (5 = none); written by the rival selector, read by attack/patrol via Ply_GetPosition
+    s16 rival_reselect_timer; // 0x72, frames until the rival is re-picked (HSD_Randi(0x3c)+0x3c)
+    void *item_target;     // 0x74, cached item / chase-object GObj* (0 = none); set by the item-target scan (states 3/8)
+    Vec3 item_target_pos;  // 0x78, cached world position of item_target
+    void *city_object;     // 0x84, cached city-prop / actor GObj* (state 3); 0 = none
+    Vec3 city_object_pos;  // 0x88, cached world position of city_object
+    void *route_goal;      // 0x94, cached highest-scored route-goal GObj* (states 5/6); 0 = none
+    Vec3 route_goal_pos;   // 0x98, cached world position of route_goal
     Vec3 *nav_target_ptr;  // 0xa4, -> the steering target position (track look-ahead point), or NULL
-    u8  xa8[0x10];         // 0xa8
-    Vec3 nav_target_pos;   // 0xb8, resolved navigation target, copied from *nav_target_ptr
-    u8  xc4[0x1c];         // 0xc4
+    void *interaction_target; // 0xa8, priority interaction-target GObj/path-point ptr; overrides item_target when the command VM resolves "what am I acting on"
+    void *path_point;      // 0xac, secondary path-point ptr (state 3 city look-ahead)
+    void *charge_anchor;   // 0xb0, state 7 (Charge) fixed-anchor ptr
+    int  charge_anchor_id; // 0xb4, state 7 resolved anchor node id
+    Vec3 nav_target_pos;   // 0xb8, resolved navigation target, copied from *nav_target_ptr (the raw target)
+    Vec3 steer_target_pos; // 0xc4, final steering target: copy of nav_target_pos after the nearest-city-object override (what maneuvers actually steer toward)
+    Vec3 ramcharge_target_pos; // 0xd0, chosen rival's position copied here by the arbiter for RamCharge/PursueLOS (maneuvers 3/4)
+    u8  xdc[4];            // 0xdc
     void *xe0;             // 0xe0, current path/spline object pointer
     u8  route_header;      // 0xe4, packed route cache header (bit7 = valid, bits 2..5 = entry count)
     u8  xe5[3];            // 0xe5
@@ -927,6 +943,35 @@ void Rider_CPUThink(GOBJ *gobj);          // 0x8018fc58, rider proc: if CPU, run
 void Rider_UpdateCPU(RiderData *rd);      // 0x8026beec, orchestrates perceive -> decide -> process -> emit
 void Rider_CPUDecideState(RiderData *rd); // 0x802716e8, AI state-machine dispatch (11 states, table 0x804b7a28)
 void Rider_CPUProcessCmd(RiderData *rd);  // 0x80275cbc, plays the command stream into the virtual pad (CpuData stick/buttons)
+void Rider_CPUArbitrateManeuver(RiderData *rd); // 0x80274ec0, the real maneuver chooser: priority cascade gated by behavior/desire flags, commits CpuData.maneuver (+0x10)
+int  Rider_CPUBuildRoute(CpuData *cpu, void *route_scratch, uint *flags_out); // 0x8026a734, builds the look-ahead waypoint route into scratch 0x8055e964; returns 0 = route invalid. (Was misnamed Rider_CPUPickManeuver - it does NOT pick the maneuver.)
+void Rider_CPUUpdateNavTarget(RiderData *rd); // 0x8026b6d0, nearest-node spatial query -> assigns CpuData.target_primary (+0x38) + arc (+0x3c)
+void Rider_CPUSeedDesire(RiderData *rd);  // 0x802762dc, ORs inhibitor bits into CpuData.desire_flags from the rider's action state (tables 0x804b7b18 / 0x804b7c00)
+// Target-selection scans (populate CpuData target fields each frame; signatures approximate).
+void  Rider_CPURivalSelect(RiderData *rd);        // 0x80264210, scores 5 slots -> rival_player_idx (+0x70); shared by states 1/2/4/8/10
+void  Rider_CPUScanItems(RiderData *rd);          // 0x80263c4c, top-5 ranked item scan -> item_target (+0x74) (states 3/8)
+void  Rider_CPUScanCityObjects(RiderData *rd);    // 0x802638a4, top-5 ranked city-object scan -> city_object (+0x84) (state 3)
+void  Rider_CPUScanRouteGoal(RiderData *rd);      // 0x80263fd0, single-best route-goal scan -> route_goal (+0x94) (states 5/6)
+void  Rider_CPUSelectChargeAnchor(RiderData *rd); // 0x80263610, resolves charge anchor -> charge_anchor (+0xb0/+0xb4) (state 7)
+void  Rider_CPUBlendRoutePoints(RiderData *rd);   // 0x80267238, blends item/interaction/path-point positions into the steering route
+// Perception (fill the per-frame scratch buffers).
+void  Rider_CPUCollectHazards(RiderData *rd);     // 0x80269928, hazard/threat list -> scratch 0x8055e698 (behavior bit 0x02 adds a 5th pass)
+void  Rider_CPUCollectRiderHazards(RiderData *rd); // 0x80268234, hazard pass 1: rider bodies + hurt-volumes
+void  Rider_CPUForwardLookahead(RiderData *rd);   // 0x80269f10, forward-collision list -> scratch 0x8055e8b4 (behavior bit 0x80 gates it)
+void  Rider_CPUForwardLookaheadSetup(RiderData *rd); // 0x8026a498, wrapper: builds the basis then calls Rider_CPUForwardLookahead
+int   Rider_CPUWalkRoute(RiderData *rd, float arc_len, void *out, void *spline_lookup); // 0x80264924, advance along the spline graph by arc-length; out = {node_id, along, side} (side = link-direction tag -1/0/+1)
+// Steering / command emission.
+void  Rider_CPUEmitSteer(RiderData *rd, Vec3 *desired_dir);      // 0x8026d6a0, projects + avoidance-bends a heading, emits steering opcodes
+void  Rider_CPUEmitSteerStick(RiderData *rd, Vec3 *desired_dir); // 0x8026c4ec, yaw error -> opcode 190 nudge / 192 ramp (stick_x), 129 (stick_y)
+void  Rider_CPUResolveAvoidVector(RiderData *rd, Vec3 *dir);     // 0x8026d1fc, rotates a heading off the nearest imminent hazard (reads 0x8055e698)
+void  Rider_CPUEmitAbilityAction(RiderData *rd);  // 0x80273d1c, post-maneuver copy-ability press emitter (dispatch on RiderData.kind + copy_kind +0x454)
+void  Rider_CPUTerminateCmdStream(RiderData *rd); // 0x80276228, caps the per-maneuver command stream (opcode 0x7f), arms the VM
+int   Rider_CPUEmitChargeStutter(RiderData *rd);  // 0x8026da40, velocity-stuck charge-pump (press -> hold-20 -> hold-40); returns 1 if it emitted
+void  Rider_CPUTrackStuckProgress(RiderData *rd); // 0x8026ccec, ticks the stuck counter (+0x5c) vs the machine's max-turn tolerance
+// Difficulty / envelope getters.
+int   Rider_CPUGetAbilityPressHold(CpuData *cpu); // 0x802765d4, per-difficulty ability press-hold frames (table 0x804b7f30)
+void  Rider_CPUGetSteerEnvelope(CpuData *cpu, int *step_out, int *cap_out); // 0x80276650, per-difficulty (step,cap) steer envelope (table 0x804b7f54)
+float Rider_CPUGetMachineTurnTolerance(RiderData *rd); // 0x802776c4, per-machine max-turn angle (table 0x804b8f30)
 int  Rider_GetCPUButtons(RiderData *rd);  // 0x80275cb0, returns CpuData.buttons (+0x00)
 int  Rider_GetCPUStickX(RiderData *rd);   // 0x80275c90, returns CpuData.stick_x (+0x04)
 int  Rider_GetCPUStickY(RiderData *rd);   // 0x80275ca0, returns CpuData.stick_y (+0x06)

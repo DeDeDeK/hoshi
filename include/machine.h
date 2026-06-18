@@ -450,8 +450,8 @@ typedef struct MachineData
     int x304;                             // 0x304
     int x308;                             // 0x308
     int x30c;                             // 0x30c
-    float model_scale;                    // 0x310
-    int x314;                             // 0x314
+    float model_scale;                    // 0x310, per-machine model-scale multiplier (default 1.0). The machine model appliers (e.g. 0x801c9074) bake model_scale * model_scale_base into the machine model JObj's user matrix every frame via gmLanMenu_Scale3DObject. Mirrors RiderData.model_scale: writing it rescales the rendered machine until recreated.
+    void *model_section;                  // 0x314, pointer to the machine model section; **(model_section) is the model root JObj passed to gmLanMenu_Scale3DObject.
     int x318;                             // 0x318
     int x31c;                             // 0x31c
     int x320;                             // 0x320
@@ -480,7 +480,7 @@ typedef struct MachineData
     int x38c;                             // 0x38c
     int x390;                             // 0x390
     int x394;                             // 0x394
-    float top_speed_current;              // 0x398, top speed for the active state, set each Machine_AdjustAttributes from top_speed_ground (0x4f0) when grounded (action_state_class 0x754 == 0) or the airborne value (0x5ac) otherwise
+    float top_speed_current;              // 0x398, top speed for the active state - the cruise-speed cap the movement controllers clamp velocity against. Set each Machine_AdjustAttributes from top_speed_ground (0x4f0) when grounded (action_state_class 0x754 == 0) or the airborne value (0x5ac) otherwise, and held between recalcs (only AdjustAttributes writes it). Note machine_accel cancels out of the thrust/drag equilibrium, so this cap - not machine_accel - is what scales actual cruise speed.
     int x39c;                             // 0x39c
     int x3a0;                             // 0x3a0
     int x3a4;                             // 0x3a4
@@ -526,8 +526,8 @@ typedef struct MachineData
     int base_attributes;                  // 0x45c, start of the derived-attribute block (124 words) memcpy'd from md->vcData each Machine_AdjustAttributes; the real per-vehicle base stats (separate from the patch/cap stat arrays at 0x94C+)
     int x460;                             // 0x460
     int x464;                             // 0x464
-    int x468;                             // 0x468
-    int x46c;                             // 0x46c
+    float model_scale_base;               // 0x468, intrinsic model scale of this vehicle; the machine model appliers bake model_scale * model_scale_base into the model matrix. Per-machine size differences live here, so model_scale rests at 1.0.
+    float coll_radius_base;               // 0x46c, mpColl sphere radius (f1 arg to mpColl_Update in Machine_InitialCollisionCheck/SetMpCollPosition -> coll_data->radius)
     int x470;                             // 0x470
     int x474;                             // 0x474
     int x478;                             // 0x478
@@ -706,7 +706,7 @@ typedef struct MachineData
     int x6ec;                             // 0x6ec
     int x6f0;                             // 0x6f0
     int x6f4;                             // 0x6f4
-    int surface_id;                       // 0x6f8, resolved to ground handle via Machine_GetGroundHandle for fall death
+    CollData *coll_data;                  // 0x6f8, machine's mpColl CollData (created at spawn; mpColl_Update target in Machine_InitialCollisionCheck/SetMpCollPosition; passed to the mpColl query helpers each frame in Machine_ProcessEnvColl). The sphere radius lives at coll_data->radius (+0x344) and coll_data->shape_data->radius/radius2 (+0x30/+0x34).
     int x6fc;                             // 0x6fc
     int x700;                             // 0x700
     int x704;                             // 0x704
@@ -1059,6 +1059,9 @@ void Machine_GiveIntangibility(MachineData *md, int time);
 void Machine_ApplyColAnim(MachineData *md, int col_anim, int unk);
 void Machine_ApplyStatClamped(float *stat_arr, int stat_idx, int delta); // 0x801e094c, adds delta to stat_arr[stat_idx] and clamps to [Patch_GetMinValue, Patch_GetMaxValue]
 void Machine_ApplyAllStatsClamped(float *stat_arr, int delta); // 0x801e096c, adds delta to all 9 stats and clamps each
+void Machine_SetStatBlockClamped(float *dst, float *src); // 0x80194f64, copies 9 stats src->dst, clamping each to [Patch_GetMinValue, Patch_GetMaxValue]. Used to push a rider's stat block into the machine's added-patch array (MachineData+0x9e8)
+void cityTrial_setMasterStats(GOBJ *machine_gobj, float *stats); // 0x801c8258, clamps stats into the machine's added-patch array (-> Machine_SetStatBlockClamped) then Machine_AdjustAttributes; the rider->machine half of the City Trial stat sync (Ply_SetStatAux calls it)
+void cityTrial_getMasterStats(GOBJ *machine_gobj, float *out_stats); // 0x801c81c0, copies the machine's master stat block (MachineData+0x94c) into out_stats; the machine->rider half, run each frame while riding
 void Machine_UpdateAppearance(MachineData *md); // 0x801d6668, updates machine visual state: stat glow, candy, charge, invincibility, and vehicle-specific effects
 void Machine_AdjustAttributes(MachineData *md); // 0x801c7278, recalculates derived machine attributes from stats. Dispatches per-vehicle via vcDataCommon+0x1c (attribute memcpy) and +0x20 (Machine_AdjustAttributes{Star,Bike})
 float Machine_GetStatRatio(MachineData *md, int stat_idx);  // 0x801caa8c, returns sum(per-stat source contributions: floats at md+0x94C/+0x9E8 plus ints at +0x970/+0x994/+0x9B8) / Patch_GetMaxValue(), clamped to [0,1]
@@ -1076,7 +1079,7 @@ void Machine_GiveAllUp(MachineData *, int num);
 void Machine_OnTouchItem(MachineData *, ItemData *);
 int Machine_IsDead(MachineData *);
 void Machine_SetFallDead(MachineData *md, int ground_handle, float *respawn_pos); // 0x801e6520. Triggers fall-off-course death: stores ground_handle at md+0x1B48, respawn_pos[3] at md+0x1B4C, timestamp at md+0x1B58. respawn_pos is mpColl spline params (not world XYZ). Vanilla callers: Machine_CheckFallDeath passes md->respawn_pos or md->backup_respawn_pos based on xc37 bit 6.
-int Machine_GetGroundHandle(int surface_id); // 0x80247fac. Resolves surface ID (md->x6F8) to ground handle for Machine_SetFallDead
+int Machine_GetGroundHandle(int surface_id); // 0x80247fac. Resolves a surface ID (from the collision result) to a ground handle for Machine_SetFallDead
 void Machine_SetStatCap(MachineData *md, int stat_group_index); // types 13-19 handler, writes stat cap for kinds 21-26 (SPEEDMAX-CHARGENONE)
 void Machine_ModifyStatByKind(MachineData *md, int kind, float value); // type 22 handler, modifies a stat by item kind
 void Machine_GiveFood(MachineData *md, int flag, float amount); // heals HP, flag=1 triggers SFX

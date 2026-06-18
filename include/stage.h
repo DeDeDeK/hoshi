@@ -155,17 +155,26 @@ typedef struct SkyBlock
 } SkyBlock;
 
 // StageNode - the GrData+0x04 sub-block (HSDLib KAR_grStageNode). Holds the
-// stage's physics constants, the world gravity vector, and the axis-aligned
-// out-of-bounds death box. The OoB box at +0xCC/+0xD8 is read by
+// stage's physics constants, the global gravity (strength + direction), and the
+// axis-aligned out-of-bounds death box. The OoB box at +0xCC/+0xD8 is read by
 // calcDistanceFromOOB (0x800d4f20) every frame to compute how far a position
 // is from leaving the playfield. See docs/collision-system.md.
+//
+// Gravity splits across two fields: gravity_strength (+0x0C) is the magnitude
+// (fall-acceleration scalar) and gravity_dir (+0x10) is the unit down direction.
+// Gm_GetDownVector reads gravity_dir into its out-param and returns
+// gravity_strength as the scalar - so to change how strong gravity feels, scale
+// gravity_strength and leave gravity_dir unit-length (consumers derive an up
+// vector from it). See docs/event-gravity-change.md.
 typedef struct StageNode
 {
     int x0;                 // 0x00
     float machine_accel;    // 0x04 - base machine acceleration scalar
     float scale;            // 0x08 - stage model scale (applied to stage JObjs)
-    float gravity_unk;      // 0x0C - flight dropoff?
-    Vec3 gravity_force;     // 0x10 - world gravity direction
+    float gravity_strength; // 0x0C - global gravity magnitude / fall-accel scalar
+                            //        (City Trial = 0.025); returned by Gm_GetDownVector
+    Vec3 gravity_dir;       // 0x10 - global down DIRECTION, unit (0,-1,0); written
+                            //        into Gm_GetDownVector's out-param. Keep unit.
     int fog_flags;          // 0x1C
     u8 _pad_20[0x60 - 0x20];
     float minimap_scale;    // 0x60
