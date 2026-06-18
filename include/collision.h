@@ -223,8 +223,8 @@ typedef struct CollData
         u8 x0[0xC];
         Vec3 direction;  // 0x0C
         u8 x18[0x18];
-        float radius;    // 0x30
-        int x34;         // 0x34
+        float radius;    // 0x30, sphere radius (lerp endpoint)
+        float radius2;   // 0x34, second sphere radius; mpColl_GetSphereRadius lerps +0x30 <-> +0x34
         Vec3 scale;      // 0x38
     } *shape_data;
     float radius;                  // 0x344, collision sphere radius
