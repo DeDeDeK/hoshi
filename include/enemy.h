@@ -336,8 +336,8 @@ typedef struct EnemyData
     float param_scale_2;    // 0x36c, from *actor_data+0x04. Scale param 2.
     int param_sentinel;     // 0x370, from *actor_data+0x08. Sentinel/flag (-1).
     float param_374;        // 0x374, from *actor_data+0x0C.
-    float param_detect_range; // 0x378, from *actor_data+0x10. Sight/detection range.
-    float param_chase_range;  // 0x37c, from *actor_data+0x14. Chase/follow range.
+    float param_detect_range; // 0x378, from *actor_data+0x10. DEAD COPY - 0 reads. Live detection range is the global param table +0x80 (FindNearestPlayer) / actor_data root +0x10 (EnemyActor_ClassifyRange).
+    float param_chase_range;  // 0x37c, from *actor_data+0x14. DEAD COPY - 0 reads. Live chase range is the actor_data root +0x14 (EnemyActor_ClassifyRange).
     float param_move_param; // 0x380, from *actor_data+0x18. Movement parameter.
     int x384;               // 0x384
     float param_path_speed; // 0x388, from *actor_data+0x20. Path speed.
@@ -759,7 +759,7 @@ typedef struct EnemyData
     void *state_func2;      // 0xabc, per-state callback from priority 4 (pre-physics)
     void *state_func3;      // 0xac0, per-state callback from priority 5 (state active)
     void *state_func4;      // 0xac4, per-state callback from priority 6 (shared + model)
-    void *per_type_cb;      // 0xac8, per-type callback. Reset to 0 on state change. Called from priority 7.
+    void *per_type_cb;      // 0xac8, per-type callback dispatched at priority 7 (EventActor_ProcPerType). NEVER installed by any vanilla enemy - only zeroed by EnemyStateChange. A dead slot, hence the cleanest custom-AI injection point (re-assert each frame, since state changes zero it).
     void *hit_reaction_cb1; // 0xacc, hit reaction callback. Set by init callback. Called from damage proc.
     void *hit_reaction_cb2; // 0xad0, hit reaction callback. Called from priority 10 when damage > threshold. If null, default knockback handler runs.
     int xad4;               // 0xad4, cleared on state change (unless flag 0x10)
@@ -915,7 +915,7 @@ void Enemy_GroundPhysicsVelocity(EnemyData *ed); // 0x80209104, velocity-based g
 void Enemy_GroundPhysicsSurface(EnemyData *ed); // 0x802096b4, direct surface advancement with wall bounce
 void Enemy_GroundAttach(EnemyData *ed); // 0x8020a664, final ground attachment after path following
 int Enemy_CheckPathFollow(EnemyData *ed); // 0x8020b01c, checks if enemy should follow path (spline)
-void Enemy_SetTerrainLocked(EnemyData *ed); // 0x8020ae54, sets terrain-locked flag (used by Wheelie, Gordo)
+void Enemy_SetTerrainLocked(EnemyData *ed); // 0x8020ae54, sets the terrain-locked flag = bit 2 (mask 0x04) of ed+0xB0B (rlwimi ...,2,29,29). Called from the init_cb of Broom Hatter and Wheelie. (Gordo does NOT call this - it sets grounded_active ed+0x908=1 directly in its spawn func.) Sibling unlocker at 0x8020ae68 clears the same bit.
 void EnemyPath_Advance(EnemyData *ed, Vec3 *input_pos, Vec3 *output_pos, float speed); // 0x8020a040, advances parametric position along spline path
 
 // Common state callbacks (shared by states 0x00-0x0D)
@@ -940,8 +940,13 @@ void EnemyActor_CombatAI(EnemyData *ed); // 0x802069e8, combat AI: targeting whe
 int EnemyActor_GroundFollowMovement(EnemyData *ed); // 0x80208bd4, ground-following chase physics: normalizes orientation, computes movement speed, terrain raycasting, ground-snap. Returns 0=moved, 1=stationary.
 
 // Player targeting
-void EnemyActor_FindNearestPlayer(EnemyData *ed); // 0x801ffd78, finds nearest player, sets target_player_idx/chase_direction
-void EnemyActor_FindNearestPlayerFOV(EnemyData *ed); // 0x801ff8d8, targeting with forward-cone FOV check
+void EnemyActor_FindNearestPlayer(EnemyData *ed); // 0x801ffd78, nearest rider within detection range (global param table +0x80 = 50.0), retarget cooldown 20-39 frames (+0x94/+0x98); sets target_player_idx (0xb24)/chase_direction (0xb38)
+void EnemyActor_FindNearestPlayerFOV(EnemyData *ed); // 0x801ff8d8, targeting with forward-hemisphere angle check + bone-based melee aim
+int EnemyActor_PlayerAheadDist(EnemyData *ed, int player_idx, float *out_forward_dist); // 0x801fea60, per-player test: writes signed forward-axis distance of player to *out; returns 1 if player is behind, 0 if in front, -1 if player has no rider
+int EnemyActor_ClassifyRange(EnemyData *ed); // 0x80206cc0, proximity classifier: reads detect/chase range from the actor_data param-root (*(ed->actor_data)+0x10/+0x14), buckets target distance, stores it in ed+0xB09 bits 3-4, returns the bucket (0=out, 1=detect, 2=attack)
+
+// Global enemy param table loader
+void Enemy_LoadCommonParams(void); // 0x801fd580, loads Enemy.dat (public emDataAll) and stores the param-table pointer to *0x805dd878. Was fn_emLoadCommon.
 
 // Common state table data address (14 entries, 0x14 bytes each, states 0x00-0x0D)
 #define stc_common_state_table (*(void **)0x804b2950) // 0x804b2950
@@ -1050,8 +1055,11 @@ typedef struct EnemySpawnData
 
 static EnemySpawnData **stc_enemy_spawn_data = (EnemySpawnData **)(0x805dd0e0 + 0x630);
 
-// Enemy global parameter table (detection range, retarget cooldown, knockback thresholds)
-#define stc_enemy_param_table ((void *)0x805dd878) // 0x805dd878
+// Enemy global parameter table (detection range +0x80, retarget cooldown +0x94/+0x98,
+// damage scale +0x04, tier thresholds +0x08/+0x0C/+0x10, per-tier knockback +0x30/+0x40/+0x50/+0x60).
+// 0x805dd878 holds a POINTER to the table (loaded from Enemy.dat emDataAll by
+// Enemy_LoadCommonParams; NULL until a stage with enemies loads). Dereference to reach the table:
+#define stc_enemy_param_table (*(void **)0x805dd878) // *(0x805dd878)
 
 // HSD spline functions - used by actor movement/path-following systems
 float splArcLengthGetParameter(void *spline); // 0x80415758, returns arc-length parameter in f1
