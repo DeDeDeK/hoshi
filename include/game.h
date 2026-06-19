@@ -2910,7 +2910,7 @@ int CityTrial_CheckLegendaryMachineUnlocked(int machine);               // 8000c
 int AirRide_CheckBonusUnlocked(s8 bonus);                               // 8000c584, maps 1→35 (Bonus Movie), 2→36 (Ending)
 int CityTrial_CheckStadiumIsUnlocked(s8 stadium_kind);                  // 8000c17c, maps StadiumKind 3-22 → reward indices 37-42
 int Pause_CheckStatsUnlocked();                                         // 8000c768, checks City Trial reward index 43
-int Gm_IsGrKindCity(GroundKind gr_kind);
+int Gm_IsGrKindCity(StageKind stage_kind);  // 0x80262574 - takes StageKind (validates 0..59, indexes the stage-def table at +0x30)
 int Gm_IsDestructionDerby();
 void CitySelect_Cursor6Update(int ply, int color_idx);
 void AirRideSelect_Cursor6Update(int ply, int color_idx);

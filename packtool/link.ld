@@ -394,7 +394,8 @@ SECTIONS
   Gm_GetCurrentStadiumGroup = 0x8000ae74;
   Gm_GetStadiumGroupFromKind = 0x8000BA20;
   Gm_GetCurrentStageKind = 0x800092d8;
-  Gm_GetCurrentGrKind = 0x80261ECC;
+  stGetCurrentStageKind = 0x80261ECC;
+  Gr_GetCurrentGrKind = 0x800d1d3c;
   Gm_GetGrKindFromStageKind = 0x80261ce8;
   TopRide_GetSelectedCourse = 0x8000b2b8;
   TopRide_SetSelectedCourse = 0x8000b2dc;

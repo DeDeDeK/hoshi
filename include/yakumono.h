@@ -296,20 +296,21 @@ typedef struct YakumonoTable
     int entry_count;          // 0x14
 } YakumonoTable;
 
-// === Per-grkind init hook table (indexed by GroundKind) ===
-// 28 entries at 0x804a322c, indexed by gr_kind 0..27 (note: enum
-// GRKIND_NUM = 34, so entries 28..33 don't exist in this table - those
-// gr_kinds presumably never reach grInitYakumono).
+// === Per-grkind init hook table ===
+// 28 entries at 0x804a322c, indexed 0..27 by the physical GroundKind
+// (grobj->gr_kind, file order - so Machine Passage = 5 / GrMachine2 here, NOT its
+// StageKind 6). Physical GroundKinds 28+ are absent from this table - those grounds
+// presumably never reach grInitYakumono.
 //
-// grInitYakumono calls (&PTR_PTR_804a322c)[gr_kind].fn_at_4(grobj) if
-// non-NULL, then ALWAYS walks grdata->yakumono->entries[] afterward
-// (the hook does not replace the generic walker - both run).
+// grInitYakumono calls (&PTR_PTR_804a322c)[gr_kind].fn_at_4(grobj) if non-NULL, then
+// ALWAYS walks grdata->yakumono->entries[] afterward (the hook does not replace
+// the generic walker - both run).
 //
-// Of the 28 entries, 15 have real init hooks (notably gr_kind 9 =
-// GRKIND_CITY1 → grDataCity1_CreateYakumono), 12 have NULL hooks
-// (gr_kinds 6, 11, 12, 13, 14, 16, 18, 20, 22, 23, 24, 25), and one is
-// a 4-byte `blr` stub (gr_kind 17 = GRKIND_KIRBYMELEE1, functionally
-// equivalent to NULL). See docs/yakumono-system.md for the full table.
+// Of the 28 entries, 15 have real init hooks (notably GroundKind 9 = GrCity1 →
+// grDataCity1_CreateYakumono), 12 have NULL hooks (GroundKinds 6, 11, 12, 13, 14,
+// 16, 18, 20, 22, 23, 24, 25), and one is a 4-byte `blr` stub (GroundKind 17 =
+// GrColosseum5 / Kirby Melee 2, functionally equivalent to NULL). See
+// docs/yakumono-system.md.
 
 // === Lifecycle API ===
 //
@@ -325,7 +326,7 @@ GOBJ *GrYaku_Create(int desc_id, int data_idx);                                /
 // to GrYaku_Create, then runs the cannon tail-init that populates proc
 // callbacks and zeros the lc.cannon.userInfo[] array.
 //
-// Vanilla call sites: gr_kind 5 (Machine Passage, data_idx=1) and
+// Vanilla call sites: GroundKind 5 (Machine Passage / GrMachine2, data_idx=1) and
 // grDataSingleRace4_CreateYakumono (data_idx=18). Both pass a grobj as the
 // first arg purely as a convention.
 void GrYakuCannon_Create(GrObj *grobj_unused, int data_idx);                   // 0x800fed20
