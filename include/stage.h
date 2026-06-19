@@ -12,40 +12,66 @@ typedef struct EventConfigData EventConfigData;
 
 #define GRSTATECHANGE_NOANIM (1 << 2)
 
-typedef enum GroundKind
-{
-    GRKIND_CITY1 = 9,
-    GRKIND_DRAG1,
-    GRKIND_DRAG2,
-    GRKIND_DRAG3,
-    GRKIND_DRAG4,
-    GRKIND_AIRGLIDER,
-    GRKIND_TARGETFLIGHT,
-    GRKIND_HIGHJUMP,
-    GRKIND_KIRBYMELEE1,
-    GRKIND_KIRBYMELEE2,
-    GRKIND_DESTRUCTIONDERBY1,
-    GRKIND_DESTRUCTIONDERBY2,
-    GRKIND_DESTRUCTIONDERBY3,
-    GRKIND_DESTRUCTIONDERBY4,
-    GRKIND_DESTRUCTIONDERBY5,
-    GRKIND_SINGLERACE1,
-    GRKIND_SINGLERACE2,
-    GRKIND_SINGLERACE3,
-    GRKIND_SINGLERACE4,
-    GRKIND_SINGLERACE5,
-    GRKIND_SINGLERACE6,
-    GRKIND_SINGLERACE7,
-    GRKIND_SINGLERACE8,
-    GRKIND_SINGLERACE9,
-    GRKIND_VSKINGDEDEDE,
-    GRKIND_NUM,
-} GroundKind;
-
+// StageKind - the 0..59 stage *selection* index (the menu/mode-level identity of
+// a stage). This is the value stored in GameData.stage_kind (+0xA97) and the
+// r13[0x7F8] cache; it is what Gm_GetCurrentStageKind() and stGetCurrentStageKind()
+// return. For Air Ride it equals AirRideCourse (menu order, 0..8); the City Trial
+// stadium stages occupy 9..33 below. A StageKind maps to a physical GroundKind (the
+// actual ground geometry file loaded, in FILE order) via Gm_GetGrKindFromStageKind().
+// The two index spaces happen to coincide only at 0/1/2 and City Trial (9); they
+// diverge everywhere else because menu order != file order - e.g. Machine Passage is
+// StageKind 6 but GroundKind 5 (GrMachine2), and Kirby Melee 1 is StageKind 17 but
+// GroundKind 14 (GrPasture1).
 typedef enum StageKind
 {
+    STAGEKIND_CITY1 = 9,
+    STAGEKIND_DRAG1,
+    STAGEKIND_DRAG2,
+    STAGEKIND_DRAG3,
+    STAGEKIND_DRAG4,
+    STAGEKIND_AIRGLIDER,
+    STAGEKIND_TARGETFLIGHT,
+    STAGEKIND_HIGHJUMP,
+    STAGEKIND_KIRBYMELEE1,
+    STAGEKIND_KIRBYMELEE2,
+    STAGEKIND_DESTRUCTIONDERBY1,
+    STAGEKIND_DESTRUCTIONDERBY2,
+    STAGEKIND_DESTRUCTIONDERBY3,
+    STAGEKIND_DESTRUCTIONDERBY4,
+    STAGEKIND_DESTRUCTIONDERBY5,
+    STAGEKIND_SINGLERACE1,
+    STAGEKIND_SINGLERACE2,
+    STAGEKIND_SINGLERACE3,
+    STAGEKIND_SINGLERACE4,
+    STAGEKIND_SINGLERACE5,
+    STAGEKIND_SINGLERACE6,
+    STAGEKIND_SINGLERACE7,
+    STAGEKIND_SINGLERACE8,
+    STAGEKIND_SINGLERACE9,
+    STAGEKIND_VSKINGDEDEDE, // = 33
     STAGEKIND_NUM = 60,
 } StageKind;
+
+// GroundKind - the physical ground-file index (which terrain geometry is loaded),
+// i.e. an index into the stage-file table in main.dol at 0x804A2FFC. This is the
+// value stored in GrObj.gr_kind (+0x04) and returned by Gr_GetCurrentGrKind();
+// stc_grdatalookup is indexed by it. DISTINCT from StageKind (see above) - many
+// StageKinds can share one GroundKind. Only the members verified against the file
+// table are named (the enum is intentionally sparse). Obtain one from a StageKind
+// with Gm_GetGrKindFromStageKind().
+typedef enum GroundKind
+{
+    GR_PLANTS1    = 0,  // Air Ride: Fantasy Meadows (first of the 9 AR course grounds)
+    GR_ICE1       = 8,  // Air Ride: Frozen Hillside (last AR course ground)
+    GR_CITY1      = 9,  // City Trial
+    GR_ZEROYON1   = 10, // drag-race ground (GrZeroyon1)
+    GR_PASTURE1   = 14, // Kirby Melee 1
+    GR_COLOSSEUM1 = 15,
+    GR_COLOSSEUM3 = 16,
+    GR_COLOSSEUM5 = 17, // Kirby Melee 2
+    GR_JUMP1      = 18, // High Jump ground
+    GR_DEDEDE1    = 21, // Vs. King Dedede ground
+} GroundKind;
 
 // Air Ride course indices (0-8), a subset of StageKind used for Air Ride mode
 typedef enum AirRideCourse
@@ -214,7 +240,7 @@ typedef struct GrData // exists in the stage file
 typedef struct GrObj
 {
     GOBJ *gobj;                 // 0x000
-    GroundKind gr_kind;         // 0x004
+    GroundKind gr_kind;         // 0x004 - physical ground (Gr_GetCurrentGrKind reads this)
     GrData *gr_data;            // 0x008
     u8 _pad_00c[0xF4 - 0x0C];
     JOBJ *backdrop_jobj;        // 0x0F4 - distant skybox/horizon mesh attached
@@ -231,12 +257,13 @@ typedef struct GrObj
     AreaLight *area_light;      // 0x718 - KAR-proprietary directional light.
 } GrObj;
 
-static GrData **stc_grdatalookup = (GrData **)(0x80557638); // indexed by gr_kind
+static GrData **stc_grdatalookup = (GrData **)(0x80557638); // indexed by physical GroundKind
 static GrObj **stc_grobj = (GrObj **)(0x805dd0e0 + 0x5ec);
 
-StageKind Gm_GetCurrentStageKind();
-GroundKind Gm_GetCurrentGrKind();
-GroundKind Gm_GetGrKindFromStageKind(StageKind stage_kind);
+StageKind Gm_GetCurrentStageKind();  // 0x800092d8 - reads GameData.stage_kind (+0xA97)
+StageKind stGetCurrentStageKind();   // 0x80261ECC - reads the r13[0x7F8] StageKind cache (same value)
+GroundKind Gr_GetCurrentGrKind();    // 0x800d1d3c - reads (*stc_grobj)->gr_kind (+0x04): the physical ground
+GroundKind Gm_GetGrKindFromStageKind(StageKind stage_kind); // 0x80261ce8 - StageKind -> physical GroundKind
 
 // Signed clearance from the stage out-of-bounds death box. pos is a world
 // Vec3. Returns the minimum signed distance to any of the six
