@@ -279,7 +279,6 @@ typedef struct CollData
     int x3fc;                      // 0x3fc
 } CollData;
 
-// === mpColl Functions ===
 CollData *mpColl_Create(void);                    // 0x80245b4c. Allocates CollData from pool, links to global list, creates coll_info/shape_data
 void mpColl_Init(CollData *cd, int type, Vec3 *pos, Vec3 *dir, Vec3 *extents, int param, float radius, float f2); // 0x80245c10. Sets position/direction/scale, inits subsystems
 void mpColl_Reinit(CollData *cd, Vec3 *pos, Vec3 *dir); // 0x80245db0. Re-initializes with new position/direction
@@ -290,7 +289,6 @@ void mpColl_UpdateShapeExtents(CollData *cd, Vec3 *pos); // 0x8024625c. Updates 
 void mpColl_SetFlag(CollData *cd, int value);     // 0x80247e2c. Sets/clears bit 7 of flags byte at +0x34C
 CollData *mpColl_GetFirstCollObj(void);           // 0x802414d4. Returns head of global CollData linked list
 
-// === Raycast / Ground Functions ===
 int EnvColl_Raycast(Vec3 *start, Vec3 *end, Vec3 *out_pos); // 0x800d1ac4. Wrapper around Raycast_Do. Returns triangle ID
 int PointCollision_EnsureIDValid(int triangle_id); // 0x800d1838. Returns 0 if valid, 1 if invalid
 void PointCollision_GetNormalByID(int triangle_id, Vec3 *out_normal); // 0x800d1860. Looks up triangle normal (stride 0x40)

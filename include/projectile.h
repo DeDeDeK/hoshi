@@ -15,12 +15,10 @@ typedef struct RiderData RiderData;
 // outside this range reads past the table into the neighboring .data
 // section (filename strings) and will crash.
 //
-// Mapping assembled from the per-kind spawn functions and their ability
-// callers. "Thrown" kinds fly and damage on impact; "Aura" kinds are spawned
+// "Thrown" kinds fly and damage on impact; "Aura" kinds are spawned
 // with zero velocity and stored at rider+0x3F0 - they hover on the rider as
-// the visual/hitbox representation of the active copy ability. (The rider+0xfc
-// offset in earlier drafts was wrong; Fire/Spike/Ice *_AbilityInit all do
-// `stw r3, 0x3F0(rider)` - confirmed in docs/projectile-system.md §6.3.)
+// the visual/hitbox representation of the active copy ability. (Fire/Spike/Ice
+// *_AbilityInit all do `stw r3, 0x3F0(rider)`.)
 typedef enum ProjectileKind
 {
     PROJKIND_SWORD_STAR_A       = 0,  // spawnStarBullet @ 0x801a8c80 (flag=0)
@@ -43,8 +41,7 @@ typedef enum ProjectileKind
     PROJKIND_NUM                = 17,
 } ProjectileKind;
 
-// 76-byte descriptor passed to Projectile_Create. Field layout derived from
-// spawnBomb / spawnGordo / spawnSensorBomb disassembly. The vanilla callers
+// 76-byte descriptor passed to Projectile_Create. The vanilla callers
 // read pos/forward/up from the rider's hand bone matrix, then add the
 // rider's self_vel to a base velocity read from the machine's vcData.
 // Direct callers (bypassing the rider bone chain) may fill these from a
@@ -61,10 +58,8 @@ typedef struct ProjectileDesc
     Vec3 up;                // 0x28: up unit vector
     float velocity_scale;   // 0x34: scalar multiplier, vanilla passes 1.0 (FLOAT_805e1348)
     Vec3 velocity;          // 0x38: initial velocity (vanilla: md->projectile_inherit_velocity + rider->self_vel)
-    int type_flag;          // 0x44: every traced vanilla spawner passes 1 (BOMB confirmed via disasm).
-                            //       Copied verbatim to proj+0x78; no routing into per-frame branches has been found.
-                            //       Older notes that called out a 1/3/4 aura/directed/thrown enum were speculation
-                            //       and are contradicted by BOMB writing 1 - treat values >1 as uncharted.
+    int type_flag;          // 0x44: vanilla spawners all pass 1. Copied verbatim to proj+0x78;
+                            //       not routed into any per-frame branch. Treat values >1 as uncharted.
     float charge;           // 0x48: vanilla reads md->projectile_charge_scale
 } ProjectileDesc;
 
@@ -167,12 +162,10 @@ typedef struct ProjectileStateEntry
     void (*fn3)(void *proj);       // 0x14: prio-6 tick (post-collision, aura re-snap)
 } ProjectileStateEntry;
 
-// Per-kind data struct at *(0x8055a9a8 + kind*4). The table itself is NULL
-// in the main-menu memory dump - it's populated at stage load (writers live
-// in .data, not executable code, so they don't appear in disassembly). The
-// unload-side clearer is at 0x8022011c (zeroes all 17 slots). Field layout
-// from traced reads across Projectile_Create, Projectile_SetState, and
-// Projectile_InitHurtData:
+// Per-kind data struct at *(0x8055a9a8 + kind*4). The table is populated at
+// stage load (writers live in .data, not executable code). The unload-side
+// clearer is at 0x8022011c (zeroes all 17 slots). Fields are read across
+// Projectile_Create, Projectile_SetState, and Projectile_InitHurtData:
 //
 //   +0x00: ProjectileStateEntry * state_table      (Solid; vtable[0] copy)
 //   +0x04: always NULL                             (Solid)
@@ -187,10 +180,8 @@ typedef struct ProjectileStateEntry
 //          Projectile_InitHurtData at 0x80221440 -> HurtData_Create +
 //          HurtData_InitRegion, 0x18-byte stride. This is where a kind's
 //          damage/knockback/radius live - baked into HurtData at create.)
-//   +0x14..0x30: unknown / possibly unused. Earlier notes assumed explosion-
-//          class kinds read damage scalars here, but no traced bomb state
-//          function dereferences kind_data at all. Undumpable from the main-
-//          menu snapshot (the whole table is NULL there).
+//   +0x14..0x30: unknown / possibly unused. No bomb state function
+//          dereferences kind_data here.
 typedef struct ProjKindData
 {
     const ProjectileStateEntry *state_table;           // +0x00
@@ -198,7 +189,7 @@ typedef struct ProjKindData
     void                       *model_desc;             // +0x08: model joint descriptor (HSD_JObjLoadJoint)
     const void                 *state_anim_spec_array;  // +0x0c: 16-byte stride by state_id
     const void                 *hurt_region_spec;       // +0x10: +0x00 region base, +0x04 count; 0x18 stride
-    // +0x14 onward: unknown / possibly unused; untyped until a runtime dump lands.
+    // +0x14 onward: unknown / possibly unused; untyped.
 } ProjKindData;
 
 // Per-kind vtable at *(0x804b4338 + kind*4). One vtable per ProjectileKind;
@@ -217,8 +208,7 @@ typedef struct ProjKindVTable
 
 // Inner projectile data - 0x220 bytes, allocated by Projectile_Create from
 // the HSD object pool at 0x8055a8f8 and reached via *(handle + 0x2c). Known
-// fields only; unknown regions are padding. See `docs/projectile-system.md`
-// for the complete offset map and field confidence levels.
+// fields only; unknown regions are padding.
 typedef struct ProjectileData
 {
     void          *gobj;                 // 0x00: back-pointer to outer GObj
@@ -331,7 +321,7 @@ typedef struct ProjectileData
 // struct. Post-init leaves the projectile in state index 0; for bomb/sensor
 // bomb/gordo that state is "held in the rider's hand" and requires a separate
 // state transition before physics/detonation logic runs - see
-// Projectile_SetState and the recipe in docs/projectile-system.md.
+// Projectile_SetState.
 void *Projectile_Create(ProjectileDesc *desc); // 0x8021f428
 
 // Transitions a projectile (inner data pointer) to the given state entry
@@ -359,9 +349,8 @@ void Projectile_DespawnGObj(void *projGObj); // 0x802230a0
 
 // Writes the state-entry flags word into the projectile's per-state animation
 // bytes (proj+0x17c / 0x184 / 0x18a / 0x18b). Called by Projectile_SetState
-// every time a new entry is selected; not something mod code normally calls
-// directly, but listed here because it's the site where flags semantics are
-// finally consumed - useful when investigating animation-class behavior.
+// every time a new entry is selected; this is where flags semantics are
+// consumed.
 void Projectile_AssignStateFlags(void *proj, int flags); // 0x80222298
 
 // Convenience: return the inner ProjectileData from the outer handle.

@@ -110,8 +110,6 @@ typedef enum ActorID
 
 // Descriptor struct passed to EventActor_Create. 0x60 bytes (24 fields).
 // Built on the stack by Enemy_SpawnActor and event start functions.
-// Fields reconstructed from zz_801fb53c_ (descriptor → EnemyData copy),
-// Enemy_SpawnActor, and event_dynablade_start/event_meteor_start.
 typedef struct EventActorDesc
 {
     int actor_id;           // 0x00: ActorID (0x00–0x4E)
@@ -163,9 +161,9 @@ typedef struct EnemyData
     int tier_flags;         // 0x30, variant selector (0=T0, 1=T1/T2, 2/3/4=special). From desc.x3C for actors < 0x48.
     int state;              // 0x34, current state ID. Written by EnemyStateChange.
     int per_type_threshold; // 0x38, constant 0x0E set in InitFromDesc; state-ID cutoff between common and per-type states (EnemyStateChange uses a hardcoded 14, so this is informational)
-    int anim_idx;           // 0x3c, animation index from state table entry. -1 = no animation. Written by EnemyStateChange (stw r0,60(r28)).
-    void *common_state_table; // 0x40, pointer to common states 0x00-0x0D (0x804b2950). EnemyStateChange reads this for state_id < 0x0E (lwz r3,64(r28)).
-    void *per_type_state_table; // 0x44, per-type state table for states >= 0x0E; initialized to PTR_PTR_804b1d98[kind][0x00]. EnemyStateChange reads this for state_id >= 0x0E (lwz r3,68(r28)).
+    int anim_idx;           // 0x3c, animation index from state table entry. -1 = no animation. Written by EnemyStateChange.
+    void *common_state_table; // 0x40, pointer to common states 0x00-0x0D (0x804b2950). EnemyStateChange reads this for state_id < 0x0E.
+    void *per_type_state_table; // 0x44, per-type state table for states >= 0x0E; initialized to PTR_PTR_804b1d98[kind][0x00]. EnemyStateChange reads this for state_id >= 0x0E.
     EnemyAnimSeqEntry *anim_data; // 0x48, current animation data pointer: &table[anim_idx] where table = *(actor_data+0x0C) and anim_idx (= state-table entry word0) is ed->anim_idx. EnemyStateChange resolves anim_data = *(actor_data+0x0C) + anim_idx*0x10.
     float anim_timer;       // 0x4c, animation keyframe timer (decremented per frame by StateMachine)
     float anim_frame;       // 0x50, current animation frame accumulator (= x2a8 + x2ac each frame, written by EventActor_StateMachine)
@@ -931,7 +929,7 @@ void Enemy_GroundPhysicsVelocity(EnemyData *ed); // 0x80209104, velocity-based g
 void Enemy_GroundPhysicsSurface(EnemyData *ed); // 0x802096b4, direct surface advancement with wall bounce
 void Enemy_GroundAttach(EnemyData *ed); // 0x8020a664, final ground attachment after path following
 int Enemy_CheckPathFollow(EnemyData *ed); // 0x8020b01c, checks if enemy should follow path (spline)
-void Enemy_SetTerrainLocked(EnemyData *ed); // 0x8020ae54, sets the terrain-locked flag = bit 2 (mask 0x04) of ed+0xB0B (rlwimi ...,2,29,29). Called from the init_cb of Broom Hatter and Wheelie. (Gordo does NOT call this - it sets grounded_active ed+0x908=1 directly in its spawn func.) Sibling unlocker at 0x8020ae68 clears the same bit.
+void Enemy_SetTerrainLocked(EnemyData *ed); // 0x8020ae54, sets the terrain-locked flag = bit 2 (mask 0x04) of ed+0xB0B. Called from the init_cb of Broom Hatter and Wheelie. (Gordo does NOT call this - it sets grounded_active ed+0x908=1 directly in its spawn func.) Sibling unlocker at 0x8020ae68 clears the same bit.
 void EnemyPath_Advance(EnemyData *ed, Vec3 *input_pos, Vec3 *output_pos, float speed); // 0x8020a040, advances parametric position along spline path
 
 // Common state callbacks (shared by states 0x00-0x0D)
@@ -962,7 +960,7 @@ int EnemyActor_PlayerAheadDist(EnemyData *ed, int player_idx, float *out_forward
 int EnemyActor_ClassifyRange(EnemyData *ed); // 0x80206cc0, proximity classifier: reads detect/chase range from the actor_data param-root (*(ed->actor_data)+0x10/+0x14), buckets target distance, stores it in ed+0xB09 bits 3-4, returns the bucket (0=out, 1=detect, 2=attack)
 
 // Global enemy param table loader
-void Enemy_LoadCommonParams(void); // 0x801fd580, loads Enemy.dat (public emDataAll) and stores the param-table pointer to *0x805dd878. Was fn_emLoadCommon.
+void Enemy_LoadCommonParams(void); // 0x801fd580, loads Enemy.dat (public emDataAll) and stores the param-table pointer to *0x805dd878.
 
 // Common state table data address (14 entries, 0x14 bytes each, states 0x00-0x0D)
 #define stc_common_state_table (*(void **)0x804b2950) // 0x804b2950
@@ -1055,7 +1053,7 @@ typedef struct EnemySpawnEntry
 // -1 terminated. May be NULL.
 typedef struct EnemySpawnConfig
 {
-    char x00[0x28];     // 0x00, layout TBD
+    char x00[0x28];     // 0x00, layout unknown
     short mode;         // 0x28, 1=Air Ride, 2=STKIND_MELEE1, 3=STKIND_MELEE2
 } EnemySpawnConfig;
 
