@@ -56,8 +56,8 @@ typedef enum StageKind
 // i.e. an index into the stage-file table in main.dol at 0x804A2FFC. This is the
 // value stored in GrObj.gr_kind (+0x04) and returned by Gr_GetCurrentGrKind();
 // stc_grdatalookup is indexed by it. DISTINCT from StageKind (see above) - many
-// StageKinds can share one GroundKind. Only the members verified against the file
-// table are named (the enum is intentionally sparse). Obtain one from a StageKind
+// StageKinds can share one GroundKind. Only members present in the file table
+// are named (the enum is intentionally sparse). Obtain one from a StageKind
 // with Gm_GetGrKindFromStageKind().
 typedef enum GroundKind
 {
@@ -123,12 +123,6 @@ static const char *const TopRideCourse_Names[TOPRIDE_NUM] = {
     [TOPRIDE_METAL] = "Metal",
 };
 
-// YakumonoParam and YakumonoData are defined in yakumono.h.
-// The minimal forward-style fields used to live here; the comprehensive
-// definitions (with full proc-callback offsets, HurtData pointer, audio,
-// etc.) now live alongside the rest of the yakumono framework. See
-// docs/yakumono-system.md for the architecture overview.
-
 typedef struct GrModelMotionAnim
 {
     AnimJointDesc *anim_joint;
@@ -147,8 +141,7 @@ typedef struct GrModelMotion  // exists in the stage file
 // and 1 are JOBJDesc** (a pointer to a slot containing the JOBJDesc *
 // instantiated by 3D_CreateStageModel), so a stage can ship a
 // terrain mesh, a separate skybox/backdrop mesh, both, or neither.
-// Confirmed by the loader at 0x800dcc28 reading +0x04 and attaching
-// the result to GrObj+0xF4. See docs/sky-backdrop-system.md.
+// The loader at 0x800dcc28 reads +0x04 and attaches the result to GrObj+0xF4.
 typedef struct ModelSection
 {
     JOBJDesc **terrain;  // 0x00 - main playable geometry
@@ -163,8 +156,8 @@ struct SkyPresetEntry;
 
 // SkyPresetSubHeader - the {array, count} pair pointed at by SkyBlock+0x04.
 // Sky_GetPresetCount (0x800d5414) returns preset_count; Sky_LoadPreset reads
-// preset_array[index] (stride 0x48). custom_weather repoints both fields to
-// swap in an extended preset array.
+// preset_array[index] (stride 0x48). Repointing both fields swaps in an
+// extended preset array.
 typedef struct SkyPresetSubHeader
 {
     struct SkyPresetEntry *preset_array; // 0x00 - base of the 0x48-byte preset entries
@@ -184,14 +177,14 @@ typedef struct SkyBlock
 // stage's physics constants, the global gravity (strength + direction), and the
 // axis-aligned out-of-bounds death box. The OoB box at +0xCC/+0xD8 is read by
 // calcDistanceFromOOB (0x800d4f20) every frame to compute how far a position
-// is from leaving the playfield. See docs/collision-system.md.
+// is from leaving the playfield.
 //
 // Gravity splits across two fields: gravity_strength (+0x0C) is the magnitude
 // (fall-acceleration scalar) and gravity_dir (+0x10) is the unit down direction.
 // Gm_GetDownVector reads gravity_dir into its out-param and returns
 // gravity_strength as the scalar - so to change how strong gravity feels, scale
 // gravity_strength and leave gravity_dir unit-length (consumers derive an up
-// vector from it). See docs/event-gravity-change.md.
+// vector from it).
 typedef struct StageNode
 {
     int x0;                 // 0x00
@@ -234,9 +227,8 @@ typedef struct GrData // exists in the stage file
 
 // Per-stage runtime object. The layout below names the runtime members the
 // engine populates during stage init; the surrounding padding holds other
-// stage state we haven't reverse-engineered yet (notably the per-light helper
-// records at +0x54 and the light JOBJ table at +0x104). See
-// docs/sky-lighting-system.md for the full diagram.
+// stage state (notably the per-light helper records at +0x54 and the light
+// JOBJ table at +0x104).
 typedef struct GrObj
 {
     GOBJ *gobj;                 // 0x000
@@ -271,11 +263,6 @@ GroundKind Gm_GetGrKindFromStageKind(StageKind stage_kind); // 0x80261ce8 - Stag
 // already past a wall). Reads the box from (*stc_grobj)->gr_data->stage_node.
 float calcDistanceFromOOB(Vec3 *pos);          // 0x800d4f20
 
-// Gr_StateChange and other yakumono framework APIs are declared in yakumono.h.
-
-// Sky/lighting system - operates on GrObj, presets loaded from stage file.
-// See docs/sky-lighting-system.md for the full architecture.
-
 // 0x48-byte preset entry stored in the stage file's sky-block array
 // (gr_data+0x34 -> [4] -> [0]). Each entry interpolates fog, screen tint,
 // sky ambient color, and AreaLight params over `transition_frames`.
@@ -306,7 +293,7 @@ typedef struct SkyState
     float start_fog_start;          // 0x0C
     float start_fog_end;            // 0x10
     u32 start_sky_color;            // 0x14 RGBA
-    u32 current_output_sky_color;   // 0x18 RGBA written every frame (consumer not yet identified)
+    u32 current_output_sky_color;   // 0x18 RGBA written every frame (consumer unknown)
     s32 current_preset_index;       // 0x1C
     AreaLightData start_area_light; // 0x20 lerp start for AreaLight_Lerp (0x2C bytes)
 } SkyState;
