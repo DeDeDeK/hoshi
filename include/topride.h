@@ -6,7 +6,6 @@
 // Top Ride Kirby (player) system - completely separate from 3D mode Rider/Machine.
 // Top Ride does NOT use Player_Create, Rider_Create, Machine_Create, stc_playerdata,
 // RiderData, or MachineData. It uses minor 19 (not 18), so On3DLoadEnd doesn't fire.
-// See docs/topride-system.md for full documentation.
 
 // Charge component - inline sub-object starting at TopRideKirby+0x80.
 // Initialized by TopRide_KirbyChargeInit (0x802d1fe8).
@@ -120,8 +119,6 @@ static inline float *TopRide_KirbyModelScalePtr(TopRideKirby *kirby)
     return &kirby->charge.model_scale;
 }
 
-// === Top Ride CPU rider AI (source: a2d_cpu_kirby.cpp) ===
-//
 // Top Ride's input is polymorphic: every kirby holds an `input_reader` at
 // TopRideKirby+0x48. Human slots get a pad reader (vtable 0x804d25e0); CPU slots
 // get the CPU brain reader (vtable 0x804d8710, this struct). TopRide_KirbyPhysUpdate
@@ -140,7 +137,7 @@ static inline float *TopRide_KirbyModelScalePtr(TopRideKirby *kirby)
 // frames (60->0 as level 0->4), and commit thresholds via the per-level tables at
 // 0x804d80d0 / 0x804d8058 / 0x804d80bc (indexed by +0x1c).
 //
-// Allocated as a ~0x80-byte object; confirmed fields below, gaps are scratch/uncertain.
+// Allocated as a ~0x80-byte object; gaps below are scratch/unknown.
 typedef struct TopRideCpuInputReader
 {
     void *vtable;            // 0x00, 0x804d8710 (CPU); human readers use 0x804d25e0
@@ -224,8 +221,8 @@ typedef enum TopRideMachineKind
     TR_MACHINE_NUM,
 } TopRideMachineKind;
 
-// Convert a TopRideMachineKind to the corresponding MachineKind (VCKIND)
-// for indexing into `APSave.machine_unlocked_mask` (via the global `ap_save`).
+// Convert a TopRideMachineKind to the corresponding MachineKind (VCKIND),
+// e.g. for indexing a per-machine unlock mask.
 #define TOPRIDE_MACHINE_TO_VCKIND(tr) ((tr) == TR_MACHINE_FREE ? VCKIND_FREE : VCKIND_STEER)
 
 // Per-slot config accessors. Backed by the 9-byte-stride config block at
@@ -263,8 +260,8 @@ void TopRide_CSS_PanelThink(int slot);      // 0x8002b8a8
 // the "Control Type" L/R machine cycler at 0x8002cb88..0x8002cbec
 // (reads/writes panel_machine[panel] at lobby offset 0x2f, tests RIGHT
 // 0x80002 / LEFT 0x40001 - identical bits to the race cycler). Because solo
-// never routes through TopRide_CSS_PanelThink, this cycler needs its own
-// unlock gate (see gate_machines.c, hook at 0x8002cb98).
+// never routes through TopRide_CSS_PanelThink, any machine-unlock gating must
+// hook this cycler separately (at 0x8002cb98).
 void TopRide_SoloPanelThink(int slot);      // 0x8002ca80
 
 // Reinitializes the TR lobby block (memsets 0x39 bytes at GameData+0x197 then
@@ -273,7 +270,6 @@ void TopRide_SoloPanelThink(int slot);      // 0x8002ca80
 void TopRide_InitSelectData(void);                                   // 0x8002cfd8
 
 // State ID returned by state_handler->vt[+0x0C]() for the current Kirby state.
-// See docs/topride-kirby-states.md for the full state machine and class table.
 typedef enum TopRideKirbyStateId
 {
     TR_KSTATE_DAMAGE_BASE   = 0,   // KirbyDamage abstract base - should not be observed live
@@ -312,10 +308,10 @@ static inline TopRideKirbyStateId TopRide_KirbyGetStateId(TopRideKirby *kirby)
     return (TopRideKirbyStateId)get_id(kirby->state_handler);
 }
 
-// State class vtable addresses (from docs/topride-kirby-states.md "State
-// Classes"). Compare against state_handler->vtable to reliably identify the
-// kirby's current state - this is what dynamic_cast does inside the Group A
-// wrappers and doesn't depend on per-state get_state_id overrides.
+// State class vtable addresses. Compare against state_handler->vtable to
+// reliably identify the kirby's current state - this is what dynamic_cast does
+// inside the Group A wrappers and doesn't depend on per-state get_state_id
+// overrides.
 #define TR_KSTATE_VT_NORMAL      ((void *)0x804d6f5c)
 #define TR_KSTATE_VT_DAMAGE_BASE ((void *)0x804da158)
 #define TR_KSTATE_VT_PRESS       ((void *)0x804da070)
@@ -345,12 +341,9 @@ static inline int TopRide_KirbyHasStateVtable(TopRideKirby *kirby, void *state_v
     return *(void **)kirby->state_handler == state_vt;
 }
 
-// === Kirby state-transition helpers ===
-//
 // Each helper invokes a non-virtual method on the Kirby class (vtable at
 // 0x804d2304) that drives a transition in kirby->state_handler. All are safe
-// to call once round_state == 2 (race active). See docs/topride-kirby-states.md
-// for the full state machine, vanilla effector callers, and arg semantics.
+// to call once round_state == 2 (race active).
 //
 // All helpers pass zero args (and a zero knockback Vec3 where applicable),
 // which produces a static stun-style transition: the new state's animation

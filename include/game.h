@@ -718,7 +718,7 @@ typedef struct GameData // 805359d8
     int xb8;                           // 0xb8
     int xbc;                           // 0xbc
     int xc0;                           // 0xc0
-    u8 stadium_option_to_kind[24];     // 0xc4, STKIND_NUM entries, menu option index -> StadiumKind (0xFF = none). Per the (unused) stadium.h pointer; in-game consumer not located via static analysis
+    u8 stadium_option_to_kind[24];     // 0xc4, STKIND_NUM entries, menu option index -> StadiumKind (0xFF = none). In-game consumer unknown
     int xdc;                           // 0xdc
     int xe0;                           // 0xe0
     int xe4;                           // 0xe4
@@ -1370,12 +1370,10 @@ typedef struct GameData // 805359d8
     // actual size is 0x1518
 } GameData;
 
-// Per-mode tuning block for the patch-drop pipeline. Three of these live in
-// Game3dData at 0x1d4 / 0x1ec / 0x204, one per `patch_drop_mode` (0/1/2).
-// Sub-handlers (Rider_TickDropAllUp, Rider_SpawnDropPatchSeq) interpolate
-// between the (lo, hi) pairs with a uniform random factor; pair C scales
-// the spawn velocity vector, pairs A/B feed two scalar args to SpawnItem
-// (semantics not fully nailed down - see docs/patch-drop-system.md).
+// Per-mode tuning block for the patch-drop pipeline. Three live in Game3dData
+// at 0x1d4 / 0x1ec / 0x204, one per `patch_drop_mode` (0/1/2). Handlers
+// interpolate between each (lo, hi) pair with a random factor: pair C scales the
+// spawn velocity, pairs A/B feed two scalar args to SpawnItem.
 typedef struct PatchDropModeParams
 {
     f32 lo_a;  // 0x00
@@ -1477,7 +1475,6 @@ typedef struct Game3dData
     int x1b0;                                     // 0x1b0
     int x1b4;                                     // 0x1b4
     int x1b8;                                     // 0x1b8
-    // --- patch-drop pipeline tuning block (0x1bc..0x224) ---
     int patch_drop_mode0_count;                   // 0x1bc, fixed drop count when caller passes 0 with mode 0
     int patch_drop_spawn_arg7;                    // 0x1c0, passed verbatim as r7 (4th int arg) to SpawnItem (0x80253ce4)
     f32 patch_drop_spawn_y_bias;                  // 0x1c4, added to spawn position Y in both sub-handlers
@@ -1490,7 +1487,6 @@ typedef struct Game3dData
     int patch_drop_cooldown_init;                 // 0x21c, frames until the next spawn after a successful one
     int patch_drop_burst_threshold;               // 0x220, when patch_drop_progress reaches this, switch from sequential to burst
     int patch_drop_allup_rng_max;                 // 0x224, mode-0 only: HSD_Randi ceiling for the all-up RNG roll
-    // --- end patch-drop tuning block ---
     int x228;                                     // 0x228
     int x22c;                                     // 0x22c
     int x230;                                     // 0x230
@@ -2383,11 +2379,10 @@ typedef struct PlayerStats
     u8 _pad_85a[0x85c - 0x85a];                   // 0x85a, tail
 } PlayerStats;
 
-// Per-player slot record (5 of them at stc_playerdata, stride 0x90c). Holds the
-// spawn/respawn descriptor (kind, transform, stats) the rider/machine GObjs are
-// (re)created from, plus the embedded gameplay-stat record. Populated from the
-// per-player PlayerDesc (GameData+0xac8) by Player_Create; zeroed/defaulted by
-// Player_InitAll. The live character state lives in the rider_gobj/machine_gobj.
+// Per-player slot record (5 at stc_playerdata, stride 0x90c). Holds the
+// spawn/respawn descriptor (kind, transform, stats) plus the embedded
+// gameplay-stat record, populated by Player_Create. The live character state
+// lives in the rider_gobj/machine_gobj.
 typedef struct PlayerData
 {
     PKind player_kind;         // 0x00, slot occupancy/type; plGetPlayerKind/plSetPlayerKind. Init'd to PKIND_NONE
@@ -2518,7 +2513,7 @@ typedef struct grBoxGeneInfo // r13 + 0x610
         struct               // 0x18
         {
             int it_kind;        // 0x0
-            u16 chance_dyna;         // 0x4, dyna blade hits/exits (patches-only pool; possibly other rare misc sources untested)
+            u16 chance_dyna;         // 0x4, dyna blade hits/exits (patches-only pool)
             u16 chance_tac;          // 0x6, hitting tac
             u16 chance_meteor;       // 0x8, drops after a meteor explodes
             u16 chance_destructible; // 0xA, yaku-break objects: star pole (gryakubreakcoral.c), event pillar + volcano walls (gryakubreakrock.c), houses (gryakubreakhouse.c)
@@ -2788,7 +2783,7 @@ static gmDataAll **stc_gmdataall = (gmDataAll **)(0x805dd0e0 + 0x494);
 static int *stc_clearchecker_sfx_last_frame = (int *)(0x805dd0e0 + 0x4B0); // 0x805dd590, last frame ClearChecker_SetNewUnlock played its SFX (one-frame cooldown)
 static int *stc_city_machine_num = (int *)(0x805dd0e0 + 0x754); //
 static u8 *stc_city_starting_machine = (u8 *)0x80495816;
-static PlayerData *stc_playerdata = (PlayerData *)0x8055a9f0; // 5 of these (slots 0-4). Vanilla iterates < 5; unused slots are set to PKIND_NONE via plSetPlayerKind. Slot 4 has no direct xrefs anywhere in the binary - it is allocated/iterated/zeroed but appears to be dead over-allocation (PKIND_DEMO is used by title screen, menu radar, and TR results, but always targets slots 0-3).
+static PlayerData *stc_playerdata = (PlayerData *)0x8055a9f0; // 5 of these (slots 0-4). Vanilla iterates < 5; unused slots are set to PKIND_NONE via plSetPlayerKind. Slot 4 is allocated/iterated/zeroed but appears to be dead over-allocation (vanilla play targets slots 0-3).
 static VehicleBustEntry *stc_vehicle_bust_table = (VehicleBustEntry *)0x804B4C68; // 10 entries; read by Ply_AddDeath to set PlayerData.stat_record.vehicle_bust_mask
 static u8 *stc_clear_num = (u8 *)0x805d51d0;                          // array indexed by GMMODE, stores clear count per mode
 static RewardEntry **stc_reward_table_ptrs = (RewardEntry **)0x8049755C; // 3 pointers to per-mode reward tables. Indexed by GMMODE
@@ -2921,15 +2916,9 @@ void Gm_PlayPauseSFX();
 void Gm_PauseAllSFX();
 void Gm_ResumeAllSFX();
 
-// Resolves the gravity at a world position. Writes the unit down DIRECTION into
-// *out and returns the gravity STRENGTH (fall-acceleration scalar). Consults the
-// stage's gravity zones first (point zones, then spline zones - grgravity.c); if
-// none apply, falls back to the global stage gravity (StageNode.gravity_dir for
-// the direction, StageNode.gravity_strength for the returned scalar). Machines,
-// items, enemies, and the camera all source their "down"/"up" from this. A
-// machine caches the returned scalar at RiderData+0x764, the direction at +0x768,
-// and stores -direction as its up vector at +0x774 (so the direction must stay
-// unit-length). City Trial returns ~0.025.
+// Resolves gravity at a world position: writes the unit down direction into
+// *out, returns the strength scalar (fall-acceleration). Uses the stage's
+// gravity zones (grgravity.c) if any apply, else the global StageNode gravity.
 float Gm_GetDownVector(Vec3 *pos, Vec3 *out); // 800ceb18
 
 void Gm_SetCameraNormal();
@@ -2976,15 +2965,10 @@ ItemKind CityItem_GetEventItem(EventDropSource source);                    // 80
 ItemKind _CityItem_GetEventItem(EventDropSource source);                   // 800ebe44, internal - public CityItem_GetEventItem just tail-calls this.
 void City_SpawnMiscItems(int *desc, ...);                                  // 80104db0, public dispatch: desc[8]==1 → directed cone (shootPowerUps_); desc[8]==0 → omnidirectional (_City_SpawnMiscItems). desc[7] = drop_source (-1 → fall back to CityEvent_GetRandomItem).
 
-// Spawn one item with a randomized throw velocity. Builds a spawn descriptor
-// (CityItem_InitDesc → CityItem_Create), validates the throw direction (asserts
-// in itlib.c:853-856), then sets the item's launch velocity to
-// RotateVecAroundAxis(throw_dir, horiz_axis, elev_angle) * speed: elev_angle
-// pitches the direction up/down around a horizontal axis (radians, built from
-// the gravity-down vector), speed is the magnitude. Writes item_flags onto the
-// item. spawn_group is a source-attribution tag copied onto the item's data
-// sub-struct (3 = patch-drop pipeline, 4/5/6 = yakumono-break helpers); no
-// gameplay logic branches on it.
+// Spawn one item with a randomized throw velocity: throw_dir pitched up/down by
+// elev_angle (radians) about a horizontal axis, scaled by speed. spawn_group is
+// a source-attribution tag copied onto the item (3 = patch-drop, 4/5/6 =
+// yakumono-break); no gameplay logic branches on it.
 void CityItem_Throw(ItemKind item_kind, int spawn_group, Vec3 *position, Vec3 *throw_dir, int item_flags, f32 elev_angle, f32 speed); // 80253ce4
 
 // Yaku-break (destructible object) drop handlers. All three feed into City_SpawnMiscItems.

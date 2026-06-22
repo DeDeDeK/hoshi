@@ -2,7 +2,7 @@
 #define KAR_H_YAKUMONO
 
 // Yakumono - interactive stage props (destructible scenery, hazards, zones,
-// boss-like fixed actors). See docs/yakumono-system.md for the full architecture.
+// boss-like fixed actors).
 //
 // All yakumono GObjs share:
 //   gobj->kind   = 15  (YAKUMONO_GOBJ_KIND)
@@ -27,7 +27,7 @@ typedef struct GrObj GrObj;
 // === YakuKind ===
 // Per-type kind enum used internally as `gyp->kind`. Source filenames
 // (gryaku<X>.c) and assert strings give the names below; absolute integer
-// values are not yet confirmed (the enum may have gaps for kind families).
+// values are unconfirmed (the enum may have gaps for kind families).
 // Kinds are grouped by file. _CommonTerminate is the sentinel above which
 // per-kind handlers are invalid (asserted in gryaku.c).
 typedef enum YakuKind
@@ -129,7 +129,7 @@ typedef union YakumonoParam
     } *lighthouse;
 
     // Most break-* kinds have an optional drop descriptor pointer in their
-    // param block. The slot offset varies by family - see event-source-drops.md:
+    // param block. The slot offset varies by family:
     //   gryakubreakrock.c   → param->[+0x24]
     //   gryakubreakcoral.c  → param->[+0x28]
     //   gryakubreakhouse.c  → param->[+0x30]
@@ -177,9 +177,6 @@ typedef union YakumonoParam
 // === YakumonoData ===
 // User-data block at gobj->user_data[0] (offset +0x2c on GObj). All seven
 // per-frame procs read it as `ydata = *(YakumonoData**)(gobj + 0x2c)`.
-//
-// Field offsets are confirmed via decompile of GrYaku_Create, GrYaku_InitData,
-// and the 7 procs (priorities 1, 4, 5, 6, 7, 9, 10).
 typedef struct YakumonoData
 {
     GOBJ *gobj;             // 0x00 - back-reference
@@ -264,8 +261,7 @@ typedef struct YakumonoData
     u8 x12d[3];             // 0x12d..0x12f
     // === Tail (used by per-kind data, mostly the BREAK families) ===
     // Layout below is what gryakubreakcoll.c / gryakubreakhpcoll.c reach into;
-    // other YakuKinds use different overlays of this region. See
-    // docs/yakumono-system.md "gyp->fgm substruct" for the bracketed extent.
+    // other YakuKinds use different overlays of this region.
     void *region_audio_arr; // 0x130 - ptr to per-region audio handle array.
                             //         For the MULTI-INSTANCE break families
                             //         (CT trees/rocks/houses/holes/coral) this same
@@ -296,7 +292,7 @@ typedef struct YakumonoData
     void *region_src_arr;   // 0x150 - BREAK-coll: per-region audio-source ptr array
     int x154, x158, x15c;   // (?)
     void *region_src_arr_b; // 0x160 - BREAK-hp-coll: per-region audio-source ptr array
-    // sizeof >= 0x164 (lower bound from BREAK family disasm). The actual
+    // sizeof >= 0x164 (lower bound from the BREAK families). The actual
     // class size at 0x80557584 is fixed at runtime by HSD_ObjAlloc; static
     // memory is zero-initialized so the size cannot be read directly here.
     // The `gyp->fgm.idDataNum` field referenced in gryakubreakcoll.c /
@@ -342,8 +338,7 @@ typedef struct YakumonoTable
 // Of the 28 entries, 15 have real init hooks (notably GroundKind 9 = GrCity1 →
 // grDataCity1_CreateYakumono), 12 have NULL hooks (GroundKinds 6, 11, 12, 13, 14,
 // 16, 18, 20, 22, 23, 24, 25), and one is a 4-byte `blr` stub (GroundKind 17 =
-// GrColosseum5 / Kirby Melee 2, functionally equivalent to NULL). See
-// docs/yakumono-system.md.
+// GrColosseum5 / Kirby Melee 2, functionally equivalent to NULL).
 
 // === Lifecycle API ===
 //
@@ -388,7 +383,7 @@ void GrYakumono_Think(GOBJ *gobj);                                             /
 void GrYakumono_Proc10(GOBJ *gobj);                                            // 0x800f5454 (priority 10)
 // Adds dmg to YakumonoData+0xac (clamped to <= 9999). Called by Proc10 on a hit.
 void GrYakumono_AccumulateDamage(GOBJ *gobj, float dmg);                       // 0x800f875c
-// Priority 4..9 are unnamed except GrYakumono_Proc5/6/7 - see docs/yakumono-system.md.
+// Priority 4..9 are unnamed except GrYakumono_Proc5/6/7.
 
 // === Break path (collision-force-driven) ===
 // The real break for CT props. collideWithObject resolves the prop's descriptor
@@ -410,7 +405,7 @@ void GrYakumono_AccumulateDamage(GOBJ *gobj, float dmg);                       /
 // dispatches by family (weak/strong/floor/BigStar), and each handler runs the full
 // break tail - collision retire, mesh hide, debris + item drops, SFX, break-count
 // credit, broken-state transition - so synthesizing one call breaks a prop with all
-// genuine consequences. Arguments (see Hypernova_BreakInstanceNative):
+// genuine consequences. Arguments:
 //   yaku_gobj  - the prop's parent GObj (= record+0x90).
 //   collB      - the ground scene-collision holder (stc_grobj+0x54): collB+0x08 is the
 //                base of the global mpColl region array (0x40 stride), collB+0x10/+0x14
@@ -458,7 +453,7 @@ int  GrYaku_ApplyImpactDamage(void *hp, void *otherCollData, void *collB, void *
 //                      handler from the DAT_804a70b4 table + broken state), so a
 //                      synthesized break renders correctly wherever the contact is.
 // Declared so mod code can identify the weak families by coll_func (the robust test
-// for "does this break hide its own model" - see Hypernova's break-at-rider release).
+// for "does this break hide its own model").
 void hitWeakObject(GOBJ *yaku_gobj, void *otherCollData, void *collB,
                    int regionIdx, void *collC);                                // 0x80107914
 void hitStrongObject(GOBJ *yaku_gobj, void *otherCollData, void *collB,
@@ -471,8 +466,8 @@ void hitStrongObject(GOBJ *yaku_gobj, void *otherCollData, void *collB,
 // owns its mpColl regions inline: an array at record+0x0c, count at record+0x10,
 // 0x40-byte stride; region+0x3c bit 6 (0x40) is the "collidable/intact" flag, and
 // region+0x38 back-points to the owning record. These regions ARE the prop's solid
-// collision - there is NO separate static wall (verified live: a record's +0x0c
-// regions are a contiguous slice of the global region array at *(stc_grobj+0x5c), and
+// collision - there is NO separate static wall (a record's +0x0c regions are a
+// contiguous slice of the global region array at *(stc_grobj+0x5c), and
 // the rider's penetration response mpResponse_DispatchSceneObjColl (0x80248bb4) drops
 // any contact whose region bit 6 is clear). Only break/init code writes the bit -
 // nothing re-arms it per frame - so a mod that clears it (to retire a swept-up prop's
@@ -506,15 +501,15 @@ void grLoadYakumono(void);                                                     /
 void Yakumono_Preload(void);                                                   // 0x800f82ec
 
 // === Yakumono placement table (category 8 of the unified 9-category stage
-// placement system; see docs/yakumono-system.md "World positioning"). Records
+// placement system). Records
 // are 0x24 bytes = 3 Vec3 (position + two orientation/scale vectors). Count
 // comes from grdata->yakumono_pos (GrData+0x20)->[+0x2c]->[+0x8]; the per-stage
 // record array base is cached at stc_grobj+0x15c. Read by grResolvePlacementRef
 // (the per-descriptor placement resolver) and the dbPosition debug editor.
 // NOTE: CT breakables get their actual per-prop transforms from the scene/
 // collision instance pool (sourced from grdata->pos_data, GrData+0x18), NOT
-// necessarily from this table - confirm the relationship live before relying on
-// it to relocate a specific prop.
+// necessarily from this table - this table may not be the source for relocating
+// a specific prop.
 int grGetYakumonoposNum(void);                                                 // 0x800d1434
 void loadYakumonoLocations(int index, Vec3 *out0, Vec3 *out1, Vec3 *out2);     // 0x800d145c
 
@@ -524,7 +519,7 @@ void loadYakumonoLocations(int index, Vec3 *out0, Vec3 *out1, Vec3 *out2);     /
 // the multi-instance break creators to bind each placed prop.
 void *grScene_FindInstanceByKey(void *pool_base, int key);                     // 0x800d7954
 
-// === Yaku-break drop emitters (see event-source-drops.md) ===
+// === Yaku-break drop emitters ===
 // All three call into City_SpawnMiscItems with the per-instance drop
 // descriptor (gated by NULL check on param[+0x24/0x28/0x30] respectively).
 // Drop column is event_source_drop[].chance_destructible (source enum 3).
@@ -542,9 +537,8 @@ void whispyLogic(GrObj *grobj, int data_idx);        // 0x8010db64 (desc_id 69) 
 // === Per-grobj globals ===
 // These live inside the GrObj struct that *stc_grobj points to (the GrObj
 // typedef in stage.h is truncated - the real struct extends past +0x710).
-// Confirmed against GrYaku_Create's body (`lwz r27, 1516(r13)` followed by
-// `stw r0, 1788(r27)` increments the count) and grInitYakumono's `stw r3,
-// 1808(r27)` storing the index array. Both r27 = *(r13 + 0x5ec) = *stc_grobj.
+// GrYaku_Create increments the live count at +0x6fc; grInitYakumono stores the
+// index array at +0x710. Both are reached via *(r13 + 0x5ec) = *stc_grobj.
 
 // Live yakumono count (incremented on every successful GrYaku_Create).
 // Returns NULL when no GrObj is loaded (between scenes). Uses raw byte
@@ -729,9 +723,6 @@ static void **stc_yaku_descs = (void **)0x804a5be8;
 // Each wrapper calls GrYaku_Create_Generic (a GrYaku_Create variant that reads its
 // param array from r13[0x5e4] = the loaded Yakumono.dat archive, NOT from
 // grdata->yakumono->data_array[]).
-//
-// See docs/yakumono-system.md "Generic dispatch table" for the per-pair
-// breakdown.
 static void (**stc_yaku_create_dispatch)(GrObj *, int, void *) =
     (void (**)(GrObj *, int, void *))0x804a5ba8;
 

@@ -583,19 +583,15 @@ struct _HSD_Tlut
 };
 
 // Per-TObj TEV color/alpha combiner state (TObj+0xA8). MakeColorGenTExp (0x803f5f98)
-// compiles color_a..d / alpha_a..d into a TExp tree whose constant nodes point at the
-// constant/tev0/tev1 GXColors below; MObjSetupTev (0x803faba0) re-materializes them into
-// GX registers every render frame. The color/alpha selector bytes encode GX inputs:
-//   color_a..d:  0x00-0x0F = GX_CC_* verbatim (0x08=TEXC, 0x0C=ONE, 0x0F=ZERO);
-//                0x80=constant(RGB), 0x81/82/83=constant.r/g/b, 0x84=constant.a,
+// compiles the color_a..d / alpha_a..d selectors into a TExp tree; MObjSetupTev
+// (0x803faba0) re-materializes the constant/tev0/tev1 GXColors into GX registers each
+// frame. Selector bytes are GX_CC_* (color) / GX_CA_* (alpha) verbatim for 0x00-0x0F,
+// plus register codes:
+//   color_a..d:  0x80=constant(RGB), 0x81/82/83=constant.r/g/b, 0x84=constant.a,
 //                0x85=tev0(RGB), 0x86=tev0.a, 0x87=tev1(RGB), 0x88=tev1.a.
-//   alpha_a..d:  0x00-0x0F = GX_CA_* verbatim; 0x40=constant, 0x43=constant.a,
-//                0x44=tev0.a, 0x45=tev1.a.
+//   alpha_a..d:  0x40=constant, 0x43=constant.a, 0x44=tev0.a, 0x45=tev1.a.
 // The constant/tev0/tev1 GXColors are plain value fields the texture-anim system never
-// touches, so rewriting them recolors a model effect in place (see the whirlwind recolor
-// in the hypernova mod). The inhale whirlwind blends tev0<->constant by texture brightness
-// (color_a=0x85 tev0, color_b=0x80 constant, color_c=0x08 TEXC, color_d=0x0F ZERO) and
-// routes opacity through constant.a (alpha_b=0x43), so preserve each register's alpha.
+// touches, so rewriting them recolors a model effect in place (preserve each register's alpha).
 struct _HSD_TObjTev
 {
     u8 color_op;     // 0x00 GXTevOp
@@ -739,9 +735,7 @@ struct HSD_Fog
 
 // AreaLightData: 0x2C-byte directional-light record stored inside a stage's
 // sky-preset entry (preset+0x18). Interpolated per-frame by AreaLight_Lerp
-// (lbarealight.c) into the live AreaLight at GrObj+0x718. Confirmed via
-// disasm of AreaLight_Create (0x80079428) and AreaLight_Lerp (0x800797a8).
-// See docs/sky-lighting-system.md.
+// (lbarealight.c) into the live AreaLight at GrObj+0x718.
 //
 // Color fields are packed RGBA8888 u32 (high byte = R) - that's how
 // GXColor_Lerp (0x80079c04) loads/stores them with single lwz/stw.
@@ -763,9 +757,8 @@ typedef struct AreaLightData
 
 // Live AreaLight runtime object built by AreaLight_Create. One per stage,
 // stored at GrObj+0x718. Per-frame lerp target for sky-preset color/direction.
-// Registered in the global object list at r13[+0x538]; AreaLight_BroadcastVisFlag
-// walks that list. Bit 0x80 of byte +0x38 is the visibility bit toggled by the
-// preset's light_vis_flag (preset+0x44 bit 0).
+// Bit 0x80 of byte +0x38 is the visibility bit toggled by the preset's
+// light_vis_flag (preset+0x44 bit 0).
 struct AreaLight
 {
     HSD_ClassInfo *parent;  // 0x00 vtable, from class-table 1336(r13)
@@ -969,9 +962,6 @@ HSD_Fog *Fog_LoadDesc(HSD_FogDesc *fogdesc);
 void Fog_Set(HSD_Fog *fog);
 void Fog_Release(HSD_Fog *fog);
 
-// AreaLight (KAR-proprietary) - a per-stage directional light driven each frame
-// by sky presets. Confirmed via disasm of Sky_Update / Sky_LoadPreset.
-// See docs/sky-lighting-system.md.
 AreaLight *AreaLight_Create(void *class_ptr, AreaLightData *src, u32 extra);  // 0x80079428
 AreaLight *AreaLight_Create_Default(AreaLightData *src);                       // 0x8007a4d0 - class=0, extra=0
 void AreaLight_Lerp(AreaLight *start, AreaLightData *target, AreaLight *dest, float ratio); // 0x800797a8

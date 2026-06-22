@@ -134,9 +134,9 @@ static HitCollData *stc_hitcolldata = (HitCollData *)0x80559bf4;
 
 // === Hurt System Functions ===
 void HitColl_Init(HurtData *hurt);                     // 0x8018cf64. Clears global collision log counter, sets victim hurt_data pointer
-void Trigger_ClearParameterStruct(HurtParams *params);  // 0x8018a0c0. memset(params, 0, 0x34). Zeroes a HurtParams struct. Previously named HurtDesc_Init
+void Trigger_ClearParameterStruct(HurtParams *params);  // 0x8018a0c0. memset(params, 0, 0x34). Zeroes a HurtParams struct.
 HurtData *HurtData_Create(HurtDesc *desc, HurtKind kind, int obj1_kind, int obj2_kind, int obj3_kind); // 0x8018c1c8
-void HurtData_GiveIntangibility(HurtData *hurt, int timer); // 0x8018cb5c. Sets intangibility for at least `timer` frames (only updates if > current). Sets vuln.kind = 2. Map name: HurtData_UpdateIntangibility
+void HurtData_GiveIntangibility(HurtData *hurt, int timer); // 0x8018cb5c. Sets intangibility for at least `timer` frames (only updates if > current). Sets vuln.kind = 2.
 void HurtData_UpdateVulnState(HurtData *hurt);         // 0x8018cb28. Updates vulnerability state: clears flag at 0x9c, sets vuln.kind based on intang/invuln timers
 HurtData *RiderGObj_GetHurtData(GOBJ *rider_gobj);     // 0x80192788. Returns HurtData from rider GOBJ userdata
 void HitColl_SetDamageLog(HurtData *hurt_data, void *hurt_entry, HitCollData *hitcoll_data, void *trigger_params); // 0x8018cf94. Calculates damage via HitColl_GetDamageDealt, stores in collision log (up to 20 entries), applies knockback. Calls on_damage_callback at HurtData+0x8C if set

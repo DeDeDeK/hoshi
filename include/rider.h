@@ -67,7 +67,7 @@ static const char *const CopyKind_Names[COPYKIND_NUM] = {
 
 // Direct byte values stored in RiderData.color_idx and player-select color[]
 // arrays. Order is the game's: 0-3 are default (P1-P4), 4-7 are checklist
-// unlocks (matches reward labels in docs/checklist-mappings.csv).
+// unlocks.
 typedef enum KirbyColor
 {
     KIRBYCOLOR_PINK   = 0,
@@ -138,7 +138,7 @@ typedef struct rdDataKirby
 // synthesized controller output that Rider_InputThink reads back via
 // Rider_GetCPUStickX/Y/Buttons into the rider's effective input fields (held/
 // stickX/stickY). Rider_UpdateCPU fills it each frame: perceive -> decide ->
-// process -> emit (command stream). Partial map - only confirmed fields.
+// process -> emit (command stream). Partial map.
 // Two layers drive a CPU rider:
 //   - ai_state (0x08)  : the AI PROFILE - chosen once at init by Rider_CPUSelectProfile
 //                        from stage/city/ply (1..10; state 0 asserts) and FIXED for the
@@ -150,7 +150,7 @@ typedef struct rdDataKirby
 //                        cmd_timer==0) - so one maneuver plays to completion before
 //                        the next is chosen.
 // The command VM (Rider_CPUProcessCmd) then plays cmd_buffer back into the pad
-// fields (buttons/stick_x/stick_y). Confirmed fields only; gaps are padding.
+// fields (buttons/stick_x/stick_y). Gaps are padding.
 typedef struct CpuData
 {
     int buttons;           // 0x00, synthesized button mask -> RiderData.held (0x3d8)
@@ -422,8 +422,7 @@ typedef struct RiderData
     Vec3 hand_bone_pos;                   // 0x318, world-space anchor read by Rider_GetHandBonePos.
                                           // Used by Bomb_State0_SnapToHand for the bomb HELD-state position
                                           // and by spawnFireAura/spawnSpikeAura/spawnIceAura as the aura
-                                          // spawn position. Conventionally the rider's hand bone, though
-                                          // not directly verified against the bone table.
+                                          // spawn position - presumably the rider's hand bone.
     Vec3 forward;                         // 0x324, forward movement vector
     Vec3 up;                              // 0x330, up vector
     Vec3 x33c;                            // 0x33c
@@ -938,13 +937,13 @@ typedef struct CopyWheelTable
 static CopyWheelTable *stc_copy_wheel_normal = (CopyWheelTable *)0x804af730; // count=11, list at 0x804af690
 static CopyWheelTable *stc_copy_wheel_melee = (CopyWheelTable *)0x804af738;  // count=29, list at 0x804af6bc
 
-// CPU rider AI ("virtual pad") pipeline. See docs/cpu-ai-system.md.
+// CPU rider AI ("virtual pad") pipeline.
 void Rider_CPUThink(GOBJ *gobj);          // 0x8018fc58, rider proc: if CPU, runs the AI update
 void Rider_UpdateCPU(RiderData *rd);      // 0x8026beec, orchestrates perceive -> decide -> process -> emit
 void Rider_CPUDecideState(RiderData *rd); // 0x802716e8, AI state-machine dispatch (11 states, table 0x804b7a28)
 void Rider_CPUProcessCmd(RiderData *rd);  // 0x80275cbc, plays the command stream into the virtual pad (CpuData stick/buttons)
 void Rider_CPUArbitrateManeuver(RiderData *rd); // 0x80274ec0, the real maneuver chooser: priority cascade gated by behavior/desire flags, commits CpuData.maneuver (+0x10)
-int  Rider_CPUBuildRoute(CpuData *cpu, void *route_scratch, uint *flags_out); // 0x8026a734, builds the look-ahead waypoint route into scratch 0x8055e964; returns 0 = route invalid. (Was misnamed Rider_CPUPickManeuver - it does NOT pick the maneuver.)
+int  Rider_CPUBuildRoute(CpuData *cpu, void *route_scratch, uint *flags_out); // 0x8026a734, builds the look-ahead waypoint route into scratch 0x8055e964; returns 0 = route invalid. Does NOT pick the maneuver.
 void Rider_CPUUpdateNavTarget(RiderData *rd); // 0x8026b6d0, nearest-node spatial query -> assigns CpuData.target_primary (+0x38) + arc (+0x3c)
 void Rider_CPUSeedDesire(RiderData *rd);  // 0x802762dc, ORs inhibitor bits into CpuData.desire_flags from the rider's action state (tables 0x804b7b18 / 0x804b7c00)
 // Target-selection scans (populate CpuData target fields each frame; signatures approximate).
@@ -988,7 +987,7 @@ void Rider_GiveInvincibility(RiderData *, int time);
 int RiderGObj_GetPly(GOBJ *gobj); // 0x8019203c, returns player index from a rider GOBJ
 int Rider_IsOnMachine(RiderData *);
 int Rider_IsMachineDead(RiderData *);       // can only be called between the RDPRI_HITCOLL and RDPRI_DMGAPPLY priority.
-void Rider_DropPatches(RiderData *, float stat_array[9], int drop_mode); // 0x8019d330. Enqueues a stat-patch drop event onto RiderData (patch_drop_count/_mode/_progress/_cooldown); Rider_TickDropPatches drains the queue per-frame. drop_mode 0=forward, small fixed count, probabilistic all-up; 1=behind, count scaled by stats, no all-ups; 2=forward, count scaled by stats, all remaining all-ups. See docs/patch-drop-system.md.
+void Rider_DropPatches(RiderData *, float stat_array[9], int drop_mode); // 0x8019d330. Enqueues a stat-patch drop event onto RiderData (patch_drop_count/_mode/_progress/_cooldown); Rider_TickDropPatches drains the queue per-frame. drop_mode 0=forward, small fixed count, probabilistic all-up; 1=behind, count scaled by stats, no all-ups; 2=forward, count scaled by stats, all remaining all-ups.
 int Rider_CheckCanReceiveAbility(GOBJ *gobj); // returns 1 if rider can receive a copy ability
 int Rider_CheckAndGiveAbility(GOBJ *gobj, int kind); // checks rider is Kirby, then gives copy ability, returns 1 on success
 void Rider_RecordCopyAbility(int ply, int copy_kind); // 0x8022ee00, records ability in history buffer, checks achievement sequences, increments per-ability counters
@@ -1050,16 +1049,13 @@ void ColAnim_Reset(void *colanim_state);                                        
 
 // Reads the machine's projectile inherit velocity via the rider's
 // machine_gobj, into *out. Thin wrapper around
-// MachineGObj_GetProjectileBaseVelocity. Used by the rider-side projectile
-// spawners declared in projectile.h.
+// MachineGObj_GetProjectileBaseVelocity.
 void Rider_GetProjectileBaseVelocity(RiderData *rd, Vec3 *out); // 0x8019407c
 
 // 8-instruction Vec3 readers - `gobj` is the rider GObj, `out` is filled with
-// the corresponding RiderData field. Used by HELD-state projectile snap
-// (Bomb_State0_SnapToHand reads hand-bone pos; Gordo_EnterThrownState reads
-// forward + up to derive the throw orientation). The "hand bone" naming for
-// rd+0x318 reflects observed usage by both bomb HELD-snap and the fire/spike/
-// ice aura spawn helpers - the field is not directly named in the struct.
+// the corresponding RiderData field. The "hand bone" naming for rd+0x318
+// reflects its use by the bomb HELD-snap and the fire/spike/ice aura spawn
+// helpers - the field is not directly named in the struct.
 void Rider_GetHandBonePos(GOBJ *gobj, Vec3 *out); // 0x80191ffc, reads rd[0x318..0x320]
 void Rider_GetForward(GOBJ *gobj, Vec3 *out);     // 0x80191ef8, reads rd->forward (rd+0x324)
 void Rider_GetUp(GOBJ *gobj, Vec3 *out);          // 0x80191f18, reads rd->up      (rd+0x330)

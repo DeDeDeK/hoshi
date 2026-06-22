@@ -5,18 +5,16 @@
 #include "datatypes.h"
 #include "obj.h"
 
-// Model-effect layer: standalone GObjs (entity_class 25, p_link 16) each carrying an HSD
-// JObj model tree - the inhale whirlwind, hit sparks, charge flashes, etc. Spawned by
-// Effect_SpawnSync (0x80236c40), built by EffectModel_CreateGObj (0x8023ccb4). The
-// point-particle pool (Particle/ptclGen, exhaust/sparkles) is a separate subsystem.
-//
-// Effect IDs are decimal-packed: id = group*10000 + entry (group = id/10000).
+// Model-effect layer: standalone GObjs (entity_class 25, p_link 16) each carrying an
+// HSD JObj model tree (inhale whirlwind, hit sparks, charge flashes, etc.), spawned by
+// Effect_SpawnSync (0x80236c40) and built by EffectModel_CreateGObj (0x8023ccb4).
+// Distinct from the point-particle pool (Particle/ptclGen). Effect IDs are
+// decimal-packed: id = group*10000 + entry (group = id/10000).
 
-// Per-kind model descriptor. Effect_GetModelData decodes an id, bounds-checks
-// group in [24,37), and returns *(table + entry*8) from the per-group descriptor table at
-// gEffectMgr+0x24+group*4. EffectModel_CreateGObj reads only +0x00 (the joint template).
-// In the resident banks only group 24 is populated, from the EfCommon.dat efModelData
-// symbol (via Effect_InstallModelData 0x8023515c). 0x14 bytes.
+// Per-kind model descriptor (0x14 bytes), looked up by Effect_GetModelData from an
+// effect id (group in [24,37)). EffectModel_CreateGObj reads only +0x00 (the joint
+// template). In the resident banks only group 24 is populated, from EfCommon.dat's
+// efModelData symbol.
 struct EffectModelDesc
 {
     JOBJDesc *jointdesc;    // 0x00 model joint template (-> HSD_JObjLoadJoint)
@@ -37,8 +35,8 @@ typedef struct EffectBankRef
 } EffectBankRef;
 
 // GObj-userdata effect-instance state (GObj+0x2c), written by the instance init at
-// 0x80233e24 as Effect_Init(effect, kind, gobj). Only the confirmed fields are named; the
-// full extent past +0x90 is not pinned.
+// 0x80233e24 as Effect_Init(effect, kind, gobj). Only the named fields are known; the
+// full extent past +0x90 is unknown.
 struct Effect
 {
     GOBJ *gobj;       // 0x00 owning GObj

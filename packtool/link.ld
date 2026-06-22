@@ -374,14 +374,14 @@ SECTIONS
   MTXInverse = 0x803D1578;        /* returns 0 if src is singular */
   MTXInvXpose = 0x803D1670;       /* inverse-transpose (normal matrix) */
   MTXRotTrig = 0x803D17A8;        /* rotation about 'X'/'Y'/'Z' from precomputed sin/cos */
-  MTXRotAxisRad = 0x803D1908;     /* rotation matrix about an arbitrary axis (declared in os.h) */
+  MTXRotAxisRad = 0x803D1908;    
   MTXMultVecSR = 0x803D1E40;      /* multiply by the 3x3 part only (ignores translation) */
   MTXFrustum = 0x803D1E94;
   MTXPerspective = 0x803D1F30;
   MTXLightFrustum = 0x803D1C04;
   MTXLightPerspective = 0x803D1C98;
   MTXLightOrtho = 0x803D1D64;
-  sqrtf = 0x803BD490;             /* scalar sqrt (declared in os.h) */
+  sqrtf = 0x803BD490;             
   sinf = 0x803BD53C;              /* single-precision sine */
   cosf = 0x803BD560;              /* single-precision cosine */
   floor = 0x803BCDA4;
