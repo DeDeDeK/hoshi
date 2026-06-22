@@ -362,6 +362,7 @@ SECTIONS
   VECCrossProduct = 0x803D21BC;
   VECDotProduct = 0x803D219C;
   VECNormalize = 0x803D20FC;
+  Vec3_RotateAboutUnitAxis = 0x800638f8; /* rotate a vector about an arbitrary (auto-normalized) axis */
 
   VIWaitForRetrace = 0x803de164;
 
@@ -604,6 +605,19 @@ SECTIONS
   Machine_AllocAudioEmitter = 0x8005dc5c;
   Machine_OnTouchItem = 0x801db34c;
   Rider_DropPatches = 0x8019d330;
+  Rider_StartInhale = 0x801ad2c4; /* force rider into inhale action-state 0x76: plays suction anim 0x2f, spawns suction VFX (Effect 0x3a982) + SFX (0x20037), installs the per-frame capture callbacks. No gate/target check - callable directly to drive the open-mouth suck visual. ONE-SHOT gulp: returns to neutral when the anim ends, does NOT advance to the LOOP. */
+  Rider_StartInhaleLoop = 0x801ad4cc; /* enter/re-enter the suck-LOOP substate: sets anim 0x30 (action-state 0x77) + reinstalls the scan/volume callbacks. No VFX/SFX respawn, no capture reset. The LOOP process (0x801ad3a0) calls this itself on body-anim-done to sustain/animate the suck; this is also how the LOOP is first entered, since the engine never advances START -> LOOP on its own. The LOOP self-terminates via the +0x93C countdown (which aliases copy_wheel_result - unreliable when driving from mod code). */
+  Rider_EndInhale = 0x801adf98; /* end the suck: action-state 0x78 / anim 0x31 (mouth close) + spawns the close puff (Effect 0x5a557), returns to neutral. The engine's own inhale ending; call to stop a driven LOOP cleanly. */
+  Rider_IsBodyAnimDone = 0x80198b00; /* walks the rider's animated model parts; returns 1 once the body motion has played to its end (HSD per-part check 0x80054798). Gates the inhale LOOP process's per-cycle re-entry of suck-LOOP 0x30. */
+  Effect_SpawnSync = 0x80236c40; /* universal model/particle effect spawn. (parent GObj, id = group*10000+entry, owner, joint, ...) -> 64-bit fire-and-forget handle. Globally suppressed when *(u32*)0x805dd8b8 != 0. The map's 0x8023af88 Effect_SpawnSync is a spurious mid-function label. */
+  EffectModel_CreateGObj = 0x8023ccb4; /* build a model-effect GObj (entity_class 25, p_link 16) carrying a JObj model from EffectModelDesc; gx_cb 0x8023dfe0, dtor 0x80233ddc. */
+  Effect_GetModelData = 0x80235190; /* decimal id (group*10000+entry) -> EffectModelDesc* from the per-group table at gEffectMgr+0x24+group*4, indexed [entry*8]. group must be in [24,37). */
+  RiderKirby_SetMaterialColor = 0x80198d1c; /* stage model_part[part].cur_mat_index + set recolor-dirty bit */
+  RiderKirby_SetMaterialColorAndUpdate = 0x80198d3c; /* stage + drive body MatAnim to the new baked color keyframe (discrete: 8 player colors + wing/fire) */
+  Rider_GetColor = 0x80192758; /* returns PlayerData.color_idx (KirbyColor 0..7) */
+  Rider_ApplyColAnim = 0x8019bfb4; /* request a baked color-overlay anim into the body ColAnim at rd+0x5c (index 3 = invincibility flash) */
+  ColAnim_Apply = 0x8006a3f0; /* generic priority-gated ColAnim applier (rd+0x5c body / rd+0x108 glow) */
+  ColAnim_Reset = 0x8006a250; /* clear a ColAnim overlay state back to neutral (no tint) */
   Machine_AllocAudioSource = 0x8005dc5c;
   Machine_SetStatCap = 0x801caee4;
   Machine_ModifyStatByKind = 0x801cb3d8;
@@ -1046,12 +1060,25 @@ SECTIONS
   GrYaku_GetHurtData = 0x800f8248;
   GrYakumono_GetState = 0x800f7ab8;
   GrYakumono_Think = 0x800f5284;
+  GrYakumono_Proc10 = 0x800f5454;
+  GrYakumono_AccumulateDamage = 0x800f875c;
+  collideWithObject = 0x800f5004;
+  hitWeakObject = 0x80107914;
+  hitStrongObject = 0x801086d0;
+  GrYaku_TestImpactBreak = 0x80104cd4;
+  GrYaku_ApplyImpactDamage = 0x80104be0;
   Gr_AddAnim = 0x800f5ce8;
   Gr_RemoveAnim = 0x800f5f3c;
   Lighthouse_Create = 0x8010d228;
   Lighthouse_Init = 0x8010d260;
   Yakumono_Preload = 0x800f82ec;
   grGetYakumonoposNum = 0x800d1434;
+  loadYakumonoLocations = 0x800d145c;
+  grScene_FindInstanceByKey = 0x800d7954;
+  grScene_SetInstanceColl = 0x800d7ad0;
+  grScene_IsInstanceCollAll = 0x800d7b0c;
+  GrYaku_IncrementBreakCount = 0x80105d80;
+  Ply_IncrementYakumonoBreakCount = 0x8022fed8;
   grInitYakumono = 0x800f425c;
   grLoadYakumono = 0x800f440c;
   whispyLogic = 0x8010db64;
