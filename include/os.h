@@ -794,22 +794,44 @@ void PSMTXMultVec(Mtx m, Vec3 *src, Vec3 *dst);
 void VECMultAndAdd(Vec3 *a, Vec3 *b);
 float VECDotProduct(Vec3 *a, Vec3 *b);
 void VECCrossProduct(Vec3 *a, Vec3 *b, Vec3 *axb);
-float Vec2_Normalize(Vec2 *v);
-float Vec3_Normalize(Vec3 *v);
-void Vec2_Add(Vec2 *a, Vec2 *b);
-Vec3 *Vec3_CrossDirection(Vec3 *a, Vec3 *b, Vec3 *axb);
 // void MTXQuat(Mtx *m, Vec4 *dest);           // quat to matrix
 void HSD_MkRotationMtx(Mtx *dest, Vec4 *v); // quat to rot matrix
 void HSD_MtxGetScale(Mtx *m, Vec3 *dest);
 void HSD_MtxGetRotation(Mtx *m, Vec3 *dest);
 void HSD_MtxGetTranslate(Mtx *m, Vec3 *dest);
 void HSD_MtxSRT(Mtx *m, Vec3 *scale, Vec3 *rot, Vec3 *trans, int unk);
-void MatToQuat(Mtx *m, Vec4 *dest); // matrix to quat
 float sqrtf(float num);
 void MTXRotRad(Mtx m, char axis, f32 rad);
-float Vec2_CalculateAngle(Vec2 *a, Vec2 *b);
-float Vec3_CalculateAngle(Vec3 *a, Vec3 *b);
 void Vec3_RotateAboutUnitAxis(Vec3 *v, Vec3 *axis, float angle);
+
+/* GameCube SDK math library */
+float VECMag(Vec3 *v);                          // |v|
+float VECSquareMag(Vec3 *v);                    // |v|^2 (no sqrt)
+float VECDistance(Vec3 *a, Vec3 *b);            // |a-b|
+float VECSquareDistance(Vec3 *a, Vec3 *b);      // |a-b|^2 (no sqrt)
+void VECHalfAngle(Vec3 *a, Vec3 *b, Vec3 *half);
+void MTXScale(Mtx m, f32 xS, f32 yS, f32 zS);   // build a scale matrix
+void MTXTrans(Mtx m, f32 xT, f32 yT, f32 zT);   // build a translation matrix
+void MTXTranspose(Mtx src, Mtx xPose);
+u32 MTXInverse(Mtx src, Mtx inv);               // 0 if singular
+u32 MTXInvXpose(Mtx src, Mtx invX);             // inverse-transpose (normal matrix)
+void MTXRotTrig(Mtx m, char axis, f32 sinA, f32 cosA);
+void MTXMultVecSR(Mtx m, Vec3 *src, Vec3 *dst); // 3x3 part only (no translation)
+void MTXFrustum(Mtx44 m, f32 t, f32 b, f32 l, f32 r, f32 n, f32 f);
+void MTXPerspective(Mtx44 m, f32 fovY, f32 aspect, f32 n, f32 f);
+void MTXLightFrustum(Mtx m, f32 t, f32 b, f32 l, f32 r, f32 n, f32 scaleS, f32 scaleT, f32 transS, f32 transT);
+void MTXLightOrtho(Mtx m, f32 t, f32 b, f32 l, f32 r, f32 scaleS, f32 scaleT, f32 transS, f32 transT);
+float sinf(float x);
+float cosf(float x);
+float tanf(float x);
+double floor(double x);
+double pow(double x, double y);
+double acos(double x);
+double asin(double x);
+double log10(double x);
+float VEC_NormalizeAndSnap(Vec3 *src, Vec3 *dst);          // normalize src->dst, returns |src|
+void VEC_CrossNormalizeSnap(Vec3 *a, Vec3 *b, Vec3 *axb);  // axb = normalize(a x b)
+float Vec_GetAngleBetween(Vec3 *a, Vec3 *b);               // angle (radians) between a and b
 
 void Wind_StageCreate(Vec3 *pos, int duration, float radius, float lifetime, float angle, float left, float right, float top, float bottom);
 void Wind_FighterCreate(Vec3 *pos, int duration, float radius, float lifetime, float angle);
