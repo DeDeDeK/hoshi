@@ -188,8 +188,20 @@ typedef struct YakumonoData
     u8 x0c[0x10];           // 0x0c..0x1b
     Vec3 pos;               // 0x1c - position (read by GrYaku_AttachModel for model attach)
     u8 x28[0x18];           // 0x28..0x3f
-    f32 local_mtx[12];      // 0x40..0x6f - 3x4 matrix (used by GrYaku_InitMatrix)
-    int x70;                // 0x70 - status field (zeroed in Create after JObj setup)
+    u8 x40[0x24];           // 0x40..0x63 - local transform scratch (3x4-ish; copied by GrYaku_InitMatrix path)
+    void *model_jobj;       // 0x64 - model JObj root, allocated by GrYaku_AllocJObj (0x800f7308)
+                            //        and positioned by GrYaku_AttachModel (0x800f6274, from pos +0x1c)
+    u8 x68[8];              // 0x68..0x6f
+    void *xform_jobj;       // 0x70 - transform JObj that GrYaku_InitMatrix (0x800f73fc) transforms:
+                            //        its world matrix (jobj+0x44) is copied into the GObj render
+                            //        object (gobj+0x28) +0x44. CAUTION: GrYaku_Create NULLs this
+                            //        field at creation (0x800f4594 stw r0,112), and for City Trial
+                            //        break-family props it stays NULL (pos +0x1c, hsd_object
+                            //        gobj+0x28, and model_jobj +0x64 are all 0 for them too). Those
+                            //        props own no positioned JObj - geometry lives in the stage model
+                            //        by joint index - so this is NOT a usable runtime MOVE handle for
+                            //        them. It is only non-NULL for dynamic/ctrl kinds whose per-frame
+                            //        Proc4 (gated on +0x12c bit 7) runs InitMatrix.
     int state;              // 0x74 - current state-machine state (read by GrYakumono_GetState; -1 initially)
     int prev_anim;          // 0x78
     int prev_joint;         // 0x7c
@@ -225,7 +237,9 @@ typedef struct YakumonoData
     void (*off_damage)(GOBJ *gobj);              // 0x104 - priority 10, fires when not damaged but had damage state
     void (*proc5)(GOBJ *gobj);                   // 0x108 - priority 7, before HurtData_UpdatePerFrame
 
-    void *misc_table;       // 0x10c - alloc'd by zz_802364e0_ (purpose: ?)
+    void *effect_group;     // 0x10c - Effect-module group handle, alloc'd by
+                            //         GrYaku_AllocEffectGroup (0x800f666c -> 0x802364e0);
+                            //         freed in GrYaku_DestroyCallback. (NOT a collision entry.)
     int x110;               // 0x110 - (init 0)
     int x114;               // 0x114 - (init 0)
     // gyp->fgm substruct (FGM = field SFX / effect-id manager). Populated by
@@ -240,18 +254,37 @@ typedef struct YakumonoData
     void *audio_track;      // 0x120 - Map_AllocAudioTrack(audio descriptor[0x08])
     void *audio_emitter;    // 0x124 - Map_AllocAudioEmitter(1)
     u8 x128[4];             // 0x128
-    u8 flags;               // 0x12c - flag byte. Bit 7 = "ctrl" variant of the
+    u8 flags;               // 0x12c - flag byte. Bit 7 (0x80) = "ctrl" variant of the
                             //         generic dispatch kind (set by GrYakuFlags_SetCtrl,
-                            //         cleared by GrYakuFlags_SetBase). Bits 3, 4, 6 also
-                            //         cleared in InitData.
+                            //         cleared by GrYakuFlags_SetBase); it ALSO gates the
+                            //         per-frame matrix rebuild - GrYakumono_Proc4 calls
+                            //         GrYaku_InitMatrix only when this bit is set, so static
+                            //         props (bit clear) build their matrix once at spawn.
+                            //         Bits 3, 4, 6 also cleared in InitData.
     u8 x12d[3];             // 0x12d..0x12f
     // === Tail (used by per-kind data, mostly the BREAK families) ===
     // Layout below is what gryakubreakcoll.c / gryakubreakhpcoll.c reach into;
     // other YakuKinds use different overlays of this region. See
     // docs/yakumono-system.md "gyp->fgm substruct" for the bracketed extent.
-    void *region_audio_arr; // 0x130 - ptr to per-region audio handle array
-    void *region_state_arr; // 0x134 - ptr to per-region damage/HP state array
-                            //         (BREAK-hp-coll uses this slot as a counter)
+    void *region_audio_arr; // 0x130 - ptr to per-region audio handle array.
+                            //         For the MULTI-INSTANCE break families
+                            //         (CT trees/rocks/houses/holes/coral) this same
+                            //         slot is the per-prop CHILD ARRAY: the break
+                            //         creator allocates count*4 here and fills it with
+                            //         the 0x98-byte scene-instance records (one per
+                            //         visible prop, each with its own JObj/world matrix
+                            //         and hurt region; record+0x90 = this parent gobj).
+                            //         So ONE yakumono GObj manages N placed props - the
+                            //         parent's pos/model_jobj/xform_jobj are all 0; the
+                            //         real per-prop position is in each child record's
+                            //         JObj (record[0]->JObj+0x44) or its cached matrix
+                            //         (record+0x2c; translation at +0x38/+0x48/+0x58).
+                            //         Records are found via grScene_FindInstanceByKey
+                            //         (0x800d7954) over the pool at stc_grobj+0x54.
+    void *region_state_arr; // 0x134 - ptr to per-region damage/HP state array, AND the
+                            //         child-array count for multi-instance trees/coral
+                            //         (the strong/house families keep the count at +0x140
+                            //         instead). BREAK-hp-coll uses this slot as a counter.
     int x138;               // 0x138 - transient: gobj backref / per-region model
                             //         handle (set by GrYaku_BaseKind0_TailInit; rewritten by
                             //         break-coll iteration)
@@ -344,8 +377,119 @@ int GrYakumono_GetState(GOBJ *gobj);                                           /
 // The 7 procs (registered automatically by GrYaku_Create). Listed for
 // reference / hooking. Priorities: 1, 4, 5, 6, 7, 9, 10.
 void GrYakumono_Think(GOBJ *gobj);                                             // 0x800f5284 (priority 1)
-// Priority 4..10 are unnamed (GrYakumono_Proc4/5340_/5374_/53a8_/53fc_/5454_) -
-// see docs/yakumono-system.md for the breakdown.
+// Priority-10 on-damage proc. When the prop registered a hit this frame
+// (HurtData+0x24 != 0; sentinel is 0.0), it accumulates the damage (HurtData+0x28)
+// into YakumonoData+0xac (via GrYakumono_AccumulateDamage) and, IF the per-kind
+// on_damage (+0x100) handler is non-NULL, fires it. NOTE: the City Trial break
+// families leave +0x100 NULL, so seeding HurtData + calling this does NOT break
+// them - the real break is collision-force-driven via the descriptor coll_func
+// (see collideWithObject below). Only an already-armed BigStar/star pole sets
+// +0x100 and can be finished this way.
+void GrYakumono_Proc10(GOBJ *gobj);                                            // 0x800f5454 (priority 10)
+// Adds dmg to YakumonoData+0xac (clamped to <= 9999). Called by Proc10 on a hit.
+void GrYakumono_AccumulateDamage(GOBJ *gobj, float dmg);                       // 0x800f875c
+// Priority 4..9 are unnamed except GrYakumono_Proc5/6/7 - see docs/yakumono-system.md.
+
+// === Break path (collision-force-driven) ===
+// The real break for CT props. collideWithObject resolves the prop's descriptor
+// coll_func (stc_yaku_descs[YakumonoData+0x04] -> +0x04) and calls it with the
+// impacting collider's CollData, which computes a force and compares it to the
+// prop's HP. The two force helpers below are what the coll_funcs call:
+//   GrYaku_TestImpactBreak  - one-shot threshold (break iff force > HP; HP unchanged)
+//   GrYaku_ApplyImpactDamage - subtractive HP (HP -= force; break when HP <= 0)
+// where force = collider.radius (CollData+0x344) x impactSpeed^2.
+//
+// impactSpeed is NOT |pos_delta|: grScene_GetImpactSpeed (0x800d8edc) projects the
+// collider's frame delta (CollData+0x14) onto the contacted region's outward normal
+// (region+0x0c), NEGATES it (the internal scale const at 0x805df634 is -1.0), and
+// clamps a non-positive result to 0. So the delta must point INTO the surface
+// (against the outward normal) to register as a real impact; a delta whose projection
+// onto the normal is >= 0 yields impactSpeed 0 -> force 0 -> no break.
+//
+// A no-contact break can be SYNTHESIZED by calling collideWithObject directly. It
+// dispatches by family (weak/strong/floor/BigStar), and each handler runs the full
+// break tail - collision retire, mesh hide, debris + item drops, SFX, break-count
+// credit, broken-state transition - so synthesizing one call breaks a prop with all
+// genuine consequences. Arguments (see Hypernova_BreakInstanceNative):
+//   yaku_gobj  - the prop's parent GObj (= record+0x90).
+//   collB      - the ground scene-collision holder (stc_grobj+0x54): collB+0x08 is the
+//                base of the global mpColl region array (0x40 stride), collB+0x10/+0x14
+//                the placed-instance record pool/count. This is the holder the engine's
+//                own break-dispatch path indexes regions from (it is also what
+//                grScene_FindInstanceByKey takes). NOTE: stc_grobj+0x454 is an UNRELATED
+//                struct - using it makes every region index negative and nothing breaks.
+//   regionIdx  - the prop's first region's global index =
+//                (record+0x0c - *(collB+0x08)) / 0x40.
+//   collC      - a contact-point Vec3 (the prop's cached world pos works).
+//   otherCollData - a SYNTHETIC collider (a zeroed buffer with these fields set):
+//                +0x344 radius - the reliable force lever (force scales linearly with
+//                   it); crank far above any HP for a one-hit break even at low speed.
+//                +0x14 frame-delta - MUST point into the surface: set it to
+//                   -normalize(region+0x0c normal) x M (any M>0). An arbitrary delta
+//                   can project >= 0 onto the normal and yield impactSpeed 0 (no break).
+//                +0x04 its GObj - read by the gryakubreakcommon attacker->player
+//                   attribution for the break-count credit; pass the human rider GObj.
+//                +0x44 an mpCollInfo the BigStar guard (destroyBigStar 0x800d7b8c)
+//                   walks: a zeroed buffer works, and setting collInfo+0x1d0 = -1
+//                   ("no BigStar region") makes destroyBigStar cleanly return 0 so the
+//                   break proceeds.
+//                The impact-speed calc takes a geometry-refined path when the target
+//                region's +0x34 bit 5 is set (which can rewrite a synthetic delta from
+//                the prop's matrices); clear it for the call to keep the flat path.
+//                The break tail's "still collidable?" guard (grScene_IsInstanceCollAll
+//                with 1) must pass, so if the prop's collision was retired beforehand
+//                re-arm it (grScene_SetInstanceColl(record, 1)) right before the call.
+int  collideWithObject(GOBJ *yaku_gobj, void *otherCollData, void *collB,
+                       int regionIdx, void *collC);                            // 0x800f5004
+int  GrYaku_TestImpactBreak(void *hp, void *otherCollData, void *collB, void *collC); // 0x80104cd4
+int  GrYaku_ApplyImpactDamage(void *hp, void *otherCollData, void *collB, void *collC); // 0x80104be0
+
+// The family coll_funcs collideWithObject dispatches to (resolved from
+// stc_yaku_descs[desc]->[+0x04]). The CT break families split into:
+//   hitWeakObject    - coral 33 / trees 34 / rocks 35. Threshold break
+//                      (GrYaku_TestImpactBreak). Spawns its break debris EFFECTS and
+//                      credits the break, but does NOT hide/shatter the original model
+//                      inline - it Gr_StateChanges the prop into a broken-state model
+//                      that is meant to render at the prop's baked spot. (Its mesh-hide
+//                      branch is gated on hp_block[5], which is 0 for these.)
+//   hitStrongObject  - walls 36 / holes 37 / houses 38. Subtractive break
+//                      (GrYaku_ApplyImpactDamage). Does the full visible break INLINE
+//                      using the passed contact point (debris + the per-desc drop
+//                      handler from the DAT_804a70b4 table + broken state), so a
+//                      synthesized break renders correctly wherever the contact is.
+// Declared so mod code can identify the weak families by coll_func (the robust test
+// for "does this break hide its own model" - see Hypernova's break-at-rider release).
+void hitWeakObject(GOBJ *yaku_gobj, void *otherCollData, void *collB,
+                   int regionIdx, void *collC);                                // 0x80107914
+void hitStrongObject(GOBJ *yaku_gobj, void *otherCollData, void *collB,
+                     int regionIdx, void *collC);                              // 0x801086d0
+
+// === Break consequences (driven by the coll_func break tail; reusable from mod
+// code to break a prop without a real collision) ===
+//
+// Each placed-prop scene-instance record (see "Ground scene-instance pool" below)
+// owns its mpColl regions inline: an array at record+0x0c, count at record+0x10,
+// 0x40-byte stride; region+0x3c bit 6 (0x40) is the "collidable/intact" flag, and
+// region+0x38 back-points to the owning record. These regions ARE the prop's solid
+// collision - there is NO separate static wall (verified live: a record's +0x0c
+// regions are a contiguous slice of the global region array at *(stc_grobj+0x5c), and
+// the rider's penetration response mpResponse_DispatchSceneObjColl (0x80248bb4) drops
+// any contact whose region bit 6 is clear). Only break/init code writes the bit -
+// nothing re-arms it per frame - so a mod that clears it (to retire a swept-up prop's
+// collision) can rely on the clear sticking until it re-arms it.
+//
+// Toggle every region's collidable bit on a scene/collision instance record.
+// enabled != 0 sets the bit (intact), 0 clears it (broken / non-collidable) -
+// exactly what the break path does to retire a prop's collision (the coll_func
+// calls this with 0 once force > HP). No-op for a record with no regions.
+void grScene_SetInstanceColl(void *record, int enabled);                       // 0x800d7ad0
+// Returns 1 iff every region of the record has its collidable bit == state.
+int  grScene_IsInstanceCollAll(void *record, int state);                       // 0x800d7b0c
+
+// Credit one broken-yakumono to a player's checklist stat: reads the GObj's
+// desc_id and forwards (player_idx, desc_id) to Ply_IncrementYakumonoBreakCount.
+void GrYaku_IncrementBreakCount(GOBJ *yaku_gobj, int player_idx);              // 0x80105d80
+void Ply_IncrementYakumonoBreakCount(int player_idx, int desc_id);            // 0x8022fed8
 
 // State / animation transition. Used by per-kind handlers and from the
 // init pipeline tail to enter the initial state.
@@ -359,8 +503,26 @@ void Gr_RemoveAnim(YakumonoData *yd, int anim_idx);                            /
 // === Stage init / load ===
 void grInitYakumono(GrObj *grobj);                                             // 0x800f425c
 void grLoadYakumono(void);                                                     // 0x800f440c - loads YkCommon.dat + Yakumono.dat
-int grGetYakumonoposNum(void);                                                 // 0x800d1434
 void Yakumono_Preload(void);                                                   // 0x800f82ec
+
+// === Yakumono placement table (category 8 of the unified 9-category stage
+// placement system; see docs/yakumono-system.md "World positioning"). Records
+// are 0x24 bytes = 3 Vec3 (position + two orientation/scale vectors). Count
+// comes from grdata->yakumono_pos (GrData+0x20)->[+0x2c]->[+0x8]; the per-stage
+// record array base is cached at stc_grobj+0x15c. Read by grResolvePlacementRef
+// (the per-descriptor placement resolver) and the dbPosition debug editor.
+// NOTE: CT breakables get their actual per-prop transforms from the scene/
+// collision instance pool (sourced from grdata->pos_data, GrData+0x18), NOT
+// necessarily from this table - confirm the relationship live before relying on
+// it to relocate a specific prop.
+int grGetYakumonoposNum(void);                                                 // 0x800d1434
+void loadYakumonoLocations(int index, Vec3 *out0, Vec3 *out1, Vec3 *out2);     // 0x800d145c
+
+// Searches the ground scene/collision instance pool (0x98-byte records at
+// stc_grobj+0x64, count at +0x68) for the record whose key (record[+0]) matches
+// `key`, returning the record pointer. `pool_base` is stc_grobj+0x54. Used by
+// the multi-instance break creators to bind each placed prop.
+void *grScene_FindInstanceByKey(void *pool_base, int key);                     // 0x800d7954
 
 // === Yaku-break drop emitters (see event-source-drops.md) ===
 // All three call into City_SpawnMiscItems with the per-instance drop
@@ -399,6 +561,144 @@ static inline YakumonoData **Yaku_GetArray(void)
 {
     void *grobj = *(void **)(0x805dd0e0 + 0x5ec); // *stc_grobj
     return grobj ? *(YakumonoData ***)((char *)grobj + 0x710) : (YakumonoData **)0;
+}
+
+// === Ground scene-instance pool (placed-prop records) ===
+// The ground runtime object holds a CONTIGUOUS array of 0x98-byte placed-
+// instance records - the stage's positioned mesh/collision instances, parsed
+// from grdata->pos_data. This is the array grScene_FindInstanceByKey searches
+// (array base at GrObj+0x64, live count at GrObj+0x68).
+//
+// The multi-instance break families bind each visible prop to one of these
+// records and stamp the owning parent yakumono GObj into record+0x90, so this
+// pool is the family-agnostic way to reach EVERY breakable prop (the parent's
+// own +0x130 layout differs per family - an array for trees/houses, a single
+// pointer for the star pole). Each record:
+//   +0x00  JObj *  - the sub-instance JObj; its world matrix (JObj+0x44) is the
+//                    prop's real transform (what renders and what the hurtbox
+//                    tracks). Move a prop by rewriting this matrix's translation.
+//   +0x2c  Mtx     - cached 3x4 row-major copy of that world matrix (load-time).
+//   +0x90  GOBJ *  - owning parent yakumono GObj (set by the break creators;
+//                    0 for non-break scene instances).
+#define YAKU_INSTANCE_SIZE 0x98 // stride of one placed-instance record
+#define YAKU_INST_JOBJ     0x00 // record -> sub-instance JObj (world mtx at +0x44)
+#define YAKU_INST_COLL_ARR 0x0c // record -> mpColl region array (0x40-byte stride)
+#define YAKU_INST_COLL_NUM 0x10 // record -> mpColl region count
+#define YAKU_INST_MATRIX   0x2c // record -> cached 3x4 world matrix copy
+#define YAKU_INST_PARENT   0x90 // record -> owning yakumono GObj
+
+// Scene-instance pool base; writes the live record count through out_count.
+// Returns NULL (count 0) between scenes. Raw byte arithmetic to avoid stage.h.
+static inline void *Yaku_GetInstancePool(int *out_count)
+{
+    void *grobj = *(void **)(0x805dd0e0 + 0x5ec); // *stc_grobj
+    if (grobj == (void *)0)
+    {
+        if (out_count) *out_count = 0;
+        return (void *)0;
+    }
+    if (out_count) *out_count = *(int *)((char *)grobj + 0x68);
+    return *(void **)((char *)grobj + 0x64);
+}
+
+// i-th placed-instance record in the pool (no bounds check).
+static inline void *Yaku_GetInstance(void *pool, int i)
+{
+    return (char *)pool + i * YAKU_INSTANCE_SIZE;
+}
+
+// The yakumono GObj that owns this placed-instance record (NULL for non-break
+// scene instances). Compare against known parents by pointer - do not deref.
+static inline GOBJ *Yaku_InstanceParent(void *record)
+{
+    return *(GOBJ **)((char *)record + YAKU_INST_PARENT);
+}
+
+// The sub-instance JObj carrying the prop's world matrix (NULL if unset).
+static inline void *Yaku_InstanceJObj(void *record)
+{
+    return *(void **)((char *)record + YAKU_INST_JOBJ);
+}
+
+// World translation from the record's cached 3x4 row-major matrix
+// (YAKU_INST_MATRIX): translation = float indices 3/7/11 (record +0x38/+0x48/+0x58).
+static inline void Yaku_InstanceCachedPos(void *record, Vec3 *out)
+{
+    float *m = (float *)((char *)record + YAKU_INST_MATRIX);
+    out->X = m[3];
+    out->Y = m[7];
+    out->Z = m[11];
+}
+
+// === mpColl region (one entry of the global region array) ===
+// Each scene-instance record owns its regions inline (array at record+0x0c,
+// count at record+0x10), and that array is a contiguous YAKU_REGION_SIZE-strided
+// slice of the global region array based at Yaku_GetRegionArray(). The break path
+// (and a synthesized break, collideWithObject) reads:
+typedef struct YakuCollRegion
+{
+    u8   _pad00[0x0c];
+    Vec3 normal;        // 0x0c outward normal; grScene_GetImpactSpeed projects the
+                        //      impact delta onto it (must be non-degenerate)
+    u8   _pad18[0x34 - 0x18];
+    u32  refine_flags;  // 0x34 bit YAKU_REGION_REFINE selects the geometry-refined
+                        //      impact path (can rewrite a synthetic delta from the
+                        //      prop matrices)
+    void *record;       // 0x38 back-pointer to the owning scene-instance record
+    u32  coll_flags;    // 0x3c bit YAKU_REGION_COLLIDABLE = collidable/intact
+                        //      (grScene_SetInstanceColl toggles it;
+                        //      mpResponse_DispatchSceneObjColl drops a clear contact)
+} YakuCollRegion;
+#define YAKU_REGION_SIZE       0x40 // stride of one region entry
+#define YAKU_REGION_REFINE     0x20 // refine_flags bit: geometry-refined impact path
+#define YAKU_REGION_COLLIDABLE 0x40 // coll_flags bit: collidable / intact
+_Static_assert(sizeof(YakuCollRegion) == YAKU_REGION_SIZE, "YakuCollRegion must be 0x40 bytes");
+
+// === Ground scene-collision holder (GrObj+0x54) ===
+// The holder the engine's break dispatcher (collideWithObject) indexes regions
+// from - passed straight through as its collB, and the pool_base
+// grScene_FindInstanceByKey takes. Sub-fields:
+//   +0x08  base of the global YakuCollRegion array.
+//   +0x10  the placed-instance record pool base (== Yaku_GetInstancePool's base).
+//   +0x14  the record count.
+// NULL between scenes.
+#define YAKU_COLL_HOLDER_OFF 0x54
+
+static inline void *Yaku_GetCollHolder(void)
+{
+    void *grobj = *(void **)(0x805dd0e0 + 0x5ec); // *stc_grobj
+    return grobj ? (void *)((char *)grobj + YAKU_COLL_HOLDER_OFF) : (void *)0;
+}
+
+// Base of the global YakuCollRegion array (holder+0x08); NULL between scenes.
+static inline YakuCollRegion *Yaku_GetRegionArray(void)
+{
+    void *holder = Yaku_GetCollHolder();
+    return holder ? *(YakuCollRegion **)((char *)holder + 8) : (YakuCollRegion *)0;
+}
+
+// A record's own mpColl region slice (record+0x0c) and region count (record+0x10).
+// The slice is a contiguous run within Yaku_GetRegionArray().
+static inline YakuCollRegion *Yaku_InstanceRegions(void *record)
+{
+    return *(YakuCollRegion **)((char *)record + YAKU_INST_COLL_ARR);
+}
+static inline int Yaku_InstanceRegionCount(void *record)
+{
+    return *(int *)((char *)record + YAKU_INST_COLL_NUM);
+}
+
+// The grobj node/JObj registry (GrObj+0x104) - the per-stage node table
+// Gr_GetNodeWorldPos resolves a node id through. Returns the JObj for `node_id`,
+// or NULL between scenes / for a negative id. The caller must validate the
+// returned pointer before writing through it.
+static inline void *Yaku_GetSceneNodeJObj(int node_id)
+{
+    void *grobj = *(void **)(0x805dd0e0 + 0x5ec); // *stc_grobj
+    if (grobj == (void *)0 || node_id < 0)
+        return (void *)0;
+    void *reg = *(void **)((char *)grobj + 0x104);
+    return reg ? *(void **)((char *)reg + node_id * 8) : (void *)0;
 }
 
 // Read-only descriptor table - 70 pointers, indexed by desc_id. Two sections:
@@ -449,6 +749,15 @@ static inline int Yaku_IsYakumonoGObj(GOBJ *gobj)
 static inline YakumonoData *Yaku_GetData(GOBJ *gobj)
 {
     return *(YakumonoData **)((char *)gobj + 0x2c);
+}
+
+// A break family's coll_func: stc_yaku_descs[desc_id]->[+0x04] (the descriptor's
+// break dispatcher, e.g. hitWeakObject / hitStrongObject). NULL if unset. Compare
+// the result against a known coll_func to identify the family.
+static inline void *Yaku_GetDescCollFunc(int desc_id)
+{
+    void *desc = stc_yaku_descs[desc_id];
+    return desc ? *(void **)((char *)desc + 4) : (void *)0;
 }
 
 #endif // KAR_H_YAKUMONO
