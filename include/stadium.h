@@ -100,7 +100,7 @@ void Gm_StadiumWriteNewLabel(StadiumKind kind, int set);    // 800080C0 - writes
 int Gm_StadiumRoundNum();
 
 // Direct bitfield writes - bypass the checklist cache.
-// Use these for permanent modifications (e.g., AP unlocks) that must
+// Use these for permanent modifications that must
 // survive cache invalidation. The ROM Write/Check functions above
 // route through a temporary cache when the checklist menu is active,
 // and writes to the cache are discarded when the menu closes.
