@@ -10,7 +10,7 @@ SECTIONS
   AOBJ_ClearFlags = 0x803FB1AC;
   atan = 0x803BC94C;
   atan2 = 0x803BD3C8;
-  cosf = 0x803bccd0;
+  tanf = 0x803bd518;
   AudioHeap_SetAllocAndFree = 0x804479d4;
   AudioEmitter_Alloc = 0x8005d864;
   AudioEmitter_Free = 0x8005e08c;
@@ -39,8 +39,8 @@ SECTIONS
   CARDWrite = 0x803E7E04;
   CARDWriteAsync = 0x803E7CF0;
   CARDSetStatusAsync = 0x803E836C;
-  CARDSetStatus = 0x803E84E0; /* sync wrapper: CARDSetStatusAsync + __CARDSync */
-  CARDDelete = 0x803E8000;    /* sync wrapper: CARDDeleteAsync + __CARDSync */
+  CARDSetStatus = 0x803E84E0;
+  CARDDelete = 0x803E8000;   
   CARDUnmount = 0x803E65D0;
   CARDGetXferredBytes = 0x803126B4;
   EXIInit = 0x803eb1ac;
@@ -363,6 +363,36 @@ SECTIONS
   VECDotProduct = 0x803D219C;
   VECNormalize = 0x803D20FC;
   Vec3_RotateAboutUnitAxis = 0x800638f8; /* rotate a vector about an arbitrary (auto-normalized) axis */
+  VECMag = 0x803D2158;            /* magnitude |v| (sqrt) */
+  VECSquareMag = 0x803D2140;      /* |v|^2 (no sqrt) */
+  VECDistance = 0x803D22F4;       /* |a-b| (sqrt) */
+  VECSquareDistance = 0x803D22CC; /* |a-b|^2 (no sqrt) */
+  VECHalfAngle = 0x803D21F8;      /* normalized half-angle vector of a and b */
+  MTXScale = 0x803D19AC;          /* build a scale matrix */
+  MTXTrans = 0x803D1978;          /* build a translation matrix */
+  MTXTranspose = 0x803D1528;
+  MTXInverse = 0x803D1578;        /* returns 0 if src is singular */
+  MTXInvXpose = 0x803D1670;       /* inverse-transpose (normal matrix) */
+  MTXRotTrig = 0x803D17A8;        /* rotation about 'X'/'Y'/'Z' from precomputed sin/cos */
+  MTXRotAxisRad = 0x803D1908;     /* rotation matrix about an arbitrary axis (declared in os.h) */
+  MTXMultVecSR = 0x803D1E40;      /* multiply by the 3x3 part only (ignores translation) */
+  MTXFrustum = 0x803D1E94;
+  MTXPerspective = 0x803D1F30;
+  MTXLightFrustum = 0x803D1C04;
+  MTXLightPerspective = 0x803D1C98;
+  MTXLightOrtho = 0x803D1D64;
+  sqrtf = 0x803BD490;             /* scalar sqrt (declared in os.h) */
+  sinf = 0x803BD53C;              /* single-precision sine */
+  cosf = 0x803BD560;              /* single-precision cosine */
+  floor = 0x803BCDA4;
+  pow = 0x803BAAFC;               /* pow(double, double) */
+  acos = 0x803B9A0C;
+  asin = 0x803B9D1C;
+  exp = 0x803BA210;
+  log10 = 0x803BA9EC;
+  VEC_NormalizeAndSnap = 0x80062CA4;   /* normalize src->dst, returns original magnitude */
+  VEC_CrossNormalizeSnap = 0x80062DD0; /* axb = normalize(cross(a, b)) */
+  Vec_GetAngleBetween = 0x80062ECC;    /* angle in radians between a and b */
 
   VIWaitForRetrace = 0x803de164;
 
@@ -417,9 +447,6 @@ SECTIONS
   TopRide_SetHandicap = 0x8000bf04;
   TopRide_GetMachineKind = 0x8000bf4c;
   TopRide_SetMachineKind = 0x8000bf8c;
-  /* Top Ride CPU AI (source: a2d_cpu_kirby.cpp). The CPU "brain" is the CPU
-     input-reader's get-command vtable slot; hook TopRide_CpuInputThink to
-     replace or post-adjust CPU steering. See docs/cpu-ai-system.md. */
   TopRide_KirbyGetSlot = 0x802d4d5c;        /* kirby vt[0x30]: returns player_slot (kirby+0x0c) */
   TopRide_PadInputRead = 0x802d4c4c;        /* human input-reader vt[0x0c]: reads the GC pad */
   TopRide_PadInputPoll = 0x802a06bc;        /* human input-reader vt[0x14] */
@@ -609,6 +636,9 @@ SECTIONS
   Rider_StartInhaleLoop = 0x801ad4cc; /* enter/re-enter the suck-LOOP substate: sets anim 0x30 (action-state 0x77) + reinstalls the scan/volume callbacks. No VFX/SFX respawn, no capture reset. The LOOP process (0x801ad3a0) calls this itself on body-anim-done to sustain/animate the suck; this is also how the LOOP is first entered, since the engine never advances START -> LOOP on its own. The LOOP self-terminates via the +0x93C countdown (which aliases copy_wheel_result - unreliable when driving from mod code). */
   Rider_EndInhale = 0x801adf98; /* end the suck: action-state 0x78 / anim 0x31 (mouth close) + spawns the close puff (Effect 0x5a557), returns to neutral. The engine's own inhale ending; call to stop a driven LOOP cleanly. */
   Rider_IsBodyAnimDone = 0x80198b00; /* walks the rider's animated model parts; returns 1 once the body motion has played to its end (HSD per-part check 0x80054798). Gates the inhale LOOP process's per-cycle re-entry of suck-LOOP 0x30. */
+  Rider_TryStartInhale = 0x8019c5ac;     /* per-frame entry probe: if Rider_CanStartInhale passes AND an inhalable EventActor overlaps the mouth volume, calls Rider_StartInhale */
+  Rider_CanStartInhale = 0x801a617c;     /* inhale gate predicate: attack bit (+0x820 bit2) set AND copy_kind (+0x454)==-1 AND mouth not full (capture count +0x918 < 3) */
+  Rider_InhaleCaptureScan = 0x8019c63c;  /* per-frame scan of the EventActor GObj bucket; captures up to 3/frame (list cap 10) via EventActor_OnCapture */
   Effect_SpawnSync = 0x80236c40; /* universal model/particle effect spawn. (parent GObj, id = group*10000+entry, owner, joint, ...) -> 64-bit fire-and-forget handle. Globally suppressed when *(u32*)0x805dd8b8 != 0. The map's 0x8023af88 Effect_SpawnSync is a spurious mid-function label. */
   EffectModel_CreateGObj = 0x8023ccb4; /* build a model-effect GObj (entity_class 25, p_link 16) carrying a JObj model from EffectModelDesc; gx_cb 0x8023dfe0, dtor 0x80233ddc. */
   Effect_GetModelData = 0x80235190; /* decimal id (group*10000+entry) -> EffectModelDesc* from the per-group table at gEffectMgr+0x24+group*4, indexed [entry*8]. group must be in [24,37). */
@@ -731,6 +761,8 @@ SECTIONS
   Ply_SetAllStats = 0x8022cfc8;
   Ply_GetStatAux = 0x8022d0cc;
   Ply_SetStatAux = 0x8022d128;
+  Ply_GetItemCollectArray = 0x8022d248;  
+  Ply_GetStatRecordBase = 0x8022d260;    
   Ply_GetCpuLevel = 0x8022d7b0;
   Ply_SetCpuLevel = 0x8022d798;
   Gm_GetCityTrialFrame = 0x800132b8;
@@ -808,6 +840,7 @@ SECTIONS
   EventActor_CleanupVfxA40 = 0x8020c70c;
   EventActor_EnableRendering = 0x80204198;
   EventActor_DisableRendering = 0x802041b0;
+  EventActor_IsInhalable = 0x802041c8;
   EventActor_GetParentScale = 0x802049b8;
   EnemyStateChange = 0x801fc398;
   EnemyPhysicsProc = 0x801fc6fc;
@@ -894,7 +927,6 @@ SECTIONS
   Trigger_InitParameters = 0x8018a118;
   RiderGObj_GetHurtData = 0x80192788;
   Gm_Get3dData = 0x80112044;
-  /* Clear Checker / Checklist */
   gmGetClearcheckerP = 0x80006C20;
   gmGetClearcheckerTypeP = 0x800076A0;
   Checklist_BuildUnlockBitfields = 0x80007AF0;
@@ -938,7 +970,6 @@ SECTIONS
   Hoshi_RestoreModSave = 0x8049518c;
   Hoshi_SetSaveIcon = 0x80495190;
 
-  /* Sky/lighting system. See docs/sky-lighting-system.md. */
   Sky_Init = 0x8010f114;
   Sky_SetPresetIndex = 0x800dc630;
   Sky_LoadPreset = 0x800dc1b4;
@@ -954,11 +985,6 @@ SECTIONS
   Sky_BeginFade = 0x800eef50;
   Sky_FreeFade = 0x800eefb0;
 
-  /* Stage HSD light chain (real GX hardware lights, separate from
-     the sky preset's AreaLight). Three chains live at offsets
-     +0x00/+0x04/+0x08 of stage_resource[+0x14]; built unconditionally per
-     stage by Light_StageInit. The two GX wrappers are byte-identical
-     thunks to LObj_GX. */
   Light_StageInit = 0x800d5ed4;
   Light_GX = 0x800d5fb0;
   Light_CreateForStage = 0x800d5fd0;
@@ -969,9 +995,6 @@ SECTIONS
   Light_CreateForMenu = 0x800d6188;
   LObj_CreateAll = 0x80057468;
 
-  /* HSD light core. LObjLoadDesc does NOT auto-add to the active list;
-     LObj_GX → HSD_LObjSetCurrentAll rebuilds the active list each frame
-     from the chain attached via GObj_AddObject. See sky-lighting-system.md. */
   LObjLoad = 0x803ffe24;
   LObjInfoInit = 0x80400654;
   HSD_LObjAddAnim = 0x804003bc;
@@ -984,13 +1007,7 @@ SECTIONS
   HSD_LObjSetCurrentAll = 0x803ff570;
   HSD_LObjSetupInit = 0x803fe4b8;
   HSD_LObjLoadDesc = 0x80400238;
-  /* LObj_GX, LObj_LoadDesc, LObj_SetPosition, LObj_SetInterest exported
-     in the hoshi proxies block above - do not redefine here. */
 
-  /* AreaLight: KAR-proprietary directional light driven per-frame by
-     sky presets. Lives at GrObj+0x718, registered in r13[+0x538].
-     Does NOT feed any LOBJ; the registry walk fans out to per-rider /
-     per-character lighting state. See sky-lighting-system.md. */
   AreaLight_Lerp = 0x800797a8;
   AreaLight_Create = 0x80079428;
   AreaLight_Create_Default = 0x8007a4d0;
@@ -1003,14 +1020,11 @@ SECTIONS
   AreaLight_InsertSorted = 0x80079a60;
   AreaLight_Init = 0x80079314;
 
-  /* Fog GX path. World_CObj reads the global fog/erase color at
-     0x80557484 (BSS) and pushes it to HSD_SetEraseColor. */
   Fog_GX = 0x800dbf84;
   World_CObj = 0x800b04a8;
   HSD_SetEraseColor = 0x8040f884;
   HSD_FogSet = 0x8041b0fc;
 
-  /* lbfade screen-tint overlay (slot 3 owned by sky system). */
   ScreenFade_Alloc = 0x80065a80;
   ScreenFade_Free = 0x80065ae4;
   ScreenFade_Begin = 0x800665f8;
@@ -1022,7 +1036,6 @@ SECTIONS
   CityEvent_ShowHudText = 0x80113fb4;
   CityEvent_SetSisText = 0x801169fc;
 
-  /* Map collision (mpColl) system */
   mpColl_Create = 0x80245b4c;
   mpColl_Init = 0x80245c10;
   mpColl_Reinit = 0x80245db0;
@@ -1033,18 +1046,13 @@ SECTIONS
   mpColl_SetFlag = 0x80247e2c;
   mpColl_GetFirstCollObj = 0x802414d4;
 
-  /* Raycast / ground collision */
   EnvColl_Raycast = 0x800d1ac4;
   PointCollision_EnsureIDValid = 0x800d1838;
   PointCollision_GetNormalByID = 0x800d1860;
   grGetGroundTypeFromTriangleID = 0x800cec28;
 
-  /* Stage model creation - instantiates JObj trees from
-     grdata->model_section (terrain + backdrop). */
-  CreateStageModel_3D = 0x800dcbf0; /* 3D_CreateStageModel; identifier renamed to dodge leading-digit C limitation */
+  CreateStageModel_3D = 0x800dcbf0;
 
-  /* Functions documented (with addresses) in the hoshi headers but previously
-     unexported. Exported here so mods can call them directly. */
   AirRide_CheckCharacterUnlocked = 0x8000c488;
   AirRide_CheckBonusUnlocked = 0x8000c584;
   CityTrial_CheckStadiumIsUnlocked = 0x8000c17c;
@@ -1093,7 +1101,5 @@ SECTIONS
   Rider_GetForward = 0x80191ef8;
   Rider_GetUp = 0x80191f18;
 
-  /* Stage out-of-bounds death box. Reads StageNode.oob_min/oob_max
-     (gr_data->stage_node + 0xCC / +0xD8). See docs/collision-system.md. */
   calcDistanceFromOOB = 0x800d4f20;
 }

@@ -420,7 +420,7 @@ static inline void TopRide_KirbyPress(TopRideKirby *kirby)
 
 // KirbySpin - spin-out. KirbySandSpin variant lives at vtable[62] / +0xF8.
 // Wrapper at 0x802d59cc (vtable[61], +0xF4). The setter (0x802f7718) feeds
-// arg2 to PSVECMagnitude at 0x802f7998 to size the spin knockback; passing
+// arg2 to the PSVECMagnitude call at 0x802f7998 to size the spin knockback; passing
 // a literal 0 in that slot crashes inside PSVECMagnitude on null deref.
 // Pass a stack-local zero Vec3 so the magnitude evaluates to 0 and the
 // knockback path is skipped, matching the static stun pattern used by the
