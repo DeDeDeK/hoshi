@@ -582,32 +582,46 @@ struct _HSD_Tlut
     u16 x0E;
 };
 
+// Per-TObj TEV color/alpha combiner state (TObj+0xA8). MakeColorGenTExp (0x803f5f98)
+// compiles color_a..d / alpha_a..d into a TExp tree whose constant nodes point at the
+// constant/tev0/tev1 GXColors below; MObjSetupTev (0x803faba0) re-materializes them into
+// GX registers every render frame. The color/alpha selector bytes encode GX inputs:
+//   color_a..d:  0x00-0x0F = GX_CC_* verbatim (0x08=TEXC, 0x0C=ONE, 0x0F=ZERO);
+//                0x80=constant(RGB), 0x81/82/83=constant.r/g/b, 0x84=constant.a,
+//                0x85=tev0(RGB), 0x86=tev0.a, 0x87=tev1(RGB), 0x88=tev1.a.
+//   alpha_a..d:  0x00-0x0F = GX_CA_* verbatim; 0x40=constant, 0x43=constant.a,
+//                0x44=tev0.a, 0x45=tev1.a.
+// The constant/tev0/tev1 GXColors are plain value fields the texture-anim system never
+// touches, so rewriting them recolors a model effect in place (see the whirlwind recolor
+// in the hypernova mod). The inhale whirlwind blends tev0<->constant by texture brightness
+// (color_a=0x85 tev0, color_b=0x80 constant, color_c=0x08 TEXC, color_d=0x0F ZERO) and
+// routes opacity through constant.a (alpha_b=0x43), so preserve each register's alpha.
 struct _HSD_TObjTev
 {
-    u8 color_op;
-    u8 alpha_op;
-    u8 color_bias;
-    u8 alpha_bias;
+    u8 color_op;     // 0x00 GXTevOp
+    u8 alpha_op;     // 0x01
+    u8 color_bias;   // 0x02 GXTevBias
+    u8 alpha_bias;   // 0x03
 
-    u8 color_scale;
-    u8 alpha_scale;
-    u8 color_clamp;
-    u8 alpha_clamp;
+    u8 color_scale;  // 0x04 GXTevScale
+    u8 alpha_scale;  // 0x05
+    u8 color_clamp;  // 0x06
+    u8 alpha_clamp;  // 0x07
 
-    u8 color_a;
-    u8 color_b;
-    u8 color_c;
-    u8 color_d;
+    u8 color_a;      // 0x08 color combiner input selectors (see header comment)
+    u8 color_b;      // 0x09
+    u8 color_c;      // 0x0A
+    u8 color_d;      // 0x0B
 
-    u8 alpha_a;
-    u8 alpha_b;
-    u8 alpha_c;
-    u8 alpha_d;
+    u8 alpha_a;      // 0x0C alpha combiner input selectors
+    u8 alpha_b;      // 0x0D
+    u8 alpha_c;      // 0x0E
+    u8 alpha_d;      // 0x0F
 
-    GXColor constant;
-    GXColor tev0;
-    GXColor tev1;
-    uint flags;
+    GXColor constant; // 0x10 primary KColor (recolor target; opacity via alpha_b)
+    GXColor tev0;     // 0x14 secondary blend color (color_a)
+    GXColor tev1;     // 0x18 tertiary register (unused by the inhale model)
+    uint flags;       // 0x1C color/alpha-tree enable bits (inhale model = 0xC000007F)
 };
 
 struct _HSD_LightPoint

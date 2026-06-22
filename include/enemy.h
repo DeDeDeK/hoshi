@@ -130,6 +130,22 @@ typedef struct EventActorDesc
     Vec3 ground_normal;     // 0x54: ground/surface normal at spawn point
 } EventActorDesc;
 
+// One entry of the per-actor animseq table. The table base is *(actor_data+0x0C);
+// EnemyStateChange resolves ed->anim_data = &table[anim_idx] (anim_idx is the
+// state-table entry's word0). 0x10 bytes per entry.
+// EventActor_AnimDataInit (0x80200c04) feeds anim_joint/mat_anim_joint to
+// HSD_JObjAddAnimAll to bind the joint and material animation to the model tree.
+typedef struct EnemyAnimSeqEntry
+{
+    void *anim_joint;       // 0x00, HSD AnimJoint (joint/skeletal animation)
+    void *mat_anim_joint;   // 0x04, HSD MatAnimJoint (material animation)
+    float end_frame;        // 0x08, animation end frame / playback flags
+    unsigned char flags;    // 0x0C, flag byte; bit 0x80 gates per-frame animation work
+    unsigned char padd;     // 0x0D
+    unsigned char pade;     // 0x0E
+    unsigned char padf;     // 0x0F
+} EnemyAnimSeqEntry; // 0x10 bytes
+
 typedef struct EnemyData
 {
     GOBJ *gobj;             // 0x0, this actor's own GOBJ
@@ -150,7 +166,7 @@ typedef struct EnemyData
     int anim_idx;           // 0x3c, animation index from state table entry. -1 = no animation. Written by EnemyStateChange (stw r0,60(r28)).
     void *common_state_table; // 0x40, pointer to common states 0x00-0x0D (0x804b2950). EnemyStateChange reads this for state_id < 0x0E (lwz r3,64(r28)).
     void *per_type_state_table; // 0x44, per-type state table for states >= 0x0E; initialized to PTR_PTR_804b1d98[kind][0x00]. EnemyStateChange reads this for state_id >= 0x0E (lwz r3,68(r28)).
-    void *anim_data;        // 0x48, current animation data pointer (actor_data+0x0C + anim_idx*0x10)
+    EnemyAnimSeqEntry *anim_data; // 0x48, current animation data pointer: &table[anim_idx] where table = *(actor_data+0x0C) and anim_idx (= state-table entry word0) is ed->anim_idx. EnemyStateChange resolves anim_data = *(actor_data+0x0C) + anim_idx*0x10.
     float anim_timer;       // 0x4c, animation keyframe timer (decremented per frame by StateMachine)
     float anim_frame;       // 0x50, current animation frame accumulator (= x2a8 + x2ac each frame, written by EventActor_StateMachine)
     void *anim_command_ptr; // 0x54, animation script bytecode pointer
@@ -160,7 +176,7 @@ typedef struct EnemyData
     int x64;                // 0x64
     int x68;                // 0x68
     int x6c;                // 0x6c
-    int x70;                // 0x70
+    void *col_anim;         // 0x70, ColAnim component (anim-script cmd 24/25 → ColAnim_Apply/Reset)
     int x74;                // 0x74
     int x78;                // 0x78
     int x7c;                // 0x7c
@@ -332,10 +348,10 @@ typedef struct EnemyData
     int x35c;               // 0x35c
     int x360;               // 0x360
     float param_pre_header; // 0x364, bulk-copied from *actor_data-0x04. Pre-header value.
-    float param_base_scale; // 0x368, from *actor_data+0x00. Base scale (also → tier_base_scale at 0x2D0).
-    float param_scale_2;    // 0x36c, from *actor_data+0x04. Scale param 2.
-    int param_sentinel;     // 0x370, from *actor_data+0x08. Sentinel/flag (-1).
-    float param_374;        // 0x374, from *actor_data+0x0C.
+    float param_base_scale; // 0x368, from actor_data+0x00. Param block root (base scale; also → tier_base_scale at 0x2D0).
+    float param_scale_2;    // 0x36c, from actor_data+0x04. Per-type secondary params.
+    int param_sentinel;     // 0x370, from actor_data+0x08. -1 sentinel word (param-header terminator/flag) - NOT joint/model data.
+    float param_374;        // 0x374, from actor_data+0x0C. Dual use: this is a param-header word AND the base pointer of the per-actor animseq table (*(actor_data+0x0C); see EnemyAnimSeqEntry / ed->anim_data above).
     float param_detect_range; // 0x378, from *actor_data+0x10. DEAD COPY - 0 reads. Live detection range is the global param table +0x80 (FindNearestPlayer) / actor_data root +0x10 (EnemyActor_ClassifyRange).
     float param_chase_range;  // 0x37c, from *actor_data+0x14. DEAD COPY - 0 reads. Live chase range is the actor_data root +0x14 (EnemyActor_ClassifyRange).
     float param_move_param; // 0x380, from *actor_data+0x18. Movement parameter.
@@ -391,7 +407,7 @@ typedef struct EnemyData
     int x450;               // 0x450
     int x454;               // 0x454
     int x458;               // 0x458
-    TriggerData trigger;    // 0x45c
+    TriggerData trigger;    // 0x45c, per-frame attack-hitbox params (refreshed by EventActor_RefreshAttackParams 0x80201ba4)
     int x4bc;               // 0x4bc
     int x4c0;               // 0x4c0
     int x4c4;               // 0x4c4
@@ -731,14 +747,14 @@ typedef struct EnemyData
     int xa4c;               // 0xa4c
     int xa50;               // 0xa50
     int xa54;               // 0xa54
-    int sfx_handle_1;       // 0xa58, sound effect handle
-    int sfx_handle_2;       // 0xa5c, second SFX handle
-    int sfx_state_1;        // 0xa60, SFX state (initialized to -1)
+    int sfx_handle_1;       // 0xa58, sound effect handle (audio emitter; anim-script cmd 20/21)
+    int sfx_handle_2;       // 0xa5c, second SFX handle (audio emitter; anim-script cmd 20/21)
+    int sfx_state_1;        // 0xa60, SFX state/sentinel (initialized to -1; anim-script cmd 20/21)
     int sfx_state_2;        // 0xa64, SFX state (initialized to -1)
-    int sfx_handle_3;       // 0xa68, third SFX handle
+    int sfx_handle_3;       // 0xa68, third SFX handle (audio emitter; anim-script cmd 20/21)
     int xa6c;               // 0xa6c
-    int hit_vfx_1;          // 0xa70, impact VFX handle (stored by Meteor_HitTransition)
-    int hit_vfx_2;          // 0xa74
+    int hit_vfx_1;          // 0xa70, impact VFX handle (stored by Meteor_HitTransition; also a particle effect handle for anim-script cmd 18)
+    int hit_vfx_2;          // 0xa74, particle effect handle (anim-script cmd 18)
     int damage_frame_counter; // 0xa78, damage state tracking counter (proc 21)
     int xa7c;               // 0xa7c
     int xa80;               // 0xa80
@@ -769,16 +785,16 @@ typedef struct EnemyData
     int xae4;               // 0xae4
     int xae8;               // 0xae8
     void *custom_death_callback; // 0xaec, if set, replaces default death behavior in func2
-    int xaf0;               // 0xaf0
-    int xaf4;               // 0xaf4
-    int xaf8;               // 0xaf8
-    int xafc;               // 0xafc
-    int xb00;               // 0xb00
-    int xb04;               // 0xb04
+    int script_const_0;     // 0xaf0, anim-script constant slot (cmd 22)
+    int script_const_1;     // 0xaf4, anim-script constant slot (cmd 22)
+    int script_const_2;     // 0xaf8, anim-script constant slot (cmd 22)
+    int script_const_3;     // 0xafc, anim-script constant slot (cmd 22)
+    int attribute_flags;    // 0xb00, attribute flag byte (anim-script cmd 11)
+    float xb04;             // 0xb04, float written by anim-script cmd 11
     int render_flags;        // 0xb08, byte-accessed multi-purpose flags:
                              // Byte 0 (+0xB08): bits 0-1=ground_state (0=air, 1=transitioning, 2=grounded), bit 4=rendering disabled, bit 7=invisible.
                              // Byte 1 (+0xB09): bit 0=height_interp_enabled, bit 2=ground_contact for turning, bits 5-6=prev frame ground state.
-                             // Byte 2 (+0xB0A): bit 2=no-spline/force-kill, bits 5-6=knockback sub-state mode.
+                             // Byte 2 (+0xB0A): bit 1=event/state flag (anim-script cmd 23), bit 2=no-spline/force-kill, bits 5-6=knockback sub-state mode.
                              // Byte 3 (+0xB0B): bit 3=grounded bounce flag, bit 4=shadow visibility, bit 5=shadow active.
     int xb0c;               // 0xb0c
     float inhale_distance;  // 0xb10, distance to inhaling rider (state 0x0A)
@@ -1055,10 +1071,27 @@ typedef struct EnemySpawnData
 
 static EnemySpawnData **stc_enemy_spawn_data = (EnemySpawnData **)(0x805dd0e0 + 0x630);
 
-// Enemy global parameter table (detection range +0x80, retarget cooldown +0x94/+0x98,
-// damage scale +0x04, tier thresholds +0x08/+0x0C/+0x10, per-tier knockback +0x30/+0x40/+0x50/+0x60).
-// 0x805dd878 holds a POINTER to the table (loaded from Enemy.dat emDataAll by
-// Enemy_LoadCommonParams; NULL until a stage with enemies loads). Dereference to reach the table:
+// Enemy global parameter table (from Enemy.dat emDataAll). 0x805dd878 holds a
+// POINTER to the table (loaded by Enemy_LoadCommonParams; NULL until a stage with
+// enemies loads). Dereference to reach the table. Known field layout (no C struct
+// is defined for it - the table lives only as this pointer + offsets):
+//   +0x04 float  damage scale (Enemy_ScaleDamage multiplier)
+//   +0x08 float  tier threshold 0 (Enemy_ClassifyDamageTier)
+//   +0x0C float  tier threshold 1
+//   +0x10 float  tier threshold 2
+//   +0x14 int[4] {10, 30, 50, 70} (consumer unidentified)
+//   +0x30 float[4] kb_mag    (per-tier knockback magnitude)
+//   +0x40 float[4] kb_scale  (per-tier knockback scale)
+//   +0x50 float[4] launch    (per-tier launch speed; → ed->kb_launch_speed 0x9D8)
+//   +0x60 float[4] stun      (per-tier stun frames, e.g. {2,4,6,8})
+//   +0x70 float[4] mode_scale (per-mode scale)
+//   +0x80 float  detect_range (50.0) - player acquisition radius (EnemyActor_FindNearestPlayer)
+//   +0x84 float  close_range  (30.0)
+//   +0x88 float  (30.0)
+//   +0x8C float  mid_range    (300.0)
+//   +0x90 float  max_range / leash (500.0)
+//   +0x94 int    retarget bound lo (cooldown 20) - HSD_Randi arg in FindNearestPlayer
+//   +0x98 int    retarget bound hi (cooldown 40)
 #define stc_enemy_param_table (*(void **)0x805dd878) // *(0x805dd878)
 
 // HSD spline functions - used by actor movement/path-following systems

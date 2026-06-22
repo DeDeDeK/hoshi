@@ -248,7 +248,7 @@ typedef struct RiderData
     int x50;                              // 0x50
     int x54;                              // 0x54
     int x58;                              // 0x58
-    int x5c;                              // 0x5c
+    int x5c;                              // 0x5c, start of the body ColAnim overlay state (~0xac bytes, runs to 0x108). Driven by ColAnim_Apply via Rider_ApplyColAnim: index 2 = hurt flash, index 3 = invincibility flash (see Rider_GiveInvincibility). The animated color-overlay system that recolors the whole body over time. A rider has THREE such states (0x5c body, 0x108 glow, 0x1b4); each carries a priority byte at state+0xa9, and ColAnim_GetActiveSlot (0x8006ad20) renders the active state with the highest +0xa9. ColAnim_Apply is priority-gated: it rejects a new anim while the slot's current +0xa9 is higher.
     int x60;                              // 0x60
     int x64;                              // 0x64
     int x68;                              // 0x68
@@ -291,7 +291,7 @@ typedef struct RiderData
     int xfc;                              // 0xfc
     int x100;                             // 0x100
     int x104;                             // 0x104
-    int x108;                             // 0x108
+    int x108;                             // 0x108, start of a second ColAnim overlay state (the "glow", same ColAnim_Apply layout as 0x5c). Driven by zz_8019bf70_ from copy-ability state code - the additive glow aura (e.g. the random-ability roulette), independent of the body-color overlay at 0x5c.
     int x10c;                             // 0x10c
     int x110;                             // 0x110
     int x114;                             // 0x114
@@ -334,7 +334,7 @@ typedef struct RiderData
     int x1a8;                             // 0x1a8
     int x1ac;                             // 0x1ac
     int x1b0;                             // 0x1b0
-    int x1b4;                             // 0x1b4
+    int x1b4;                             // 0x1b4, start of the third ColAnim overlay state (same ColAnim_Apply layout as 0x5c); one of the three states ColAnim_GetActiveSlot resolves by priority (state+0xa9)
     int x1b8;                             // 0x1b8
     int x1bc;                             // 0x1bc
     int x1c0;                             // 0x1c0
@@ -397,11 +397,11 @@ typedef struct RiderData
     int x2a4;                             // 0x2a4
     int x2a8;                             // 0x2a8
     int x2ac;                             // 0x2ac
-    void *ability_hat_model;              // 0x2b0, container for the current copy-ability hat model. NULL when no ability is active. spawnBomb/spawnGordo/spawnSensorBomb use (*ability_hat_model + 0x120) as the JObj for the projectile throw bone and assert if the pointer chain is null.
+    void *ability_hat_model;              // 0x2b0, rider model container. (*ability_hat_model + 0x0) is the body model JOBJ root - read every frame by Rider_ApplyModelMatrix to bake scale/orientation. (*ability_hat_model + 0x120) is the current copy-ability hat JObj (NULL when no ability); spawnBomb/spawnGordo/spawnSensorBomb use it as the projectile throw bone and assert if the chain is null.
     int x2b4;                             // 0x2b4
     int x2b8;                             // 0x2b8
     int x2bc;                             // 0x2bc
-    DOBJ *dobj_lookup_arr;                // 0x2c0
+    DOBJ *dobj_lookup_arr;                // 0x2c0, flat array of the body's render objects (one per material slot), indexed by material index. RiderKirby_SetMaterialColorAndUpdate walks it (entry[matIdx]) to drive each material's MatAnim AObj for the per-color recolor; the same array is the entry point for any direct per-material color write.
     int x2c4;                             // 0x2c4
     int x2c8;                             // 0x2c8
     int x2cc;                             // 0x2cc
@@ -812,7 +812,7 @@ typedef struct RiderData
     void (*cb_copy_input)(RiderData *); // 0x930
     int x934;                           // 0x934
     int x938;                           // 0x938
-    CopyKind copy_wheel_result;         // 0x93c, CopyKind selected by the wheel, used by randomAbility_queuedGive
+    CopyKind copy_wheel_result;         // 0x93c, CopyKind selected by the wheel, used by randomAbility_queuedGive; reused as the inhale countdown timer during the inhale action-state (decremented each suck-LOOP frame, 0 ends the gesture)
     int x940;                           // 0x940
     int x944;                           // 0x944
     int x948;                           // 0x948
@@ -1001,6 +1001,52 @@ int Rider_CheckCanReceivePowerUp(GOBJ *gobj); // returns 1 if rider can receive 
 int Rider_GivePowerUp(GOBJ *gobj, PowerUpKind kind); // gives rider a power-up if rider is Kirby, returns 1 on success
 int Rider_TryGivePowerUp(RiderData *rd, PowerUpKind kind); // checks unable, queues into x460 or calls Rider_GivePowerUpByKind
 int Rider_GivePowerUpByKind(RiderData *rd, PowerUpKind kind); // removes current ability and initializes power-up kind (0-3), returns 1 on success
+
+// Inhale (no-copy-ability default attack). The native pipeline only targets
+// EventActor enemies and only enters the state when one is already in range, so
+// it never fires in City Trial - but Rider_StartInhale can be called directly to
+// drive the open-mouth suck animation + native suction VFX/SFX for custom mods.
+//
+// The inhale is three action-states in RiderData.state_idx (anim id, +0x1c): 0x2f suck
+// START, 0x30 suck LOOP, 0x31 suck END. They are NOT chained automatically:
+//   * START (0x2f) is a ONE-SHOT gulp. When its body anim finishes the engine resolves to
+//     a normal riding state (Rider_InhaleStartProc -> the generic ability-resolve/star-wait
+//     path); it does NOT advance to the LOOP. A tap of the native inhale is just this gulp.
+//   * LOOP (0x30) is entered ONLY via Rider_StartInhaleLoop. Its process then re-enters 0x30
+//     itself each time the body anim finishes (Rider_IsBodyAnimDone), so the suck sustains
+//     and animates on its own. It self-terminates when a countdown at RiderData+0x93C
+//     reaches 0 (Rider_InhaleLoopTick, only while the mouth is empty) -> Rider_EndInhale.
+//   * END (0x31) closes the mouth (+ a close puff) and returns to neutral.
+// NOTE +0x93C is per-action-state scratch that ALIASES copy_wheel_result, so it is not a
+// dependable timer when driving the inhale from mod code. To drive a held suck: call
+// Rider_StartInhale for the gulp, then once START ends call Rider_StartInhaleLoop to enter
+// the LOOP, keep +0x93C topped up so the engine doesn't time it out, and call
+// Rider_EndInhale yourself on release for a clean vanilla ending.
+void Rider_StartInhale(RiderData *rd);        // 0x801ad2c4, force action-state 0x76: anim 0x2f + suction Effect 0x3a982 + SFX 0x20037; installs per-frame capture callbacks. No gate/target check. One-shot gulp - returns to neutral when the anim ends, does NOT enter the LOOP.
+void Rider_StartInhaleLoop(RiderData *rd);    // 0x801ad4cc, enter/re-enter the suck-LOOP substate: anim 0x30 (action-state 0x77) + reinstalls scan/volume callbacks. No VFX/SFX respawn, no capture reset. The LOOP process calls this itself on body-anim-done to sustain the suck; this is also how the LOOP is first entered (the engine never advances START -> LOOP on its own).
+void Rider_EndInhale(RiderData *rd);          // 0x801adf98, end the suck: action-state 0x78 / anim 0x31 (close) + spawns the close puff (Effect 0x5a557), returns to neutral. The engine's own inhale ending; call to stop a driven LOOP cleanly.
+int  Rider_IsBodyAnimDone(RiderData *rd);     // 0x80198b00, 1 once the rider's body motion has played to its end (per-part HSD check); gates the LOOP process's per-cycle re-entry of suck-LOOP 0x30.
+int  Rider_CanStartInhale(RiderData *rd);     // 0x801a617c, gate: attack bit (x820 bit2) set AND copy_kind (+0x454) == -1 AND mouth not full (capture count x918 < 3)
+void Rider_TryStartInhale(RiderData *rd);     // 0x8019c5ac, per-frame entry probe: if gate passes AND an inhalable EventActor overlaps the mouth volume, calls Rider_StartInhale
+void Rider_InhaleCaptureScan(RiderData *rd);  // 0x8019c63c, per-frame scan of the EventActor GObj bucket; captures up to 3/frame (list cap 10) via EventActor_OnCapture
+int  EventActor_IsInhalable(GOBJ *cand);      // 0x802041c8, candidate predicate - admits EventActor enemies only (rejects rider/player/projectile classes); items & yakumono never pass
+
+// Kirby recolor. Three native paths:
+//   1. Material-index swap (discrete baked palettes - the 8 player colors + wing/fire):
+//      RiderKirby_SetMaterialColor stages model_part[part].cur_mat_index + dirty bit;
+//      RiderKirby_SetMaterialColorAndUpdate drives the model's MatAnim AObj to that
+//      baked color keyframe (walks dobj_lookup_arr at RiderData+0x2c0).
+//   2. ColAnim overlay (animated, time-based color flash/glow): Rider_ApplyColAnim
+//      selects a baked color-anim from the global table into RiderData+0x5c (body)
+//      via the generic ColAnim_Apply. Used by hurt (index 2) / invincibility (index 3).
+//   3. Direct material color: walk dobj_lookup_arr[i] -> MObj -> HSD_Material and write
+//      ambient/diffuse (GXColor) each frame for an arbitrary smooth hue (no baked limit).
+void RiderKirby_SetMaterialColor(RiderData *rd, int part_idx, u8 mat_index);          // 0x80198d1c, stage model_part[part].cur_mat_index + set recolor-dirty bit (rd+0x821 bit7)
+void RiderKirby_SetMaterialColorAndUpdate(RiderData *rd, int part_idx, u8 mat_index); // 0x80198d3c, stage + immediately drive the body MatAnim to the new baked color (HSD_AObjReqAnim per material)
+u8   Rider_GetColor(RiderData *rd);                                                   // 0x80192758, returns PlayerData.color_idx (KirbyColor 0..7) via rd->player(+0x2c)+0xa
+int  Rider_ApplyColAnim(RiderData *rd, int anim_index, int param); // 0x8019bfb4, request a baked color-overlay anim (ColAnim) into the body overlay at rd+0x5c; index selects from the global table (3 = invincibility)
+int  ColAnim_Apply(void *colanim_state, void *table, int index, int param);          // 0x8006a3f0, generic ColAnim applier (priority-gated); colanim_state is rd+0x5c (body) or rd+0x108 (glow)
+void ColAnim_Reset(void *colanim_state);                                              // 0x8006a250, clear a ColAnim overlay state back to neutral (removes the tint)
 
 // Reads the machine's projectile inherit velocity via the rider's
 // machine_gobj, into *out. Thin wrapper around
