@@ -238,7 +238,13 @@ typedef struct GrObj
     JOBJ *backdrop_jobj;        // 0x0F4 - distant skybox/horizon mesh attached
                                 //         by 3D_CreateStageModel. NULL if the
                                 //         stage's ModelSection.backdrop is NULL.
-    u8 _pad_0f8[0x168 - 0xF8];
+    u8 _pad_0f8[0x104 - 0xF8];
+    void *joint_table;          // 0x104 - per-joint {JOBJ*, JOBJDesc*} array (8-byte
+                                //         stride) built from ModelSection.terrain by
+                                //         grLoadStage; entry 0 = terrain root joint.
+                                //         Indexed by Sky_SetupLights; walk the tree
+                                //         from [0] to reach every terrain MObj.
+    u8 _pad_108[0x168 - 0x108];
     GOBJ *sky_gobj;             // 0x168 - fog/sky GObj built by Sky_InitFog.
                                 //         hsd_object (+0x28) = HSD_Fog *,
                                 //         userdata (+0x2C) = SkyState *.
