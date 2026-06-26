@@ -602,13 +602,13 @@ typedef struct CityTrialClearRecords
     u8 superjump_landings;    // 0x08
     u8 cpu_machine_breaks;    // 0x09
     u8 waterwheel_rides;      // 0x0A
-    u8 _pad_0b;               // 0x0B
+    u8 x0b;               // 0x0B
     u16 tf_points_total;      // 0x0C
     u16 dd_enemy_ko_total;    // 0x0E, Destruction Derby enemy KOs
     u16 melee_enemy_ko_total; // 0x10, Kirby Melee enemy KOs
     u16 item_total;           // 0x12, items picked up (boxes excluded)
     u16 box_total;            // 0x14
-    u16 _pad_16;              // 0x16
+    u16 x16;              // 0x16
     float distance_total;     // 0x18
     int free_run_drive_time;  // 0x1C, frames
 } CityTrialClearRecords;
@@ -2257,7 +2257,7 @@ typedef struct gmGameParams
     int x14;             // 0x14
     int patch_max;       // 0x18, max stat patch value (returned by Patch_GetMaxValue as s8)
     int patch_min;       // 0x1c, min stat patch value (returned by Patch_GetMinValue as s8)
-    u8 _pad20[0x154 - 0x20];           // 0x20, unmapped match params
+    u8 x20[0x154 - 0x20];           // 0x20, unmapped match params
     // City Trial passive CPU stat-growth tables, indexed by cpu_level (0..8). Read
     // by SceneLoad_3D (seed) and CityTrial_GrowCpuStats (rate/interval). Shipped
     // defaults below.
@@ -2291,15 +2291,15 @@ typedef struct gmDataAll
 // (the doc's "stat+0xNNN").
 typedef struct PlayerStats
 {
-    u8 _pad_000[0x74 - 0x0];
+    u8 x000[0x74 - 0x0];
     int rival_hit_by_method[0x1b];                // 0x74, AR rival-hit-by-method; [0x10]=Quick Spin
     int enemies_defeated;                         // 0xe0, AR enemies defeated (non-swallow)
     int enemy_defeat_by_method[0x1b];             // 0xe4, AR; [0xf]/[0x15]=exhaled star, [0x10]=Quick Spin
-    u8 _pad_150[0x331 - 0x150];
+    u8 x150[0x331 - 0x150];
     u8 rivals_damaged_mask;                       // 0x331, per-rival "damaged this game" bits 0-4 (cell 0x4e)
-    u8 _pad_332[0x37a - 0x332];
+    u8 x332[0x37a - 0x332];
     u8 copy_chance_flags;                         // 0x37a, bit3 got Bomb, bit5 got Sleep (cells 0x46/0x47)
-    u8 _pad_37b[0x37c - 0x37b];
+    u8 x37b[0x37c - 0x37b];
     int machine_change_count[0x1a];               // 0x37c, per-MachineKind; sum = AR machine changes (cell 0x06)
     int deaths_by_machine[0x1a];                  // 0x3e4, KO'd, by MachineKind ridden
     int kills_by_machine[0x1a];                   // 0x44c, KOs dealt, by victim MachineKind
@@ -2308,45 +2308,45 @@ typedef struct PlayerStats
     int ko_gold_spike;                            // 0x4bc, KO-by-cause (cell 0x5f)
     int ko_sensor_bomb;                           // 0x4c0, KO-by-cause (cell 0x5e)
     u16 vehicle_bust_mask;                        // 0x4c4, MSB-first bit(15-idx) (cells 0x6f-0x76)
-    u8 _pad_4c6[0x4c8 - 0x4c6];
+    u8 x4c6[0x4c8 - 0x4c6];
     int item_collect[0x45];                       // 0x4c8, by ItemKind (ITKIND_NUM); 0..2 boxes, 3.. items
-    u8 _pad_5dc[0x5e4 - 0x5dc];
+    u8 x5dc[0x5e4 - 0x5dc];
     int drive_time_grounded;                      // 0x5e4, frames (+ airborne = drive time)
     int drive_time_airborne;                      // 0x5e8, frames; AR reads as "glide time"
-    u8 _pad_5ec[0x5f4 - 0x5ec];
+    u8 x5ec[0x5f4 - 0x5ec];
     int airborne_time;                            // 0x5f4, 60fps frames (cells 0x18/0x1C/0x22)
     int airborne_streak;                          // 0x5f8, consecutive airborne frames; feeds airborne_time max
-    u8 _pad_5fc[0x604 - 0x5fc];
+    u8 x5fc[0x604 - 0x5fc];
     int timer_20s;                                // 0x604, round countdown, seeded 1200 (cell 0x48 guard)
     int timer_10s;                                // 0x608, round countdown, seeded 600 (cell 0x49 window)
     float distance_grounded;                      // 0x60c, split by MachineData.action_state_class
     float distance_airborne;                      // 0x610
     float distance_while_hit;                     // 0x614, not summed by any getter
-    u8 _pad_618[0x62b - 0x618];
+    u8 x618[0x62b - 0x618];
     u8 yakumono_break[0x29];                      // 0x62b, by descriptor stat-index; valid [0x15..0x28]; [0x28] also pillar-timer-valid flag
     u8 volcano_rail_mask[0xd];                    // 0x654, AR Magma rails used (cell 0x6e)
     u8 boost_panel_mask[0x3f];                    // 0x661, AR Magma boost panels used (cell 0x70)
     int enemies_swallowed;                        // 0x6a0, AR (cells 0x0e, 0x04/0x05)
-    u8 _pad_6a4[0x6a8 - 0x6a4];
+    u8 x6a4[0x6a8 - 0x6a4];
     u8 swallow_by_actor[0x120];                   // 0x6a8, AR per-ACTORID swallow counter, stride 0x18
     int consec_garbage_swallow;                   // 0x7c8, AR (cell 0x10)
-    u8 _pad_7cc[0x7d0 - 0x7cc];
+    u8 x7cc[0x7d0 - 0x7cc];
     int swallowed_this_race;                      // 0x7d0, AR (cells 0x5f/0x62/0x65)
     int sword_swings_this_race;                   // 0x7d4, AR (cell 0x1c)
     int tornado_kos;                              // 0x7d8, AR (cell 0x1e)
-    u8 _pad_7dc[0x7ec - 0x7dc];
+    u8 x7dc[0x7ec - 0x7dc];
     int sky_rings;                                // 0x7ec, CT (cell 0x39)
     int copy_chance_on_tree;                      // 0x7f0, AR Celestial (cell 0x74)
     int spin_panel_uses;                          // 0x7f4, AR Checker Knights (cell 0x63)
-    u8 _pad_7f8[0x7fc - 0x7f8];
+    u8 x7f8[0x7fc - 0x7f8];
     int trapdoor_opens;                           // 0x7fc, AR Sky Sands (cell 0x6a)
     u32 objects_destroyed_num;                    // 0x800, running total of breakable objects destroyed (star pole, coral, rocks, houses, trees); AR walls broken (cell 0x64)
-    u8 _pad_804[0x808 - 0x804];
+    u8 x804[0x808 - 0x804];
     int tac_stolen_items;                         // 0x808, CT (cell 0x34)
-    u8 _pad_80c[0x810 - 0x80c];
+    u8 x80c[0x810 - 0x80c];
     int cliff_drops;                              // 0x810, AR (cell 0x5e)
     int quicksand_entries;                        // 0x814, AR (cell 0x68)
-    u8 _pad_818[0x81c - 0x818];
+    u8 x818[0x81c - 0x818];
     int laps_no_ferris;                           // 0x81c, AR Beanstalk (cell 0x61)
     int waterwheel_rides;                         // 0x820, CT (cell 0x3d)
     int lap_rank_prev2;                           // 0x824, AR rank at boundary before final lap
@@ -2361,11 +2361,11 @@ typedef struct PlayerStats
     int king_dedede_ko_frame;                     // 0x848, CT; 0 = not yet (cell 0x2f)
     u8 flags_84c;                                 // 0x84c, CT bit0 dmg Dyna Blade, bit1 trampled, bit7 rival-dmg<10s
     u8 flags_84d;                                 // 0x84d, CT bit1 sky garden, bit2 Hydra, bit3 Dragoon, bit4 castle, bit5 restoration
-    u8 _pad_84e[0x850 - 0x84e];
+    u8 x84e[0x850 - 0x84e];
     int grindrail_crater_flag;                    // 0x850, CT (cell 0x42)
     u8 flags_854;                                 // 0x854, CT bit3 off-mach@timeout, bit4 on-rails@timeout; AR bit0/1/2 Needle/Fire/Sleep, bit5 damaged, bit6 flying, bit7 spinning
     u8 flags_855;                                 // 0x855, CT bit6 suppress-yaku-inc; AR bit7 Wing finish
-    u8 _pad_856[0x858 - 0x856];                   // 0x856
+    u8 x856[0x858 - 0x856];                   // 0x856
     u16 x_bit15 : 1;            // 0x858 (= PlayerData 0x908), bit 15 (MSB)
     u16 x908_flag6 : 1;         // bit 14 (byte 0x908, bit 6)
     u16 x908_flag5 : 1;         // bit 13 (byte 0x908, bit 5)
@@ -2376,7 +2376,7 @@ typedef struct PlayerStats
     u16 dragoon_piece_1 : 1;    // bit 8  (halfword bit 8)
     u16 dragoon_piece_0 : 1;    // bit 7  (halfword bit 7)
     u16 x_bits0_6 : 7;          // bits 6-0 (LSB side)
-    u8 _pad_85a[0x85c - 0x85a];                   // 0x85a, tail
+    u8 x85a[0x85c - 0x85a];                   // 0x85a, tail
 } PlayerStats;
 
 // Per-player slot record (5 at stc_playerdata, stride 0x90c). Holds the

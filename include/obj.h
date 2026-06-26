@@ -780,7 +780,7 @@ struct AreaLight
     u32 header;             // 0x08 copied from src+0x00
     u8 unk_0C;              // 0x0C copied from src+0x04
     u8 flags;               // 0x0D copied from src+0x05
-    u16 _pad_0E;            // 0x0E
+    u16 x0E;            // 0x0E
     u32 color;              // 0x10 RGBA from src+0x08 (lerp target each frame)
     u32 hw_color;           // 0x14 RGBA from src+0x0C
     Vec3 direction;         // 0x18 from src+0x10
@@ -790,7 +790,7 @@ struct AreaLight
     u32 attn_param_1;       // 0x2C from src+0x24
     u32 attn_param_2;       // 0x30 from src+0x28
     u32 extra;              // 0x34 r5 to AreaLight_Create (=0 from stage init)
-    u32 _pad_38_first;      // 0x38 bit 0x80 = visibility (set by light_vis_flag)
+    u32 x38;      // 0x38 bit 0x80 = visibility (set by light_vis_flag)
 };
 typedef struct AreaLight AreaLight;
 
