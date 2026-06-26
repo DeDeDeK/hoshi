@@ -195,11 +195,11 @@ typedef struct StageNode
     Vec3 gravity_dir;       // 0x10 - global down DIRECTION, unit (0,-1,0); written
                             //        into Gm_GetDownVector's out-param. Keep unit.
     int fog_flags;          // 0x1C
-    u8 _pad_20[0x60 - 0x20];
+    u8 x20[0x60 - 0x20];
     float minimap_scale;    // 0x60
-    u8 _pad_64[0x80 - 0x64];
+    u8 x64[0x80 - 0x64];
     int node_flags;         // 0x80
-    u8 _pad_84[0xCC - 0x84];
+    u8 x84[0xCC - 0x84];
     Vec3 oob_min;           // 0xCC - out-of-bounds box minimum corner (X,Y,Z)
     Vec3 oob_max;           // 0xD8 - out-of-bounds box maximum corner (X,Y,Z)
 } StageNode;
@@ -234,21 +234,21 @@ typedef struct GrObj
     GOBJ *gobj;                 // 0x000
     GroundKind gr_kind;         // 0x004 - physical ground (Gr_GetCurrentGrKind reads this)
     GrData *gr_data;            // 0x008
-    u8 _pad_00c[0xF4 - 0x0C];
+    u8 x00c[0xF4 - 0x0C];
     JOBJ *backdrop_jobj;        // 0x0F4 - distant skybox/horizon mesh attached
                                 //         by 3D_CreateStageModel. NULL if the
                                 //         stage's ModelSection.backdrop is NULL.
-    u8 _pad_0f8[0x104 - 0xF8];
+    u8 x0f8[0x104 - 0xF8];
     void *joint_table;          // 0x104 - per-joint {JOBJ*, JOBJDesc*} array (8-byte
                                 //         stride) built from ModelSection.terrain by
                                 //         grLoadStage; entry 0 = terrain root joint.
                                 //         Indexed by Sky_SetupLights; walk the tree
                                 //         from [0] to reach every terrain MObj.
-    u8 _pad_108[0x168 - 0x108];
+    u8 x108[0x168 - 0x108];
     GOBJ *sky_gobj;             // 0x168 - fog/sky GObj built by Sky_InitFog.
                                 //         hsd_object (+0x28) = HSD_Fog *,
                                 //         userdata (+0x2C) = SkyState *.
-    u8 _pad_16c[0x714 - 0x16C];
+    u8 x16c[0x714 - 0x16C];
     u32 fade_slot_id;           // 0x714 - lbfade slot ID owned by the sky
                                 //         system (incremented per stage entry,
                                 //         so it doubles as a freshness signal).
@@ -284,7 +284,7 @@ typedef struct SkyPresetEntry
     u32 sky_ambient_color;     // 0x14 RGBA ambient sky color (interpolated)
     AreaLightData area_light;  // 0x18 directional light params (0x2C bytes)
     u8 light_vis_flag;         // 0x44 bit 0 → AreaLight registry +0x38 bit 0x80
-    u8 _pad[3];                // 0x45
+    u8 x45[3];                // 0x45
 } SkyPresetEntry;
 _Static_assert(sizeof(SkyPresetEntry) == 0x48, "SkyPresetEntry must be 0x48 bytes");
 
