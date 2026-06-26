@@ -294,4 +294,15 @@ int PointCollision_EnsureIDValid(int triangle_id); // 0x800d1838. Returns 0 if v
 void PointCollision_GetNormalByID(int triangle_id, Vec3 *out_normal); // 0x800d1860. Looks up triangle normal (stride 0x40)
 int grGetGroundTypeFromTriangleID(int triangle_id); // 0x800cec28. Returns ground type from triangle ID
 
+// --- Collision debug-draw (vanilla visualizers) ---
+// The collision system is sphere/capsule based (see CollShapeKind), so the engine's only
+// debug shape primitives are a capsule drawer (degenerates to a bare sphere when its two
+// endpoints coincide) and a flat quad drawer - there is no cone primitive, and Nintendo's
+// gxutil shape helpers (GXDrawSphere/Cone/Cylinder) are not linked into this game. The color
+// args are GXColor* (kept as void* here to avoid a gx.h dependency); signatures are inferred.
+void Debug_DrawCapsule(Vec3 *p0, Vec3 *p1, float radius, void *mat_color, void *amb_color); // 0x8007d988. Two hemisphere caps + a cylinder body spanning p0..p1; bare sphere when p0==p1.
+void Debug_DrawQuad(Vec3 corners[4], Vec3 *normal, void *mat_color, void *amb_color);       // 0x8007e61c. One lit GX_QUADS quad from 4 corners + a shared normal.
+// Higher-level callers (all debug): Trigger_DrawCollision (0x800826a4), Hit_DrawCollision
+// (0x80082838), Hurt_DrawHurtbox (0x8008252c), Map_Debug_DrawCollisionMode (0x800a3ab0).
+
 #endif
