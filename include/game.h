@@ -2865,7 +2865,13 @@ int Checklist_CheckCachedUnlock_AirRide(s8 reward_index);               // 80007
 int Checklist_CheckCachedUnlock_CityTrial(s8 reward_index);             // 80007e8c, fast bit-test against cached City Trial unlock bitfield
 GameClearData *gmGetClearcheckerTypeP(GameMode mode);                   // 800076a0, returns ClearCheckerData for mode
 GameClearData *gmGetClearcheckerP();                                    // 80006c20, returns base ClearCheckerData (Air Ride)
-u8 Gm_GetClearChecker();                                                // 8017cf14, returns ClearChecker UI state byte
+u8 Gm_GetClearChecker();                                                // 8017cf14, returns ClearChecker UI state byte (phase, chk+0x15)
+void Checklist_Init(int mode, int fresh_flag);                          // 801822f4, builds the checklist screen (SIS, grid cells) for a mode
+void Checklist_MinorThink();                                            // 8004a648, checklist minor-scene think: tab cycle / exit (cb_ThinkPostGObjProc)
+void Checklist_PrepMenuData();                                          // 80138d74, sets up the checklist menu data (ScMenuCommon, element alloc); called by the minor cb_Load
+void *MainMenu_GetData();                                              // 801311e0, returns the main-menu element manager (holds the checklist root GObj at +0xed0)
+void loadMainMenuMusic();                                               // 8000bba0, (re)loads/plays the main-menu BGM
+void MainMenu_ClearSoundTestSongThunk();                               // 8000bc10, stops the checklist reward-preview song
 void ClearChecker_GetRewardFromClearKind(GameMode gm, u8 clear_kind, u8 *out_reward_index, u8 *out_reward_param); // 80049ec4, reverse lookup: clear_kind → reward_index + reward_param
 void ClearChecker_ResetAllData(void);                                    // 8000c604, resets all clear data for all 3 modes (erase menu)
 int ClearChecker_ShouldShowNewUnlocks(GameMode gm);                      // 8000c6f0, returns 1 if mode has new unlocks pending display

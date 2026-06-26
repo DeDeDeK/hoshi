@@ -559,6 +559,7 @@ SECTIONS
   CityItem_EnterExpire = 0x8025611c;
   CityItem_EnterFall = 0x802578c8;
   CityItem_InitData = 0x8024eaf4;
+  CityItem_GetUnkKindFromItemKind = 0x8024ea54;
   CityItem_InitHurtData = 0x80252174;
   CityItem_PlayBounceSound = 0x80256a6c;
   CityItem_GetEventItem = 0x80254114;
@@ -946,6 +947,12 @@ SECTIONS
   Checklist_SetRewardFlagOnUnlocks = 0x8017DF5C;
   Checklist_ProcessUnlock = 0x8017E490;
   Checklist_Think = 0x8017F3BC;
+  Checklist_Init = 0x801822F4;
+  Checklist_MinorThink = 0x8004A648;
+  Checklist_PrepMenuData = 0x80138D74;
+  MainMenu_GetData = 0x801311E0;
+  loadMainMenuMusic = 0x8000BBA0;
+  MainMenu_ClearSoundTestSongThunk = 0x8000BC10;
   Memcard_GetSaveStatus = 0x80078E30;
   Memcard_SetSaveStatus = 0x80078E40;
   Gm_Minor = 0x80008AD4;
