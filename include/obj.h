@@ -722,15 +722,29 @@ struct LOBJ
     // GXLightObj spec_lightobj; //0x94
 };
 
+// GXFogType values written to HSD_Fog.type / HSD_FogDesc.type and passed
+// straight to GXSetFog. PERSP_* use perspective-projected Z; the suffix is the
+// density curve. City Trial ships GX_FOG_PERSP_LIN.
+typedef enum GXFogType
+{
+    GX_FOG_NONE          = 0,
+    GX_FOG_PERSP_LIN     = 2,  // linear falloff (City Trial default)
+    GX_FOG_PERSP_EXP     = 4,  // exponential
+    GX_FOG_PERSP_EXP2    = 5,  // exponential-squared (thick wall)
+    GX_FOG_PERSP_REVEXP  = 6,  // reverse exponential (dense near camera)
+    GX_FOG_PERSP_REVEXP2 = 7,  // reverse exponential-squared
+} GXFogType;
+
 struct HSD_Fog
 {
     HSD_Obj parent;
-    u8 type;           // 0x08
-    HSD_Fog *fog_adj;  // 0x0C
+    u32 type;          // 0x08 GXFogType word (City Trial = 2, GX_FOG_PERSP_LIN)
+    HSD_Fog *fog_adj;  // 0x0C range-adjust descriptor (NULL on City Trial)
     f32 start;         // 0x10
     f32 end;           // 0x14
     GXColor color;     // 0x18
     struct AOBJ *aobj; // 0x1C
+    f32 scale;         // 0x20 HSD_FogSet emits GXSetFog with (end * scale); 1.0 on CT
 };
 
 // AreaLightData: 0x2C-byte directional-light record stored inside a stage's
@@ -782,7 +796,7 @@ typedef struct AreaLight AreaLight;
 
 struct HSD_FogDesc
 {
-    u8 type;                    // 0x00
+    u32 type;                   // 0x00 GXFogType word (copied to HSD_Fog.type; CT = 2)
     HSD_FogDesc *fog_adj;       // 0x04
     f32 start;                  // 0x08
     f32 end;                    // 0x0C

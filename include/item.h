@@ -305,8 +305,11 @@ typedef struct itData
     ItemUniqueAttr *unique_attr; // 0x4, per-kind tail data - only the box family is structured
     struct
     {
-        JOBJ *j;
-        int x4;
+        JOBJ *j;                // 0x00, model root
+        u32 flag;               // 0x04, render flag (0x02000000 flat panels; 0x03/0x05/0x0b000000 legendary/skinned pieces)
+        int parts[3];           // 0x08, per-group "item parts" counts; Item_InitPartsModel
+                                //       (0x80252824, reached from Item_Create) asserts each <= 11
+                                //       ("item parts model num over!"). Zero for every vanilla kind.
     } *model;                   // 0x8
     struct
     {
@@ -383,6 +386,16 @@ typedef struct itCommonDataAll
     void *x4;                   // 0x4, secondary table - purpose unknown
     itData *itData;             // 0x8, per-kind data array (0x18-byte stride)
 } itCommonDataAll;
+
+// The loaded itCommonDataAll wrapper is reached via stc_it_common_data (declared
+// in game.h, r13+0x7F0 = 0x805dd8d0). Set by Gm_LoadItCommon (0x8024feec) /
+// Gm_LoadItem.dat (0x8024ff38), which loads ItCommon.dat here and writes its
+// `itData` array into (*stc_it_common_data)->itData (i.e. *(0x805dd8d0)+0x8).
+// Item_GetItDataPtr (0x80250038) returns (*stc_it_common_data)->itData + kind*0x18.
+// To extend the item table with custom kinds, allocate a larger itData array, copy
+// the 68 vanilla entries, append new ones, and overwrite the pointer at
+// (*stc_it_common_data)->itData (the +0x8 member, NOT stc_item_param, which mirrors
+// the +0x0 `param` member).
 
 typedef struct ItemFallDesc
 {
@@ -1295,7 +1308,7 @@ typedef struct TopRideKirby TopRideKirby;
 void TopRide_KirbyApplyItem(TopRideKirby *kirby, int item_kind); // 0x802d8cb4
 
 ItemKind Gm_GetRandomItem(BoxKind box_kind, ItemGroup group, int spawn_flags); // 0x800eb7e4. box_kind: -1=sky, 0-2=box color. group: -1=all, 0=bad, 1=good. spawn_flags: 0x2=patch, 0x4=box
-GOBJ *Item_Create(ItemDesc *desc);                    // 0x8024eef4. Creates item GObj, allocates ItemData, initializes all subsystems
+GOBJ *Item_Create(ItemDesc *desc);                    // 0x8024eef4 (map: CityItem_Create). Creates a City Trial item GObj, allocates ItemData, initializes all subsystems. Bound-checks desc->kind at 0x8024efb4 with `cmpwi r4,69` (0x2c040045) / `blt`: kind must be -1 or < ITKIND_NUM(69) or it asserts (itdata.c:590). To allow custom kinds >= 68, patch that immediate higher (e.g. cmpwi r4,128 = 0x2c040080). Top Ride has a separate TopRideItem_Create (0x8034ad08).
 void Item_InitDesc(ItemDesc *, ItemKind kind, float scale, int spawn_type, Vec3 *pos, Vec3 *up, Vec3 *forward, int x40, int x44, int is_airborne, int coll_kind, int x38, int x3c); // 0x802509a0. spawn_type=0 default. up/forward can be NULL. x40/x44/x38/x3c usually -1. is_airborne: -1=skip raycast, other=do raycast. coll_kind: 3=point collision (most items), 1=alloc CollData, 0=requires CollData (dangerous)
 ItemCommonAttr *Item_GetCommonAttr(ItemKind kind);    // 0x802500b0. Returns itData[kind].attr
 PatchEffectInfo *Item_GetEffectInfo(ItemKind kind);   // 0x80250114. Returns itData[kind].attr->effect_info (NULL for non-patch kinds)
@@ -1306,6 +1319,24 @@ int CityItem_IsGoodPatch(ItemKind kind);              // 0x802540a8. Returns 1 i
 
 int CityItem_ProcessFakeItem(GOBJ *item_gobj, void *hurt_params); // 0x802542dc. If CTEVF_FAKEITEMS active, fills hurt_params via Event_FakeItems_FillHurtParams. Returns 1 if active, 0 if not
 void CityItem_CopyCommonAttr(GOBJ *item_gobj);        // 0x80251294. Copies ItemCommonAttr fields to ItemData (0x118-0x140), then calls per-kind init
+
+// Two distinct per-kind lookups, often conflated:
+//
+// 1. Threshold "category" (0..24, stored to ItemData+0x24). CityItem_InitData
+//    (0x8024eaf4) and CityItem_GetUnkKindFromItemKind map a kind to the index of
+//    the first threshold >= kind in a 25-entry ascending table at 0x804b5f18:
+//      thresholds = {2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,26,27,38,50,54,57,60,68}
+//    kind > 68 yields -1. Callers of the helper only test this for nonzero (a
+//    "real placeable kind" guard); it does NOT index the state table below.
+//
+// 2. State-handler pointer table at 0x804b6088 - a 69-entry array indexed by the
+//    raw ItemKind (ItemData+0x1c), terminated by the "ItCommon.dat" string at
+//    entry 69. CityItem_InitData (0x8024ec74) and CityItem_Create (0x8024f12c,
+//    0x8024f330) read tbl[kind] for the per-kind state fn pointers. A kind >= 69
+//    indexes past the table (the bound at CityItem_Create 0x8024efb4 stops kinds
+//    >= 69 first). To give a synthetic kind valid state behavior, rewrite the
+//    instance's ItemData+0x1c to an in-range base kind after InitData writes it.
+ItemKind CityItem_GetUnkKindFromItemKind(ItemKind kind); // 0x8024ea54. Returns the threshold category for kind (-1 if out of range); callers test it for nonzero only
 int CityItem_CanCollect(GOBJ *item_gobj);             // 0x80252df0. Returns 1 iff bits 5 and 6 of ItemData.x35a are both clear
 void CityItem_ResetQueuedVelocity(ItemData *id);      // 0x80250340. Zeros both accel and vel vectors
 void CityItem_EnterExpire(GOBJ *gobj);                // 0x8025611c. Transitions item to expire/flicker state
