@@ -708,8 +708,18 @@ s32 DVDReadAbsAsyncPrio(
 int DVDWaitForRead();
 int File_Read(int entrynum, int file_offset, void *buffer, int read_size, int flags, int unk_index, void (*cb)(int r3, void *arg), void *cb_arg2); // just use 0x21 for flags if dram, 0x23 if aram, 1 for unk_index
 int File_CopyFromARAMToDRAM(int entrynum, int file_offset, void *buffer, int read_size, int flags, int unk_index);                                          // just use 0x21 for flags if dram, 0x23 if aram, 1 for unk_index
+// Reads the whole file into buffer, writes size to *out_size. ".dat" is appended ONLY when
+// file_name has no "_" or "." - a name containing either is taken verbatim (pass its full
+// "name.dat"). Panics (assert) if the resolved file does not exist, so gate with a presence
+// check first. buffer must be 32-byte aligned.
 int File_LoadSync(char *file_name, void *buffer, int *out_size);
+// Loads file_name (extension appended) and Archive_Init's it. The returned archive's
+// storage is NOT safe to cache across scene transitions: it comes from a reclaimable
+// per-scene heap and is overwritten once another scene loads its archives (the cached
+// descriptors then dangle). Reload per scene-context, or for a persistent asset read
+// the file into your own buffer (File_LoadSync) and Archive_Init it in place.
 int Gm_LoadGameFile(HSD_Archive **out, char *file_name);
+// Same ".dat"-append rule as File_LoadSync, and likewise panics if the file is missing.
 int File_GetSize(char *file_name);
 // void memcpy(void *dest, void *source, int size);
 // void memset(void *dest, int fill, int size);
