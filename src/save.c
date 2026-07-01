@@ -28,27 +28,36 @@ static char *save_name = "hoshi";
 static KARPlusSave *stc_hoshi_save;
 static int stc_hoshi_save_hash;
 
+// Disc filenames (without ".dat") for the tile art, registered at mod boot and read into the tile
+// during save create (KARPlusSave_LoadTileArt). Kept out of the tile itself so no path string is
+// written to the card. NULL = no art of that kind. The names must contain no "_" or "." - the DVD
+// loader only appends ".dat" to names without one (any "_"/"." makes it treat the name as complete).
+static const char *stc_tile_icon_file;
+static const char *stc_tile_banner_file;
+
 extern ModloaderData *stc_modloader_data;
 
 /*---------------------------------------------------------------------*
-Name:           KARPlusSave_SetIcon
+Name:           KARPlusSave_SetIconFile
 
-Description:    Public API (Hoshi_SetSaveIcon). Lets a mod give the shared
-                "hoshi" save file a card-manager comment + animated icon.
-                Writes straight into the live save struct's embedded tile;
-                it is committed to the card when the save is next written.
-                Call at mod boot (the save struct already exists by then).
+Description:    Public API (Hoshi_SetSaveIconFile). Registers a card-manager
+                comment + icon for the shared "hoshi" save file. The comment
+                and animation params are stored in the tile now; the icon
+                pixels are read from icon_file on disc during save create
+                (KARPlusSave_LoadTileArt), so no large image is carried in the
+                mod's code. Call at mod boot.
 
-Arguments:      title        - card title string (<= 31 chars used)
-                description  - card description string (<= 31 chars used)
-                frames_rgb5a3- frame_num * 32x32 RGB5A3 frames, packed
-                frame_num    - 1..HOSHI_SAVE_ICON_FRAMES
-                speed        - CARD_STAT_SPEED_FAST/MIDDLE/SLOW (all frames)
+Arguments:      title       - card title string (<= 31 chars used)
+                description - card description string (<= 31 chars used)
+                icon_file   - disc filename without ".dat" (and no "_" or ".");
+                              a raw frame_num * CARD_ICON_SIZE_RGB5A3 RGB5A3 blob
+                frame_num   - 1..HOSHI_SAVE_ICON_FRAMES
+                speed       - CARD_STAT_SPEED_FAST/MIDDLE/SLOW (all frames)
 
 Returns:        none.
 
 *---------------------------------------------------------------------*/
-void KARPlusSave_SetIcon(const char *title, const char *description, const void *frames_rgb5a3, int frame_num, int speed)
+void KARPlusSave_SetIconFile(const char *title, const char *description, const char *icon_file, int frame_num, int speed)
 {
     if (!stc_hoshi_save)
         return;
@@ -62,19 +71,154 @@ void KARPlusSave_SetIcon(const char *title, const char *description, const void 
 
     KARPlusSaveTile *tile = &stc_hoshi_save->tile;
 
-    memset(tile, 0, sizeof(*tile));
+    memset(tile, 0, sizeof(*tile)); // clears comment + (deferred) image regions + has_banner
     // comment is two 32-byte halves: title then description (strncpy leaves the rest zeroed)
     if (title)
         strncpy(&tile->comment[0], title, (CARD_COMMENT_SIZE / 2) - 1);
     if (description)
         strncpy(&tile->comment[CARD_COMMENT_SIZE / 2], description, (CARD_COMMENT_SIZE / 2) - 1);
-    if (frames_rgb5a3)
-        memcpy(tile->icon, frames_rgb5a3, frame_num * CARD_ICON_SIZE_RGB5A3);
     tile->frame_num = frame_num;
     tile->speed = speed;
     tile->is_set = 1;
 
-    LOG_INFO("Save icon set (%d frame(s), speed %d).", frame_num, speed);
+    stc_tile_icon_file = icon_file; // pixels loaded at save create
+
+    LOG_INFO("Save icon registered from \"%s\" (%d frame(s), speed %d).", icon_file ? icon_file : "?", frame_num, speed);
+}
+
+/*---------------------------------------------------------------------*
+Name:           KARPlusSave_SetBannerFile
+
+Description:    Public API (Hoshi_SetSaveBannerFile). Registers a 96x32 RGB5A3
+                banner for the shared "hoshi" save tile. The banner pixels are
+                read from banner_file during save create. Call AFTER
+                Hoshi_SetSaveIconFile - that one clears the whole tile.
+
+Arguments:      banner_file - disc filename without ".dat" (and no "_" or ".");
+                              a raw CARD_BANNER_SIZE_RGB5A3 RGB5A3 blob.
+
+Returns:        none.
+
+*---------------------------------------------------------------------*/
+void KARPlusSave_SetBannerFile(const char *banner_file)
+{
+#if HOSHI_SAVE_BANNER
+    if (!stc_hoshi_save || !banner_file)
+        return;
+
+    KARPlusSaveTile *tile = &stc_hoshi_save->tile;
+
+    tile->has_banner = 1;
+    tile->is_set = 1;
+
+    stc_tile_banner_file = banner_file; // pixels loaded at save create
+
+    LOG_INFO("Save banner registered from \"%s\".", banner_file);
+#else
+    LOG_WARN("Save banner ignored (HOSHI_SAVE_BANNER disabled).");
+#endif
+}
+
+/*---------------------------------------------------------------------*
+Name:           KARPlusSave_FileExists
+
+Description:    Reports whether a disc file exists WITHOUT panicking. File_GetSize
+                and File_LoadSync assert-fail on a missing file, so their result
+                can't be used as a presence check. The DVD loader mangles a name
+                with no "_"/"." into "<name>.dat", so build that path here and
+                resolve it directly - DVDConvertPathToEntrynum returns -1 (no
+                assert) when the file is absent.
+
+Arguments:      file - disc filename without ".dat" (and with no "_" or ".")
+
+Returns:        1 if the file is on the disc, 0 otherwise.
+
+*---------------------------------------------------------------------*/
+static int KARPlusSave_FileExists(const char *file)
+{
+    char path[36];
+    int n = strlen(file);
+
+    if (n <= 0 || n + 4 >= (int)sizeof(path))
+        return 0;
+
+    memcpy(path, file, n);
+    memcpy(path + n, ".dat", 5); // includes the NUL terminator
+
+    return DVDConvertPathToEntrynum(path) >= 0;
+}
+
+/*---------------------------------------------------------------------*
+Name:           KARPlusSave_LoadImageInto
+
+Description:    Reads a raw RGB5A3 blob off the disc into a tile image slot.
+                DVD reads need a 32-byte aligned destination and the tile
+                fields are not aligned, so the read goes through a temporary
+                aligned buffer (freeable - this runs after boot) and is then
+                copied into the tile. A missing/wrong-size file is skipped.
+
+Arguments:      file          - disc filename without ".dat" (no "_" or ".")
+                dst           - tile image slot to fill
+                expected_size - exact byte size the file must be
+
+Returns:        none.
+
+*---------------------------------------------------------------------*/
+static void KARPlusSave_LoadImageInto(const char *file, void *dst, int expected_size)
+{
+    // File_GetSize/File_LoadSync panic on a missing file, so bail out gracefully first
+    // if the blob was not shipped on the disc rather than hard-crashing at save create.
+    if (!KARPlusSave_FileExists(file))
+    {
+        LOG_WARN("Tile art \"%s\" not found on disc - skipping.", file);
+        return;
+    }
+
+    int size = File_GetSize((char *)file);
+    if (size != expected_size)
+    {
+        LOG_WARN("Tile art \"%s\" is %d bytes, expected %d - skipping.", file, size, expected_size);
+        return;
+    }
+
+    void *buf = HSD_MemAlloc(OSRoundUp32B(size));
+    if (!buf)
+    {
+        LOG_WARN("Tile art \"%s\" alloc failed.", file);
+        return;
+    }
+
+    int got = 0;
+    File_LoadSync((char *)file, buf, &got);
+    if (got == expected_size)
+        memcpy(dst, buf, expected_size);
+    else
+        LOG_WARN("Tile art \"%s\" read %d bytes, expected %d.", file, got, expected_size);
+
+    HSD_Free(buf);
+}
+
+/*---------------------------------------------------------------------*
+Name:           KARPlusSave_LoadTileArt
+
+Description:    Pulls the registered icon/banner blobs off the disc into the
+                live tile, just before the save struct is written to the card.
+
+Arguments:      none.
+
+Returns:        none.
+
+*---------------------------------------------------------------------*/
+static void KARPlusSave_LoadTileArt()
+{
+    KARPlusSaveTile *tile = &stc_hoshi_save->tile;
+
+    if (stc_tile_icon_file)
+        KARPlusSave_LoadImageInto(stc_tile_icon_file, tile->icon, tile->frame_num * CARD_ICON_SIZE_RGB5A3);
+#if HOSHI_SAVE_BANNER
+    if (stc_tile_banner_file && tile->has_banner)
+        KARPlusSave_LoadImageInto(stc_tile_banner_file, tile->banner, CARD_BANNER_SIZE_RGB5A3);
+#endif
 }
 
 /*---------------------------------------------------------------------*
@@ -102,9 +246,18 @@ static int KARPlusSave_ApplyTile(CARDFileInfo *fileInfo)
         return cardResult;
     }
 
-    stat.bannerFormat = CARD_STAT_BANNER_NONE;
     stat.commentAddr = (u32)((int)&tile->comment - (int)stc_hoshi_save);
+
+    // iconAddr points at the start of the contiguous image block and must stay under 512 bytes
+    // (CARDSetStatus rejects an iconAddr >= 512). With a banner reserved the block starts at the
+    // banner, and the CARD library derives the icon's offset as iconAddr + banner size.
+#if HOSHI_SAVE_BANNER
+    stat.iconAddr = (u32)((int)&tile->banner - (int)stc_hoshi_save);
+    stat.bannerFormat = tile->has_banner ? CARD_STAT_BANNER_RGB5A3 : CARD_STAT_BANNER_NONE;
+#else
     stat.iconAddr = (u32)((int)&tile->icon - (int)stc_hoshi_save);
+    stat.bannerFormat = CARD_STAT_BANNER_NONE;
+#endif
 
     // 2 bits/frame: RGB5A3 format + speed for each valid frame, 0 (NONE) past the end stops the loop
     u16 icon_format = 0, icon_speed = 0;
@@ -309,6 +462,10 @@ int KARPlusSave_CreateOrLoad()
         }
 
         LOG_DEBUG("Save file created with size 0x%x", SAVE_SIZE);
+
+        // pull the tile art off the disc into the tile before it is persisted (an existing file
+        // already carries its art, so this only runs on the create path)
+        KARPlusSave_LoadTileArt();
 
         // write to card
         cardResult = CARDWrite(&fileInfo, stc_hoshi_save, SAVE_SIZE, 0);
@@ -727,6 +884,7 @@ void KARPlusSave_Init()
     stc_hoshi_save->version_major = VERSION_MAJOR;
     stc_hoshi_save->version_minor = VERSION_MINOR;
     stc_hoshi_save->mod_num = 0;
+    stc_hoshi_save->pad = 0;
     stc_hoshi_save->tile.is_set = 0; // no card tile unless a mod calls Hoshi_SetSaveIcon
 
     // install functions
@@ -736,7 +894,8 @@ void KARPlusSave_Init()
 
     CODEPATCH_HOOKAPPLY(0x800189a4);
     CODEPATCH_REPLACEFUNC(Hoshi_WriteSave, KARPlusSave_Write);
-    CODEPATCH_REPLACEFUNC(Hoshi_SetSaveIcon, KARPlusSave_SetIcon);
+    CODEPATCH_REPLACEFUNC(Hoshi_SetSaveIconFile, KARPlusSave_SetIconFile);
+    CODEPATCH_REPLACEFUNC(Hoshi_SetSaveBannerFile, KARPlusSave_SetBannerFile);
     CODEPATCH_HOOKAPPLY(0x80007630);
 
     CODEPATCH_REPLACEFUNC(Hoshi_GetBackupSize, _Hoshi_GetBackupSize);
