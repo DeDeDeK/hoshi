@@ -2858,7 +2858,7 @@ void ClearChecker_SetNewUnlock(GameMode gm, u8 clear_kind);            // 8004a0
 int ClearChecker_GetFrameIndex(void);                                   // 80005ce0, returns current frame index used for SFX cooldown in SetNewUnlock
 u8 ClearChecker_GetKindClear(GameMode gm, u8 clear_kind);              // 8004a130, returns status byte for a clear_kind
 int ClearChecker_CheckForNewUnlocks(GameMode gm);                      // 8004a1a4, scans for is_new && !is_unlocked
-void Checklist_SetRewardFlagOnUnlocks();                                // 8017df5c, sets has_reward on unlocked slots, rebuilds grid
+void Checklist_SetRewardFlagOnUnlocks();                                // 8017df5c, sets has_reward on reward cells, then BUILDS the visible grid: for phys_slot 0..119 it reverse-maps grid_mapping->clear_kind, picks a cell-state model from clear[] bits (is_visible/has_reward/is_unlocked/is_filler, or none=no cell), and creates/positions a cell GObj at MainMenuData+0xf0c[phys_slot], col=phys_slot%12 row=phys_slot/12 (spacing from the Pos element). The 12-column / 120-cell layout is hardcoded here
 void Checklist_BuildUnlockBitfields();                                  // 80007af0, caches unlock status into GameData + 0xD50 bitfields
 int Checklist_IsCacheValid();                                           // 8007b650, returns 1 if unlock bitfield cache is valid
 int Checklist_CheckCachedUnlock_AirRide(s8 reward_index);               // 80007e34, fast bit-test against cached Air Ride unlock bitfield
@@ -2866,9 +2866,15 @@ int Checklist_CheckCachedUnlock_CityTrial(s8 reward_index);             // 80007
 GameClearData *gmGetClearcheckerTypeP(GameMode mode);                   // 800076a0, returns ClearCheckerData for mode
 GameClearData *gmGetClearcheckerP();                                    // 80006c20, returns base ClearCheckerData (Air Ride)
 u8 Gm_GetClearChecker();                                                // 8017cf14, returns ClearChecker UI state byte (phase, chk+0x15)
-void Checklist_Init(int mode, int fresh_flag);                          // 801822f4, builds the checklist screen (SIS, grid cells) for a mode
+void Checklist_Init(int mode, int fresh_flag);                          // 801822f4, builds the checklist screen (SIS, grid cells) for a mode. fresh_flag sets Think state (chk+0x15): 1 = new-unlock presentation (state 0, animates is_new cells), 0 = browse (state 4, animation skipped)
 void Checklist_MinorThink();                                            // 8004a648, checklist minor-scene think: tab cycle / exit (cb_ThinkPostGObjProc)
 void Checklist_PrepMenuData();                                          // 80138d74, sets up the checklist menu data (ScMenuCommon, element alloc); called by the minor cb_Load
+void Checklist_Think();                                                 // 8017f3bc, checklist state machine + cursor movement. Bakes in 12 columns: phys_slot = col + row*12, column bound 12, last-column test col%12<11
+void Checklist_Update();                                                // 8018161c, per-frame cursor-highlight position (X=col*xstep, Y=row*ystep) + reverse-scan of grid_mapping; asserts "Clearchecker Number 120" if a cursor slot is unmapped
+void Checklist_UpdateCellInfo();                                        // 80181d70, per-frame hover tooltip: unrolled 12x10 reverse-scan cursor->clear_kind, then reward/objective text + icon
+void Checklist_InitGridMapping(int mode);                               // 8004a2bc, fills grid_mapping[120] (meta cells pre-placed, rest randomized via HSD_Randi). Custom tabs override with identity instead
+void Checklist_LoadModels();                                            // 801821ac, Archive_GetSymbols binds the checklist scene models (Bg/Frame*/cell-state/Pos/Cursol) into MainMenuData slots (0xecc..0x1128)
+void Checklist_DestroyElements();                                       // 80182cac, tears down the checklist GObjs: grid element, banner, Pos element, the 0xf0c[120] cell array, filler array, cursor/info/icon elements
 void *MainMenu_GetData();                                              // 801311e0, returns the main-menu element manager (holds the checklist root GObj at +0xed0)
 void loadMainMenuMusic();                                               // 8000bba0, (re)loads/plays the main-menu BGM
 void MainMenu_ClearSoundTestSongThunk();                               // 8000bc10, stops the checklist reward-preview song

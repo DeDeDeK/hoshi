@@ -975,7 +975,8 @@ SECTIONS
   Hoshi_GetBackupSize = 0x80495184;
   Hoshi_BackupModSave = 0x80495188;
   Hoshi_RestoreModSave = 0x8049518c;
-  Hoshi_SetSaveIcon = 0x80495190;
+  Hoshi_SetSaveIconFile = 0x80495190;
+  Hoshi_SetSaveBannerFile = 0x80495194;
 
   Sky_Init = 0x8010f114;
   Sky_SetPresetIndex = 0x800dc630;
