@@ -186,8 +186,17 @@ def write_modbin(output_path, all_sections: list[Section], reloc_sections : list
     packed_data = bytes_pack(all_sections)
     packed_size = len(packed_data)
 
-    # Sort function symbols by their offset
-    func_symbols = [s for s in symbols if s.type == 'STT_FUNC']
+    # Sort symbols for compiled functions by their offset
+    func_symbols = [s for s in symbols if s.type == 'STT_FUNC' and s.section_index != "SHN_ABS"]
+
+    #for s in func_symbols:
+    #    print(
+    #        f"name={s.name}, "
+    #        f"type={s.type!r}, "
+    #        f"section_index={s.section_index!r}, "
+    #        f"value={s.section_value:#x}"
+    #    )
+
     func_symbols.sort(key=lambda s: all_sections[s.section_index].bytes_offset + s.section_value)
 
     # create debug symbol bytearrays. one for lookup data and one for the symbol data
@@ -226,10 +235,15 @@ def write_modbin(output_path, all_sections: list[Section], reloc_sections : list
             if target_symbol_section_idx == 'SHN_UNDEF':
                 sys.exit(f"Error: symbol \"{target_symbol.name}\" is undefined.")
 
+            # bool for whether or not the target symbol was compiled into the object
+            is_embedded_func = (target_symbol_section_idx != 'SHN_ABS')
+
             target_section_offset = None
             reloc_symbol_section = None
-            if target_symbol_section_idx != 'SHN_ABS':
+            if is_embedded_func:
                 reloc_symbol_section = all_sections[target_symbol_section_idx]
+                if reloc_symbol_section.bytes_offset is None:
+                    sys.exit(f"Error: reloc to symbol {target_symbol.name} failed. Section it resides in ({reloc_symbol_section.name}) is missing.")
 
             # STT_SECTION seems to use reloc addend to hold the offset of the section
             if target_symbol_type == 'STT_SECTION' or target_symbol_type == 'STT_OBJECT':
@@ -237,7 +251,7 @@ def write_modbin(output_path, all_sections: list[Section], reloc_sections : list
             # while everything else uses the section value from the target symbol
             else:
                 target_section_offset = target_symbol_section_value
-                    
+
             if 0:
                 print(f"[Reloc #{i}]")
                 print(f"Section to Patch: {reloc_section.name}")
@@ -246,13 +260,14 @@ def write_modbin(output_path, all_sections: list[Section], reloc_sections : list
                 print(f"Symbol Index: {target_symbol_idx}")
                 print(f"Symbol Name: {target_symbol.name}")
                 print(f"Symbol Type: {target_symbol_type}")
-                if target_symbol_section_idx != 'SHN_ABS':
-                    print(f"Target Section: {reloc_symbol_section.name}")
-                    print(f"Target Blob Offset: 0x{reloc_symbol_section.bytes_offset:08X}")
-                    print(f"Target Section Offset: 0x{target_section_offset:08X}")
-                    print(f"Target Section Value: 0x{target_symbol_section_value:08X}")
+                print(f"Symbol Section Index: {target_symbol_section_idx}")
+                if is_embedded_func:
+                    print(f" Target Section: {reloc_symbol_section.name}")
+                    print(f" Target Blob Offset: 0x{reloc_symbol_section.bytes_offset:08X}")
+                    print(f" Target Section Offset: 0x{target_section_offset:08X}")
+                    print(f" Target Section Value: 0x{target_symbol_section_value:08X}")
                 else:
-                    print(f"Symbol Value: 0x{target_symbol_section_value:08X}")
+                    print(f" Symbol Value: 0x{target_symbol_section_value:08X}")
                 print(f"")
 
             if reloc.type is None:
@@ -260,10 +275,10 @@ def write_modbin(output_path, all_sections: list[Section], reloc_sections : list
                 continue
 
             patch_offset = reloc_section.bytes_offset + patch_section_offset
-            if target_symbol_section_idx == 'SHN_ABS':
-                patch_data = target_symbol_section_value
-            else:
+            if is_embedded_func:
                 patch_data = reloc_symbol_section.bytes_offset + target_section_offset
+            else:
+                patch_data = target_symbol_section_value
 
             if patch_offset > 0xFFFFFF:
                 raise ValueError(f"Instruction offset too large: 0x{patch_offset:X}")

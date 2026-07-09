@@ -50,7 +50,7 @@ class Symbol:
 
     def __repr__(self):
         section_index_string = "Absolute" if self.section_index == 'SHN_ABS' else f"{self.section_index}"
-        return f"<Symbol {self.name} section_index=" + section_index_string + " section_value=0x" + f"{self.section_value:08X}>"
+        return f"<Symbol {self.name} type={self.type} section_index=" + section_index_string + " section_value=0x" + f"{self.section_value:08X}>"
 
 def extract(elf_path) -> tuple[list[Section], list[Symbol], list[RelocSection]]:
 
@@ -73,6 +73,7 @@ def extract(elf_path) -> tuple[list[Section], list[Symbol], list[RelocSection]]:
                 section_index=symbol['st_shndx'],
                 section_value=symbol['st_value'],
             )
+            #print(f"{this}")
             symbols.append(this)
 
         # snag sections and relocations if applicable

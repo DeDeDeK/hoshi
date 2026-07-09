@@ -10,7 +10,7 @@ SECTIONS
   AOBJ_ClearFlags = 0x803FB1AC;
   atan = 0x803BC94C;
   atan2 = 0x803BD3C8;
-  tanf = 0x803bccd0;
+  cosf = 0x803bccd0;
   AudioHeap_SetAllocAndFree = 0x804479d4;
   AudioEmitter_Alloc = 0x8005d864;
   AudioEmitter_Free = 0x8005e08c;
@@ -109,6 +109,7 @@ SECTIONS
   Archive_Free = 0x80059628;
   Archive_GetPublicAddress = 0x8041E390;
   Archive_AppendExtension = 0x80058e84;
+  lbLoadArchive = 0x80059a20;
   File_GetPreloadedFile = 0x80073BA0;
   File_LoadSync = 0x80059364;
   Gm_LoadGameFile = 0x80059818;
@@ -249,6 +250,9 @@ SECTIONS
   OSSetAlarm = 0x803d30e0;
   OSSetPeriodicAlarm = 0x803d3148;
   OSCancelAlarm = 0x803d31c4;
+  OSCreateHeap = 0x803d3804;
+  OSAllocFromHeap = 0x803d360c;
+  OSFreeToHeap = 0x803d3708;
   OSCheckHeap = 0x803D3884;
   OSAllocFromArenaLo = 0x803d3c04;
   OSGetPhysicalMemSize = 0x803D7B30;
@@ -259,6 +263,10 @@ SECTIONS
   OSGetTick = 0x803DB530;
   OSGetTime = 0x803DB518;
   OSReport = 0x803D4CE8;
+  OSPanic = 0x800eeaec;
+  OSRegisterResetFunction = 0x800f0628;
+  OSInitMutex = 0x800f0080;
+  OSInitThreadQueue = 0x0;
   DVDConvertPathToEntrynum = 0x803C4ED4;
   DVDFastOpen = 0x803C51C8;
   DVDClose = 0x803C5304;
@@ -355,7 +363,7 @@ SECTIONS
   SOSocket = 0x8047b888;
   SOClose = 0x8047c3b8;
   SOBind = 0x8047cbbc;
-  SOConnect = 0x8047cce0;
+  SOShutdown = 0x8047cce0;
   SORead = 0x8047cde4;
   SORecvFrom = 0x8047ce0c;
   SOWrite = 0x8047d044;
