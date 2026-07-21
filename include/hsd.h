@@ -344,6 +344,7 @@ char *Archive_GetExtern(HSD_Archive *archive, int index);                   // g
 void Archive_LocateExtern(HSD_Archive *archive, char *symbols, void *addr); // relocates pointers to symbols
 HSD_Archive *File_GetPreloadedFile(char *filename);
 void Archive_LoadSync(char *filename, void *alloc, int *out_size);
+int lbLoadArchive(HSD_Archive **out, char *file_name, ...); // r3 is usually 0, va args are symbol_ptr followed by symbol_name, terminate with 0
 char *Archive_AppendExtension(char *filename);
 int HSD_Randi(int max);
 float HSD_Randf();

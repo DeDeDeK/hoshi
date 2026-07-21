@@ -130,6 +130,7 @@ void CityHUD_CreateStatBar(int ply, int ply2, int stat_kind);
 void HUD_PauseCreate();
 void HUD_PauseDestroy();
 GOBJ *HUD_CreateElement(int ply, JOBJDesc *j);
+
 void HUD_GXLink(GOBJ *g, int pass);
 void HUD_AddElementData(GOBJ *g, int size, int ply, int ply2);
 void HUD_UpdateElement(JOBJ *j, int frame);

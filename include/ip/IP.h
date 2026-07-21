@@ -4,7 +4,7 @@
 #include <datatypes.h>
 #include <os.h>
 #include <ip/IFQueue.h>
-#include <stdio.h>
+// #include <stdio.h>
 
 #ifdef __cplusplus
 extern "C" {

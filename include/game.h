@@ -1121,10 +1121,7 @@ typedef struct Game3dData
     int x98;                                      // 0x98
     int x9c;                                      // 0x9c
     int xa0;                                      // 0xa0
-    int xa4;                                      // 0xa4
-    int xa8;                                      // 0xa8
-    int xac;                                      // 0xac
-    int xb0;                                      // 0xb0
+    GOBJ *ply_speedometer_gobj[4];                // 0xa4
     int xb4;                                      // 0xb4
     int xb8;                                      // 0xb8
     int xbc;                                      // 0xbc

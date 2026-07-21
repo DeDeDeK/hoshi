@@ -12,6 +12,7 @@
 #include "ip.h"
 
 #include <string.h>
+#include <stdio.h>
 // #include <math.h>
 
 /*** Macros ***/

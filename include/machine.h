@@ -436,9 +436,7 @@ typedef struct MachineData
     int x348;                             // 0x348
     int x34c;                             // 0x34c
     int x350;                             // 0x350
-    int x354;                             // 0x354
-    int x358;                             // 0x358
-    int x35c;                             // 0x35c
+    Vec3 displacement;                    // 0x354
     int x360;                             // 0x360
     int x364;                             // 0x364
     int x368;                             // 0x368
@@ -933,7 +931,7 @@ typedef struct MachineData
     int xb34;                             // 0xb34
     int xb38;                             // 0xb38
     int xb3c;                             // 0xb3c
-    int xb40;                             // 0xb40
+    int wall_stuck_timer;                 // 0xb40, counts DOWN from 120 when becoming airborne. wall stuck only gets checked if this is 0
     int xb44;                             // 0xb44
     int xb48;                             // 0xb48
     int xb4c;                             // 0xb4c

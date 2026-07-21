@@ -186,6 +186,14 @@ char *strrchr(const char *, int);
 #define VI_TVMODE_DEBUG_PAL_INT VI_TVMODE(VI_DEBUG_PAL, VI_INTERLACE)
 #define VI_TVMODE_DEBUG_PAL_DS VI_TVMODE(VI_DEBUG_PAL, VI_NON_INTERLACE)
 
+// credit to libogc
+#ifndef ATTRIBUTE_ALIGN
+# define ATTRIBUTE_ALIGN(v)					__attribute__((aligned(v)))
+#endif
+#ifndef ATTRIBUTE_PACKED
+# define ATTRIBUTE_PACKED					__attribute__((packed))
+#endif
+
 /*** Structs ***/
 struct OSInfo
 {
@@ -646,11 +654,13 @@ void OSSetAlarm(OSAlarm *alarm, OSTime tick, void *handler);
 void OSSetPeriodicAlarm(OSAlarm *alarm, OSTime start, OSTime period, void *handler);
 void OSCancelAlarm(OSAlarm *alarm);
 void OSReport(char *, ...);
+void OSPanic(const char *file, int line, const char *msg, ...);
+void OSRegisterResetFunction(void *info);
 void __assert(char *file, int line, char *assert);
 int OSCreateHeap(void *heap_lo, void *heap_hi);
 void OSDestroyHeap(int heap_id);
-void *OSAllocFromHeap(int heap_id);
-void OSFreeToHeap(void *alloc);
+void *OSAllocFromHeap(int heap_id, int size);
+void OSFreeToHeap(int heap_id, void *alloc);
 int OSCheckHeap(int heap);
 void *OSAllocFromArenaLo(int size, int align);
 int OSGetPhysicalMemSize();
