@@ -82,7 +82,8 @@ typedef struct TopRideKirby
     u8 start_position;                  // 0x0E, Fisher-Yates shuffled grid position (0..3) - NOT a CPU level. Set per-round in TopRide_KirbyMgrInit from KirbyMgr+0x4024+i.
     u8 place;                           // 0x0F, current race placement / finish rank, written each frame by the ranking pass in TopRide_KirbyMgrUpdate (0 while still racing); gated as "== 0" for "not yet finished".
     u8 is_active;                       // 0x10, final standings byte set by the same ranking pass on race start; stays 0 in Time Attack and Free Run even while playing - don't gate on this in solo modes
-    u8 x11[0x03];                       // 0x11, x11 init 0xFF
+    u8 active_item_kind;                // 0x11, currently-held TR item kind (TopRideItemKind); 0xFF = none. Written by TopRide_KirbyApplyItem (0x802d8cb4); not reset on natural expiry.
+    u8 x12[0x02];                       // 0x12
     int lap_progress;                   // 0x14, accumulates the per-frame CheckLine cross result (init -1); going positive completes a lap/segment
     u8 lap_pending;                     // 0x18, set when a checkpoint is crossed backward; gates the lap-completion branch
     u8 x19[0x03];                       // 0x19
@@ -172,6 +173,19 @@ typedef struct TopRideCpuInputReader
 char TopRide_CpuInputThink(TopRideCpuInputReader *reader, float *steer_out); // 0x802eee90
 char TopRide_CpuInputPoll(TopRideCpuInputReader *reader, float *sx, float *sy); // 0x80291dec, CPU vt[0x14]
 u8   TopRide_KirbyGetSlot(TopRideKirby *kirby);                              // 0x802d4d5c, returns kirby+0x0c
+
+// Voluntary quick spin - the L/R stick-flick spin attack, Top Ride's analog of
+// the 3D Rider_QuickSpin. Distinct from the KirbySpin hazard/damage spin-out
+// (vtable[61]). Each frame TopRide_KirbyPhysUpdate (0x802d5ec0) pushes the stick
+// input into the kirby's history ring (kirby->history, +0x64) via
+// TopRide_KirbyHistoryPush, then TopRide_KirbyHistoryQuery sums the ring's
+// per-entry |delta|: it returns 0 when the sum is <= 200 (no flick), else +/-1
+// (the spin direction). On a nonzero result PhysUpdate sets
+// charge.angular_velocity and enters the spin-attack state (AC_SPINATTACK_L/R_START)
+// via TopRide_KirbyQuickSpinSetter (0x802f18d8). The query call at 0x802d5f90 is
+// the single gate for the whole move.
+void TopRide_KirbyHistoryPush(float x, float y, int *history); // 0x80311f88, history = &kirby->history
+int  TopRide_KirbyHistoryQuery(int *history);                  // 0x80312000, 0 = no flick, +/-1 = flick dir
 
 // CPU brain helpers, all reached from TopRide_CpuInputThink. TopRide_CpuPerceive
 // fills a stack "blackboard" (sector look-ahead, nearest rival/item/obstacle, per-
@@ -339,6 +353,27 @@ static inline int TopRide_KirbyHasStateVtable(TopRideKirby *kirby, void *state_v
     if (!kirby || !kirby->state_handler)
         return 0;
     return *(void **)kirby->state_handler == state_vt;
+}
+
+// Item-power state vtables installed by TopRide_KirbyApplyItem (0x802d8cb4) for
+// the four ability-power items - the Top Ride analogs of copy abilities (the
+// items gated by the AP ability mask). While one is active the kirby's
+// state_handler carries the matching vtable, so comparing *(void**)state_handler
+// against these detects a held ability power (use TopRide_KirbyHasStateVtable).
+#define TR_ITEMPOWER_VT_FIRE       ((void *)0x804db288) // Fire item (TRITEM_FIRE, 11)
+#define TR_ITEMPOWER_VT_FREEZE_FAN ((void *)0x804dc6e4) // Freeze Fan item (TRITEM_FREEZE_FAN, 9)
+#define TR_ITEMPOWER_VT_BOMB       ((void *)0x804db088) // Bomb item (TRITEM_BOMB, 13)
+#define TR_ITEMPOWER_VT_WALKY      ((void *)0x804dc150) // Walky item (TRITEM_WALKY, 16)
+
+// KirbyNormal - force the kirby back to the neutral state. Exits the current
+// state via its vt[2] teardown (removing an item power's aura/model/effects),
+// then installs KirbyNormal - the same revert the engine runs when one item
+// power replaces another. Wrapper: TopRide_KirbyNormalMethod at 0x802da0f4
+// (vtable[50], +0xC8). Safe once round_state == 2.
+static inline void TopRide_KirbyNormal(TopRideKirby *kirby)
+{
+    typedef void (*Method)(TopRideKirby *);
+    ((Method)(((void **)kirby->vtable)[50]))(kirby);
 }
 
 // Each helper invokes a non-virtual method on the Kirby class (vtable at

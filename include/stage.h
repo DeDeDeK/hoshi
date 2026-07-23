@@ -269,6 +269,13 @@ GroundKind Gm_GetGrKindFromStageKind(StageKind stage_kind); // 0x80261ce8 - Stag
 // already past a wall). Reads the box from (*stc_grobj)->gr_data->stage_node.
 float calcDistanceFromOOB(Vec3 *pos);          // 0x800d4f20
 
+// Total number of props the current stage places for a yakumono descriptor id
+// (the same id that indexes PlayerStats.yakumono_break). Reads the stage's
+// spawn-count table, so it is only meaningful while a stage is loaded and
+// returns 0 for grounds with no table (only GR_CITY1 and GR_SANDS2 have one).
+// City Trial's table: desc 33 = 10, desc 34 = 53, desc 35 = 41, desc 38 = 30.
+int Gr_GetYakumonoSpawnTotal(int desc_id);     // 0x800f7db0
+
 // 0x48-byte preset entry stored in the stage file's sky-block array
 // (gr_data+0x34 -> [4] -> [0]). Each entry interpolates fog, screen tint,
 // sky ambient color, and AreaLight params over `transition_frames`.
