@@ -28,6 +28,10 @@ static char *save_name = "hoshi";
 static KARPlusSave *stc_hoshi_save;
 static int stc_hoshi_save_hash;
 
+// Set once the card file has been created or read into stc_hoshi_save. Until then the
+// struct holds defaults, and writing it would overwrite a good on-card file with them.
+static int stc_hoshi_save_ready;
+
 // Disc filenames (without ".dat") for the tile art, registered at mod boot and read into the tile
 // during save create (KARPlusSave_LoadTileArt). Kept out of the tile itself so no path string is
 // written to the card. NULL = no art of that kind. The names must contain no "_" or "." - the DVD
@@ -319,6 +323,7 @@ void KARPlusSave_OnSaveCreateOrLoad()
 
         // update hash
         stc_hoshi_save_hash = _hash_32(stc_hoshi_save, SAVE_SIZE);
+        stc_hoshi_save_ready = 1;
 
         // enter a new scene and ask the user if they just created a custom save
         if (is_created)
@@ -339,21 +344,52 @@ CODEPATCH_HOOKCREATE(0x80047834, "", KARPlusSave_OnSaveCreateOrLoad, "", 0)
 CODEPATCH_HOOKCREATE(0x80047720, "", KARPlusSave_OnSaveCreateOrLoad, "", 0)
 
 /*---------------------------------------------------------------------*
-Name:           KARPlusSave_OnMainMenuEnter
+Name:           KARPlusSave_OnReqSave
 
-Description:    Inserted at the end of vanilla main menu initialization.
-                Determines whether or not to write out data to memcard.
+Description:    Inserted at each vanilla Memcard_ReqSave call site, so the
+                hoshi file is written at every point the game saves its own
+                (main menu entry, result screens, stage selects, checklist
+                unlocks, ...) and at no other time. Keeping the two files in
+                step means mod state that mirrors the vanilla save can never
+                end up a boot behind it. Hash-gated, so an unchanged save
+                costs nothing.
+
+                Hooked at the call sites rather than at Memcard_ReqSave's
+                entry: the injection calls out with a bare bl and no prologue,
+                so LR survives only where the site's own bl is about to
+                overwrite it anyway. At the function head the clobbered LR
+                would be spilled by the prologue and returned to, re-entering
+                the function forever.
 
 Arguments:      none.
 
 Returns:        none.
 
 *---------------------------------------------------------------------*/
-void KARPlusSave_OnMainMenuEnter()
+void KARPlusSave_OnReqSave()
 {
+    // The card-prompt scene requests a save while creating the vanilla file,
+    // which can precede our own create/load.
+    if (!stc_hoshi_save_ready)
+        return;
+
     KARPlusSave_Write();
 }
-CODEPATCH_HOOKCREATE(0x800189a4, "", KARPlusSave_OnMainMenuEnter, "", 0)
+CODEPATCH_HOOKCREATE(0x80015bd4, "", KARPlusSave_OnReqSave, "", 0) // MainMenu_MajorEnter
+CODEPATCH_HOOKCREATE(0x800173c8, "", KARPlusSave_OnReqSave, "", 0)
+CODEPATCH_HOOKCREATE(0x800177bc, "", KARPlusSave_OnReqSave, "", 0) // startToggleRumble
+CODEPATCH_HOOKCREATE(0x80017acc, "", KARPlusSave_OnReqSave, "", 0) // MainMenu_SoundTestThink
+CODEPATCH_HOOKCREATE(0x800189a4, "", KARPlusSave_OnReqSave, "", 0) // MainMenu_MinorEnter
+CODEPATCH_HOOKCREATE(0x8002a35c, "", KARPlusSave_OnReqSave, "", 0) // CSS_airRide_ModeDispatch
+CODEPATCH_HOOKCREATE(0x8002dcf0, "", KARPlusSave_OnReqSave, "", 0) // TopRide_LobbyInit
+CODEPATCH_HOOKCREATE(0x8003b490, "", KARPlusSave_OnReqSave, "", 0) // CitySelect_MinorLoad
+CODEPATCH_HOOKCREATE(0x8003c6ec, "", KARPlusSave_OnReqSave, "", 0) // AirRideSelect_Init
+CODEPATCH_HOOKCREATE(0x8003d51c, "", KARPlusSave_OnReqSave, "", 0) // TopRide_CourseSelectInit
+CODEPATCH_HOOKCREATE(0x80043aa0, "", KARPlusSave_OnReqSave, "", 0)
+CODEPATCH_HOOKCREATE(0x80044490, "", KARPlusSave_OnReqSave, "", 0)
+CODEPATCH_HOOKCREATE(0x80045a20, "", KARPlusSave_OnReqSave, "", 0) // ResultScreen_LoadMinor
+CODEPATCH_HOOKCREATE(0x8017f38c, "", KARPlusSave_OnReqSave, "", 0) // Checklist_ProcessUnlock
+CODEPATCH_HOOKCREATE(0x80181570, "", KARPlusSave_OnReqSave, "", 0) // Checklist_Think
 
 /*---------------------------------------------------------------------*
 Name:           KARPlusSave_OnNoCardInserted
@@ -892,7 +928,22 @@ void KARPlusSave_Init()
     CODEPATCH_HOOKAPPLY(0x80047720);
     CODEPATCH_HOOKAPPLY(0x80047718);
 
+    CODEPATCH_HOOKAPPLY(0x80015bd4);
+    CODEPATCH_HOOKAPPLY(0x800173c8);
+    CODEPATCH_HOOKAPPLY(0x800177bc);
+    CODEPATCH_HOOKAPPLY(0x80017acc);
     CODEPATCH_HOOKAPPLY(0x800189a4);
+    CODEPATCH_HOOKAPPLY(0x8002a35c);
+    CODEPATCH_HOOKAPPLY(0x8002dcf0);
+    CODEPATCH_HOOKAPPLY(0x8003b490);
+    CODEPATCH_HOOKAPPLY(0x8003c6ec);
+    CODEPATCH_HOOKAPPLY(0x8003d51c);
+    CODEPATCH_HOOKAPPLY(0x80043aa0);
+    CODEPATCH_HOOKAPPLY(0x80044490);
+    CODEPATCH_HOOKAPPLY(0x80045a20);
+    CODEPATCH_HOOKAPPLY(0x8017f38c);
+    CODEPATCH_HOOKAPPLY(0x80181570);
+
     CODEPATCH_REPLACEFUNC(Hoshi_WriteSave, KARPlusSave_Write);
     CODEPATCH_REPLACEFUNC(Hoshi_SetSaveIconFile, KARPlusSave_SetIconFile);
     CODEPATCH_REPLACEFUNC(Hoshi_SetSaveBannerFile, KARPlusSave_SetBannerFile);
