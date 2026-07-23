@@ -72,19 +72,31 @@ typedef enum StadiumGroup
     STGROUP_NUM,
 } StadiumGroup;
 
+// End-of-round snapshot of the live per-player result arrays, latched into
+// GameData by Stadium_ExitMinor's copy loop (0x80015164) right before the
+// On3DExit hook site, so every field here is final while On3DExit runs.
+//
+// The loop runs p = 0..3 unconditionally - CPU racers are latched too, and
+// Stadium_ComputeRank* rank them alongside humans. It is skipped entirely when
+// 3D_CheckIfReplay() (GameData.is_replay) or 3DHud_GetUnkFromPKind()
+// (major_cur == MJRKIND_TITLE) holds, leaving the previous round's values in
+// place - check is_replay before reading.
+//
+// Which field carries the round's score depends on the stadium: the ranker
+// picked by GameData.city_kind is by time (0/7/15), by points (9), or by
+// distance (1/8/11/16).
 typedef struct StadiumResults
 {
-    u8 ply_placement[4];  // 0xbc8
-    int xbcc;             // 0xbcc
-    int ply_race_time[4]; // 0xbd0
-    int xbe0;             // 0xbe0
-    int xbe4;             // 0xbe4
-    int xbe8;             // 0xbe8
-    int xbec;             // 0xbec
-    int xbf0[4];          // 0xbf0
-    u8 xc00[4];           // 0xc00
-    int ply_points[4];    // 0xc04, 0x40
-    float ply_dist[4];    // 0xc14
+    u8 ply_placement[4];   // 0xbc8, from GameData.player_finish_rank; 0 = 1st
+    u8 ply_finished[4];    // 0xbcc, from GameData.player_finished_flag; crossed the goal
+    int ply_race_time[4];  // 0xbd0, from GameData.player_finish_time; frames @60fps, 0 = DNF
+    int ply_freerun_time[4]; // 0xbe0, from GameData+0x8cc (Free Run's own time slot)
+    int ply_lap_count[4];  // 0xbf0, from GameData.player_lap_count
+    u8 xc00[4];            // 0xc00, from GameData+0xa30; validity gate - must be 0 to record
+    int ply_points[4];     // 0xc04, from GameData.destruction_derby_ko_num; polymorphic
+                           //        score - Target Flight points / Derby KOs / Melee KOs
+    float ply_dist[4];     // 0xc14, from GameData.player_race_distance; METRES
+                           //        (feet = metres / 0.3048)
 } StadiumResults;
 
 StadiumGroup Gm_GetStadiumGroupFromKind(StadiumKind st_kind);
@@ -97,7 +109,18 @@ int Gm_StadiumCheckUnlocked(StadiumKind kind);       // 80007EE4 - reads unlock 
 void Gm_StadiumWriteUnlocked(StadiumKind kind, int unlock); // 80007F6C - writes unlock bitfield (handles cache)
 int Gm_StadiumCheckNewLabel(StadiumKind kind);        // 80008038 - reads new-label bitfield (handles cache)
 void Gm_StadiumWriteNewLabel(StadiumKind kind, int set);    // 800080C0 - writes new-label bitfield (handles cache)
+// StadiumResults accessors. All take the player index and index the results
+// block directly, so they carry CPU entries and stay valid until the next
+// stadium overwrites them.
+u8 Ply_GetStadiumRacePlacement(int ply); // 0x8000B674 - 0 = 1st
+int Ply_GetStadiumRaceTime(int ply);     // 0x8000B6AC - frames @60fps, 0 = DNF
+int Ply_GetStadiumPoints(int ply);       // 0x8000B75C
+float Ply_GetStadiumDistance(int ply);   // 0x8000B798 - metres
+
+// Increments GameData.city.stadium_round (stb r0,0x5af(r31) at 0x800406FC)
+// before returning - calling it to read the round corrupts the counter.
 int Gm_StadiumRoundNum();
+u8 Gm_GetStadiumRound(); // 0x8000AE08 - the pure read of GameData.city.stadium_round
 
 // Direct bitfield writes - bypass the checklist cache.
 // Use these for permanent modifications that must
