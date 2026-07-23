@@ -39,12 +39,15 @@ typedef enum MinorKind
     MNRKIND_20,                    //
     MNRKIND_STADIUMSELECT,         //
     MNRKIND_MOVIE = 25,            //
+    MNRKIND_AIRRIDEENDING = 28,    // played by the checklist's ending reward (MvEnding.h4m)
+    MNRKIND_TOPRIDEENDING,         // played by the checklist's ending reward
+    MNRKIND_CITYENDING,            // played by the checklist's ending reward
     MNRKIND_AIRRIDECHECKLIST = 32, //
     MNRKIND_TOPRIDECHECKLIST,      //
     MNRKIND_CITYCHECKLIST,         //
-    MNRKIND_AIRRIDERECORDS,        //
-    MNRKIND_TOPRIDERECORDS,        //
-    MNRKIND_CITYRECORDS,           //
+    MNRKIND_35,                    // LAN menu (gmLanMenu_InitializeGameState)
+    MNRKIND_36,                    // LAN menu
+    MNRKIND_37,                    // LAN menu
     MNRKIND_CARD,                  //
     MNRKIND_DEBUGMENU,             //
     MNRKIND_40,                    //
@@ -619,20 +622,41 @@ struct ScMenuCommon
     int xec0;                    // 0xec0
     int xec4;                    // 0xec4
     int xec8;                    // 0xec8
-    int xecc;                    // 0xecc
-    GOBJ *clearchecker_gobj;     // 0xed0, set while a checklist minor scene is active
-    int xed4;                    // 0xed4
-    int xed8;                    // 0xed8
-    int xedc;                    // 0xedc
-    int xee0;                    // 0xee0
-    int xee4;                    // 0xee4
-    int xee8;                    // 0xee8
-    int xeec;                    // 0xeec
-    int xef0;                    // 0xef0
-    int xef4;                    // 0xef4
-    int xef8;                    // 0xef8
-    int xefc;                    // 0xefc
-    u8 xf00[0x348];              // 0xf00
+    // Checklist screen. Checklist_LoadModels (0x801821ac) binds each ScMenClearchecker*
+    // archive symbol into its models slot; Checklist_Init builds the GObjs. Gray/Red/Green/
+    // Purple1/Purple2/Gold are the per-state cell models, instanced into cell_gobj.
+    struct
+    {
+        JOBJSet *ScMenClearcheckerBg_scene_models;       // 0xecc
+        GOBJ *bg_gobj;                                   // 0xed0, set while a checklist minor scene is active
+        int xed4;                                        // 0xed4
+        JOBJSet *ScMenClearcheckerFrame_scene_models[3]; // 0xed8, Frame1/2/3, indexed by GameMode
+        GOBJ *frame_gobj;                                // 0xee4, per-mode banner (248x128 scrolling quad)
+        JOBJSet *ScMenClearcheckerPos_scene_models;      // 0xee8, cell grid spacing
+        GOBJ *pos_gobj;                                  // 0xeec
+        JOBJSet *ScMenClearcheckerGray_scene_models;     // 0xef0
+        JOBJSet *ScMenClearcheckerRed_scene_models;      // 0xef4
+        JOBJSet *ScMenClearcheckerGreen_scene_models;    // 0xef8
+        JOBJSet *ScMenClearcheckerPurple1_scene_models;  // 0xefc
+        JOBJSet *ScMenClearcheckerPurple2_scene_models;  // 0xf00
+        JOBJSet *ScMenClearcheckerGold_scene_models;     // 0xf04
+        int xf08;                                        // 0xf08
+        GOBJ *cell_gobj[120];                            // 0xf0c, one per grid position (col = idx%12, row = idx/12)
+        u8 x10ec[0x14];                                  // 0x10ec
+        JOBJSet *ScMenClearcheckerCross_scene_models;    // 0x1100
+        GOBJ *cross_gobj;                                // 0x1104
+        JOBJSet *ScMenClearcheckerPrize1_scene_models;   // 0x1108
+        GOBJ *prize1_gobj;                               // 0x110c
+        JOBJSet *ScMenClearcheckerPrize2_scene_models;   // 0x1110
+        GOBJ *prize2_gobj;                               // 0x1114
+        JOBJSet *ScMenClearcheckerComplete_scene_models; // 0x1118
+        GOBJ *complete_gobj;                             // 0x111c
+        JOBJSet *ScMenClearcheckerCursol_scene_models;   // 0x1120
+        GOBJ *cursol_gobj;                               // 0x1124
+        JOBJSet *ScMenClearcheckerWin_scene_models;      // 0x1128
+        GOBJ *win_gobj;                                  // 0x112c
+    } clearchecker;
+    u8 x1130[0x118];             // 0x1130
     struct
     {
         JOBJSet **Kicon_jobjset; // 0x1248
@@ -828,6 +852,6 @@ void Scene_ExitMinor();                 // run this to cause a minor scene chang
 void Scene_SetDirection(int direction); // usually the button used to change scene
 int Scene_GetDirection();               // usually the button used to change scene
 void Scene_InitHeaps();                 //
-ScMenuCommon *Gm_GetMenuData();         // 0x80558788
+ScMenuCommon *Gm_GetMenuData();         // 0x801311e0, returns stc_scene_menu_common (0x80558788)
 void MainMenu_InitAllVariables();
 #endif

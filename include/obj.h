@@ -976,6 +976,11 @@ HSD_Fog *Fog_LoadDesc(HSD_FogDesc *fogdesc);
 void Fog_Set(HSD_Fog *fog);
 void Fog_Release(HSD_Fog *fog);
 
+// 0x8041b0fc - re-emits GXSetFog/GXSetFogColor from the live HSD_Fog (reading the
+// current COBJ near/far), or GX_FOG_NONE when fog is NULL. Used to draw the
+// distant moon disc fog-free and then restore the world fog.
+void HSD_FogSet(HSD_Fog *fog);
+
 AreaLight *AreaLight_Create(void *class_ptr, AreaLightData *src, u32 extra);  // 0x80079428
 AreaLight *AreaLight_Create_Default(AreaLightData *src);                       // 0x8007a4d0 - class=0, extra=0
 void AreaLight_Lerp(AreaLight *start, AreaLightData *target, AreaLight *dest, float ratio); // 0x800797a8

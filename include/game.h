@@ -652,6 +652,50 @@ typedef struct CityTrialClearData  // 0x114
     CityTrialClearRecords records; // 0x0F4
 } CityTrialClearData;
 
+// ClearCheckerUI.phase, the checklist screen's state machine. Checklist_Think (0x8017f3bc)
+// drives it from input; Checklist_MinorThink (0x8004a648) consumes the scene-change values
+// and Checklist_FillerDialogProc (0x8017d000) the filler-dialog ones. Every transition
+// resets ClearCheckerUI.phase_timer.
+typedef enum ClearCheckerPhase
+{
+    CLEARCHECKER_PHASE_UNLOCK       = 0,  // new-unlock presentation (Checklist_Init fresh_flag = 1); runs 0 -> 1 -> 2 -> 3 on phase_timer, then BROWSE
+    CLEARCHECKER_PHASE_BROWSE       = 4,  // idle cursor browsing (fresh_flag = 0)
+    CLEARCHECKER_PHASE_FILLERLIST   = 5,  // cursor moved off the grid into the checkbox-filler list
+    CLEARCHECKER_PHASE_FILLERDIALOG = 6,  // "use a checkbox filler?" window (the Win element)
+    CLEARCHECKER_PHASE_FILLERPLACE  = 7,  // filler confirmed; picking the cell to fill
+    CLEARCHECKER_PHASE_EXIT         = 11, // B: leave the checklist
+    CLEARCHECKER_PHASE_NEXTTAB      = 12, // R/X: next mode tab
+    CLEARCHECKER_PHASE_PREVTAB      = 13, // L/Y: previous mode tab
+    CLEARCHECKER_PHASE_ENDING       = 14, // A on a cell whose reward_param is REWARDPARAM_ENDING
+} ClearCheckerPhase;
+
+// Checklist grid geometry, hardcoded across Checklist_Think / Checklist_Update /
+// Checklist_SetRewardFlagOnUnlocks: grid position = col + row * CHECKLIST_GRID_COLS,
+// and GameClearData.grid_mapping maps clear_kind -> that position.
+#define CHECKLIST_GRID_COLS 12
+#define CHECKLIST_GRID_ROWS 10
+
+// Checklist screen UI state: the menu-element data of kind 0xb9, hung off
+// ScMenuCommon.clearchecker.bg_gobj->userdata. MenuElement_AddData hands out a fixed
+// 0x1F0-byte block shared by every element kind; the checklist uses this head of it.
+typedef struct ClearCheckerUI
+{
+    int x0;                      // 0x00
+    int kind;                    // 0x04, element kind (0xb9)
+    u8 x8;                       // 0x08, flags; bit 0x80 = visible
+    u8 x9[3];                    // 0x09
+    Text *x0c;                   // 0x0C, premade-text slot 3, alpha-faded by Checklist_Update
+    Text *x10;                   // 0x10, built in Checklist_Init from three subtexts
+    GameMode mode : 8;           // 0x14, which tab is displayed (Checklist_Init writes it)
+    ClearCheckerPhase phase : 8; // 0x15, Gm_GetClearChecker returns this
+    u8 filler_option;            // 0x16, filler dialog option: 0 = confirm, 1 = cancel
+    s8 cursor_col;               // 0x17, grid cursor column 0..11 (phys_slot = col + row*12); 0x81 until first placed
+    s8 cursor_row;               // 0x18, grid cursor row 0..9; 0x81 until first placed
+    s8 filler_idx;               // 0x19, selection in the filler list, clamped to GameClearData.checkbox_filler_num
+    u8 x1a[2];                   // 0x1a
+    int phase_timer;             // 0x1C, frames elapsed in the current phase
+} ClearCheckerUI;
+
 typedef struct TopRideSlot   // 9 bytes; one slot, committed at TR scene-exit, read by TopRide_KirbyMgrInit (0x802dafb4)
 {
     u8 pkind;            // 0x0, TopRidePlayerKind (HMN/CPU/NONE); TopRide_Get/SetPlayerKind
@@ -1163,7 +1207,9 @@ typedef struct GameData // 805359d8
     MajorKind major_cur : 8;         // 0x7d4
     MajorKind major_pending : 8;     // 0x7d5
     u8 request_major_exit;           // 0x7d6
-    int x7d8;                        // 0x7d8
+    u8 x7d7;                         // 0x7d7
+    MinorKind minor_next : 8;        // 0x7d8, minor scene to enter on the next Scene_ExitMinor (Scene_SetNextMinor)
+    u8 x7d9[3];                      // 0x7d9
     int x7dc;                        // 0x7dc
     HSD_Update update;               // 0x7e0
     int x828;                        // 0x828
@@ -2865,17 +2911,17 @@ int Checklist_CheckCachedUnlock_AirRide(s8 reward_index);               // 80007
 int Checklist_CheckCachedUnlock_CityTrial(s8 reward_index);             // 80007e8c, fast bit-test against cached City Trial unlock bitfield
 GameClearData *gmGetClearcheckerTypeP(GameMode mode);                   // 800076a0, returns ClearCheckerData for mode
 GameClearData *gmGetClearcheckerP();                                    // 80006c20, returns base ClearCheckerData (Air Ride)
-u8 Gm_GetClearChecker();                                                // 8017cf14, returns ClearChecker UI state byte (phase, chk+0x15)
+u8 Gm_GetClearChecker();                                                // 8017cf14, returns ClearCheckerUI.phase (+0x15) of the live checklist screen
 void Checklist_Init(int mode, int fresh_flag);                          // 801822f4, builds the checklist screen (SIS, grid cells) for a mode. fresh_flag sets Think state (chk+0x15): 1 = new-unlock presentation (state 0, animates is_new cells), 0 = browse (state 4, animation skipped)
 void Checklist_MinorThink();                                            // 8004a648, checklist minor-scene think: tab cycle / exit (cb_ThinkPostGObjProc)
 void Checklist_PrepMenuData();                                          // 80138d74, sets up the checklist menu data (ScMenuCommon, element alloc); called by the minor cb_Load
 void Checklist_Think();                                                 // 8017f3bc, checklist state machine + cursor movement. Bakes in 12 columns: phys_slot = col + row*12, column bound 12, last-column test col%12<11
+void Checklist_FillerDialogProc(GOBJ *gobj);                            // 8017d000, per-frame proc of the checkbox-filler confirm window (ScMenuCommon.clearchecker.win_gobj); animates from ClearCheckerUI.phase/filler_option and destroys the window on phase 8/>=10
 void Checklist_Update();                                                // 8018161c, per-frame cursor-highlight position (X=col*xstep, Y=row*ystep) + reverse-scan of grid_mapping; asserts "Clearchecker Number 120" if a cursor slot is unmapped
 void Checklist_UpdateCellInfo();                                        // 80181d70, per-frame hover tooltip: unrolled 12x10 reverse-scan cursor->clear_kind, then reward/objective text + icon
-void Checklist_InitGridMapping(int mode);                               // 8004a2bc, fills grid_mapping[120] (meta cells pre-placed, rest randomized via HSD_Randi). Custom tabs override with identity instead
+void Checklist_InitGridMapping(int mode);                               // 8004a2bc, fills grid_mapping[120] (meta cells pre-placed, rest randomized via HSD_Randi). Custom tabs override it with their own permutation
 void Checklist_LoadModels();                                            // 801821ac, Archive_GetSymbols binds the checklist scene models (Bg/Frame*/cell-state/Pos/Cursol) into MainMenuData slots (0xecc..0x1128)
 void Checklist_DestroyElements();                                       // 80182cac, tears down the checklist GObjs: grid element, banner, Pos element, the 0xf0c[120] cell array, filler array, cursor/info/icon elements
-void *MainMenu_GetData();                                              // 801311e0, returns the main-menu element manager (holds the checklist root GObj at +0xed0)
 void loadMainMenuMusic();                                               // 8000bba0, (re)loads/plays the main-menu BGM
 void MainMenu_ClearSoundTestSongThunk();                               // 8000bc10, stops the checklist reward-preview song
 void ClearChecker_GetRewardFromClearKind(GameMode gm, u8 clear_kind, u8 *out_reward_index, u8 *out_reward_param); // 80049ec4, reverse lookup: clear_kind → reward_index + reward_param
@@ -2905,6 +2951,7 @@ int TopRide_GetTimeAttackPlayerSlot(void);                               // 8003
 TopRideStats *TopRide_GetStats(void);                                    // 80287040, returns TopRideStats pointer (via gmGetClearcheckerType1_2Ptr)
 PlayerStats *Ply_GetItemCollectArray(int ply);                           // 8022d248, returns &stc_playerdata[ply].stat_record
 PlayerStats *Ply_GetStatRecordBase(int ply);                             // 8022d260, same base as Ply_GetItemCollectArray
+u8 Ply_GetYakumonoBreakCount(int ply, int desc_id);                      // 8022fccc, PlayerStats.yakumono_break[desc_id]; returns 0 outside desc_id 0x15..0x28
 
 // Top Ride Kirby (player) structs and globals - see topride.h
 

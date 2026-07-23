@@ -717,15 +717,23 @@ typedef struct RiderData
     int x7ec;                           // 0x7ec
     int x7f0;                           // 0x7f0
     int x7f4;                           // 0x7f4
-    int x7f8;                           // 0x7f8
-    int x7fc;                           // 0x7fc
+    // 0x7f8 / 0x7fc: per-ability teardown callbacks installed at grant, each called
+    // with the rider in r3. An ability installs one of the pair: +0x7fc for Fire
+    // (0x801af408), Sword (0x801afd04), Wheel, Bird, etc.; +0x7f8 for Bomb
+    // (0x801b13ac). Both route through Rider_TeardownCopyAbility (0x801a810c),
+    // which resets copy_kind to -1, spawns the "ability lost" poof VFX/SFX, removes
+    // the ability model/hat, and clears the ability callback fields. Don't call
+    // these directly - use Rider_AbilityRemoveModel, which invokes whichever of the
+    // pair is set (that's how the engine strips the old ability on a new inhale).
+    void (*cb_ability_remove2)(RiderData *); // 0x7f8
+    void (*cb_ability_remove)(RiderData *);  // 0x7fc
     int x800;                           // 0x800
     int x804;                           // 0x804
     int x808;                           // 0x808
     int x80c;                           // 0x80c
     int x810;                           // 0x810
     int x814;                           // 0x814
-    int x818;                           // 0x818
+    int x818;                           // 0x818, bit 2 (0x04) = attack/charge input active; read by Rider_CanStartInhale
     int x81c;                           // 0x81c
     u8 x820;                            // 0x820
     u8 x821;                            // 0x821
@@ -803,11 +811,15 @@ typedef struct RiderData
     int x910;                           // 0x910
     int x914;                           // 0x914
     int x918;                           // 0x918
-    int copy_timer;                     // 0x91c
-    int x920;                           // 0x920
+    int copy_timer;                     // 0x91c, ability countdown; expires at 0
+    int x920;                           // 0x920, "about to expire" threshold (warning blink fires when copy_timer drops below it)
     int x924;                           // 0x924
     int x928;                           // 0x928
-    int x92c;                           // 0x92c
+    // 0x92c: per-frame ability tick (the copy_kind's abilityTimer_* fn), called by
+    // abilityTimerBranchToAbilityCountdown (0x801a5f68) while in the ability action-
+    // state. Decrements copy_timer and runs the drop at 0. Not installed by every
+    // kind (Bomb has none).
+    void (*cb_ability_tick)(RiderData *); // 0x92c
     void (*cb_copy_input)(RiderData *); // 0x930
     int x934;                           // 0x934
     int x938;                           // 0x938
@@ -880,9 +892,9 @@ typedef struct RiderData
     int xa2c;                           // 0xa2c
     int xa30;                           // 0xa30
     int xa34;                           // 0xa34
-    int xa38;                           // 0xa38
+    int xa38;                           // 0xa38, quick-spin scratch, cleared on Rider_QuickSpin_Enter
     int xa3c;                           // 0xa3c
-    int xa40;                           // 0xa40
+    int xa40;                           // 0xa40, quick-spin rotation accumulators: byte +0xa40 = CW frame count, byte +0xa41 = CCW (built by Rider_CheckQuickSpinInput)
     int xa44;                           // 0xa44
     int xa48;                           // 0xa48
     int xa4c;                           // 0xa4c
@@ -979,6 +991,15 @@ void Rider_InputThink(GOBJ *gobj);        // 0x8018ee28, rider proc: selects eff
 void Rider_RespawnEnter(RiderData *);
 int Rider_GiveAbility(RiderData *, CopyKind);
 int Rider_CheckUnableAbility(RiderData *); // checks if the rider can receive an ability?
+// 0x80191554. Universal "remove the currently-held copy ability" teardown: if
+// copy_kind or powerup_kind is set, invokes whichever per-ability teardown
+// callbacks are installed (cb_ability_remove at +0x7fc, and its sibling at +0x7f8
+// used by e.g. Bomb). Those route through Rider_TeardownCopyAbility (0x801a810c),
+// which resets copy_kind to -1, spawns the "ability lost" poof VFX/SFX, removes
+// the ability model/hat, and clears the ability callback fields. This is what
+// Rider_GiveAbility calls to strip the old ability before granting a new one, so
+// it works for every copy_kind. Does NOT play the spit-out animation - pair with
+// Rider_LoseAbilityState_Enter for that.
 void Rider_AbilityRemoveModel(RiderData *);
 void Rider_AbilityClearQueued(RiderData *); // 0x801915c4. Cancels queued copy-ability + power-up grants: frees their pending objects (RiderData+0x8fc/+0x904) and resets queued_ability_kind/queued_powerup_kind to -1
 void Rider_LoseAbilityState_Enter(RiderData *);
@@ -1025,10 +1046,30 @@ void Rider_StartInhale(RiderData *rd);        // 0x801ad2c4, force action-state 
 void Rider_StartInhaleLoop(RiderData *rd);    // 0x801ad4cc, enter/re-enter the suck-LOOP substate: anim 0x30 (action-state 0x77) + reinstalls scan/volume callbacks. No VFX/SFX respawn, no capture reset. The LOOP process calls this itself on body-anim-done to sustain the suck; this is also how the LOOP is first entered (the engine never advances START -> LOOP on its own).
 void Rider_EndInhale(RiderData *rd);          // 0x801adf98, end the suck: action-state 0x78 / anim 0x31 (close) + spawns the close puff (Effect 0x5a557), returns to neutral. The engine's own inhale ending; call to stop a driven LOOP cleanly.
 int  Rider_IsBodyAnimDone(RiderData *rd);     // 0x80198b00, 1 once the rider's body motion has played to its end (per-part HSD check); gates the LOOP process's per-cycle re-entry of suck-LOOP 0x30.
-int  Rider_CanStartInhale(RiderData *rd);     // 0x801a617c, gate: attack bit (x820 bit2) set AND copy_kind (+0x454) == -1 AND mouth not full (capture count x918 < 3)
+int  Rider_CanStartInhale(RiderData *rd);     // 0x801a617c, gate: attack bit (x818 bit2) set AND copy_kind (+0x454) == -1 AND mouth not full (capture count x918 < 3)
 void Rider_TryStartInhale(RiderData *rd);     // 0x8019c5ac, per-frame entry probe: if gate passes AND an inhalable EventActor overlaps the mouth volume, calls Rider_StartInhale
 void Rider_InhaleCaptureScan(RiderData *rd);  // 0x8019c63c, per-frame scan of the EventActor GObj bucket; captures up to 3/frame (list cap 10) via EventActor_OnCapture
 int  EventActor_IsInhalable(GOBJ *cand);      // 0x802041c8, candidate predicate - admits EventActor enemies only (rejects rider/player/projectile classes); items & yakumono never pass
+
+// Quick spin (stick-rotation spin attack). Rider_CheckQuickSpinInput
+// (0x80191980) builds CW/CCW frame accumulators at RiderData+0xa40 / +0xa41 from
+// the stick, thresholded against the config struct at *0x805DD814 (+0x1b0). When
+// it fires, Rider_QuickSpin_Enter transitions to action-state 0x2c (anim 0x6a CCW
+// / 0x6b CW), grants i-frames, and applies the spin hitbox. Two entry paths funnel
+// here: Rider_IASACheck_QuickSpin (0x801b7e80, excludes copy_kind PLASMA) and the
+// neutral-state entry Rider_TryQuickSpinNeutral (0x801b7e0c). The Tornado copy
+// ability's own spin shares the detector but enters via a DIFFERENT function, so
+// it is unaffected.
+int  Rider_IASACheck_QuickSpin(RiderData *rd); // 0x801b7e80, per-frame interrupt check: excludes copy_kind PLASMA, reads the stick and enters via Rider_QuickSpin_Enter (@0x801b7ec0) on a flick; returns 1 if it entered the spin. Called from the grounded rider state (groundLogic) but not the airborne state (airControl).
+void Rider_QuickSpin_Enter(float f, RiderData *rd, int dir, int flag); // 0x801b7ee4, arg regs: f1=f, r3=rd, r4=dir (+1 CW / -1 CCW), r5=flag (1 = apply hitbox)
+
+// Dedede and Meta Knight (alternate rider characters) each have their own
+// quick-spin enter, separate from Kirby's Rider_QuickSpin_Enter. Same detector
+// (Rider_CheckQuickSpinInput), but the per-character IASA checks funnel through
+// these instead: Dedede -> action-state 0x2c, Meta Knight -> 0x2d. Each has a
+// single call site.
+void Rider_Dedede_QuickSpin_Enter(RiderData *rd, int dir);     // 0x801c05f8, arg regs: r3=rd, r4=dir; sole caller @ 0x801c05d4
+void Rider_MetaKnight_QuickSpin_Enter(RiderData *rd, int dir); // 0x801c3f90, arg regs: r3=rd, r4=dir; sole caller @ 0x801c3f6c
 
 // Kirby recolor. Three native paths:
 //   1. Material-index swap (discrete baked palettes - the 8 player colors + wing/fire):

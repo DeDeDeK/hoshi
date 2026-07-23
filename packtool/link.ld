@@ -423,10 +423,16 @@ SECTIONS
   Gm_GetRandomItem = 0x800EB7E4;
   Gm_GetCurrentStadiumKind = 0x8000ae50;
   Gm_GetCurrentStadiumGroup = 0x8000ae74;
+  Gm_GetStadiumRound = 0x8000AE08;
+  Ply_GetStadiumRacePlacement = 0x8000B674;
+  Ply_GetStadiumRaceTime = 0x8000B6AC;
+  Ply_GetStadiumPoints = 0x8000B75C;
+  Ply_GetStadiumDistance = 0x8000B798;
   Gm_GetStadiumGroupFromKind = 0x8000BA20;
   Gm_GetCurrentStageKind = 0x800092d8;
   stGetCurrentStageKind = 0x80261ECC;
   Gr_GetCurrentGrKind = 0x800d1d3c;
+  Gr_GetYakumonoSpawnTotal = 0x800F7DB0;
   Gm_GetGrKindFromStageKind = 0x80261ce8;
   TopRide_GetSelectedCourse = 0x8000b2b8;
   TopRide_SetSelectedCourse = 0x8000b2dc;
@@ -448,6 +454,7 @@ SECTIONS
   TopRide_GetMachineKind = 0x8000bf4c;
   TopRide_SetMachineKind = 0x8000bf8c;
   TopRide_KirbyGetSlot = 0x802d4d5c;        /* kirby vt[0x30]: returns player_slot (kirby+0x0c) */
+  TopRide_KirbyHistoryQuery = 0x80312000;   /* sums the input history ring; 0 = no L/R flick, +/-1 = voluntary quick-spin dir */
   TopRide_PadInputRead = 0x802d4c4c;        /* human input-reader vt[0x0c]: reads the GC pad */
   TopRide_PadInputPoll = 0x802a06bc;        /* human input-reader vt[0x14] */
   TopRide_CpuInputThink = 0x802eee90;       /* CPU input-reader vt[0x0c]: per-frame steering brain */
@@ -592,6 +599,9 @@ SECTIONS
   Machine_SetStatBlockClamped = 0x80194f64;
   Machine_UpdateAppearance = 0x801d6668;
   Machine_AdjustAttributes = 0x801c7278;
+  Machine_IncrementCharge = 0x801cc480; /* per-frame charge accumulation from holding A (MachineData*): computes the turn-angle-interpolated charge rate, adds it to charge_value (+0x78c), sets the full-charge timer/SFX/glow at 1.0. Four call sites: MachinePhys_Charge @ 0x801ef424 and its sibling @ 0x801ef350 (generic grounded machines), plus the Wheel/wheelie vehicle callbacks @ 0x801fa1d4 and @ 0x801fa29c. */
+  Machine_AddCharge = 0x801ca334;   /* explicit-rate charge accumulator (f1=rate, r3=MachineData*): adds rate to charge_value (+0x78c), clamps to max, fires full-charge FX. Reads only md+rate. Used by Star flight physics (glide charge), sole caller Star_Fly_3_HandleFlightPhysics @ 0x801efa6c. */
+  Machine_AddChargeEx = 0x801cc378; /* like Machine_AddCharge (f1=rate, r3=MachineData*) but also updates charge-state flags at +0xc32. Used by rail-run / wheelie ready push; call sites @ 0x801eb968 (Star RailRunPush) and @ 0x801f5f30 (Wheel Ready/RailRunPush). */
   cityTrial_setMasterStats = 0x801c8258;
   cityTrial_getMasterStats = 0x801c81c0;
   Machine_GetStatRatio = 0x801caa8c;
@@ -640,6 +650,10 @@ SECTIONS
   Rider_TryStartInhale = 0x8019c5ac;     /* per-frame entry probe: if Rider_CanStartInhale passes AND an inhalable EventActor overlaps the mouth volume, calls Rider_StartInhale */
   Rider_CanStartInhale = 0x801a617c;     /* inhale gate predicate: attack bit (+0x820 bit2) set AND copy_kind (+0x454)==-1 AND mouth not full (capture count +0x918 < 3) */
   Rider_InhaleCaptureScan = 0x8019c63c;  /* per-frame scan of the EventActor GObj bucket; captures up to 3/frame (list cap 10) via EventActor_OnCapture */
+  Rider_IASACheck_QuickSpin = 0x801b7e80; /* per-frame interrupt check for Kirby's L/R-flick quick spin: excludes copy_kind PLASMA, reads the stick via Rider_CheckQuickSpinInput, and on a flick enters via Rider_QuickSpin_Enter (@0x801b7ec0). Returns 1 if it entered the spin. Arg (r3 RiderData*). Wired into the grounded rider state (groundLogic) but NOT the airborne state (airControl). */
+  Rider_QuickSpin_Enter = 0x801b7ee4;    /* enter the quick-spin action-state (state_idx 0x2c): RiderStateChange to spin anim 0x6a/0x6b by dir, grants i-frames, applies the spin hitbox (flag!=0). Args (f1 float, r3 RiderData*, r4 int dir, r5 int flag). Kirby's two callers (Rider_IASACheck_QuickSpin @0x801b7ec0, Rider_TryQuickSpinNeutral @0x801b7e58) funnel here. */
+  Rider_Dedede_QuickSpin_Enter = 0x801c05f8;    /* Dedede quick-spin enter (action-state 0x2c). Args (r3 RiderData*, r4 int dir). Sole caller @ 0x801c05d4, gated by the shared Rider_CheckQuickSpinInput detector. */
+  Rider_MetaKnight_QuickSpin_Enter = 0x801c3f90; /* Meta Knight quick-spin enter (action-state 0x2d). Args (r3 RiderData*, r4 int dir). Sole caller @ 0x801c3f6c, gated by the shared Rider_CheckQuickSpinInput detector. */
   Effect_SpawnSync = 0x80236c40; /* universal model/particle effect spawn. (parent GObj, id = group*10000+entry, owner, joint, ...) -> 64-bit fire-and-forget handle. Globally suppressed when *(u32*)0x805dd8b8 != 0. The map's 0x8023af88 Effect_SpawnSync is a spurious mid-function label. */
   EffectModel_CreateGObj = 0x8023ccb4; /* build a model-effect GObj (entity_class 25, p_link 16) carrying a JObj model from EffectModelDesc; gx_cb 0x8023dfe0, dtor 0x80233ddc. */
   Effect_GetModelData = 0x80235190; /* decimal id (group*10000+entry) -> EffectModelDesc* from the per-group table at gEffectMgr+0x24+group*4, indexed [entry*8]. group must be in [24,37). */
@@ -659,6 +673,7 @@ SECTIONS
   Machine_ApplyHurt = 0x8018d1a8;
   Machine_GiveDamage = 0x801e1ee8;
   Machine_EnterHitReaction = 0x801e05bc;
+  Machine_OnKO = 0x801e568c; /* KO/destroy a machine: captures the rider ply into +0x1b48 (sentinel 5 = unridden), sets is_dead (0xc35 bit 0x20), disables hit-collision, and enters the BreakDown state (29) whose proc runs the explosion VFX + break SFX + GObj_Destroy (gated by md[0x78] bit 0x40). Rider-safe (every rider deref guards on the +0x1b48==5 sentinel). Also fired automatically each frame by Machine_CheckKO'd (0x801e5628) when md->hp==0. */
   Machine_ActOnHitCollision = 0x801d7308;
   Machine_CheckRiderCollision = 0x801d6fd0;
   Machine_CheckMachineCollision = 0x801d706c;
@@ -764,6 +779,7 @@ SECTIONS
   Ply_SetStatAux = 0x8022d128;
   Ply_GetItemCollectArray = 0x8022d248;  
   Ply_GetStatRecordBase = 0x8022d260;    
+  Ply_GetYakumonoBreakCount = 0x8022FCCC;
   Ply_GetCpuLevel = 0x8022d7b0;
   Ply_SetCpuLevel = 0x8022d798;
   Gm_GetCityTrialFrame = 0x800132b8;
@@ -946,11 +962,11 @@ SECTIONS
   Gm_GetClearChecker = 0x8017CF14;
   Checklist_SetRewardFlagOnUnlocks = 0x8017DF5C;
   Checklist_ProcessUnlock = 0x8017E490;
+  Checklist_FillerDialogProc = 0x8017D000;
   Checklist_Think = 0x8017F3BC;
   Checklist_Init = 0x801822F4;
   Checklist_MinorThink = 0x8004A648;
   Checklist_PrepMenuData = 0x80138D74;
-  MainMenu_GetData = 0x801311E0;
   loadMainMenuMusic = 0x8000BBA0;
   MainMenu_ClearSoundTestSongThunk = 0x8000BC10;
   Memcard_GetSaveStatus = 0x80078E30;
