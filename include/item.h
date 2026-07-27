@@ -334,7 +334,7 @@ typedef struct PatchTossDesc
 {
     float speed_min;       // 0x00, lower bound of horizontal toss-speed range
     float speed_max;       // 0x04, upper bound (range = max - min)
-    float horiz_vel_scale; // 0x08, multiplier on rider direction → toss horizontal velocity
+    float horiz_vel_scale; // 0x08, multiplier on rider direction -> toss horizontal velocity
     float drift_accel;     // 0x0c, per-frame horizontal drift acceleration
     int initial_state;     // 0x10, state-machine kind written to ItemData+0x82
     float vert_vel_scale;  // 0x14, multiplier on vertical component (sign flipped between good/bad)
@@ -345,7 +345,7 @@ typedef struct PatchTossDesc
 // Global City Trial item parameters loaded from files/ItCommon.dat (root
 // symbol "itCommonDataAll", first member). Single instance; pointed to by
 // stc_item_param. Fields beyond 0xA4 form a variable-length table indexed by
-// PatchKind × history-position used by the patch-toss flight code.
+// PatchKind x history-position used by the patch-toss flight code.
 typedef struct ItemCommonParam
 {
     float scale;                   // 0x00, global scale multiplier on every spawned item
@@ -366,7 +366,7 @@ typedef struct ItemCommonParam
     float box_spawn_offset_max_h;  // 0x34, horizontal scatter range max
     float box_spawn_offset_min_v;  // 0x38, vertical scatter range min (all-up multi-spawn)
     float box_spawn_offset_max_v;  // 0x3c, vertical scatter range max
-    float box_spawn_yaw_range;     // 0x40, max yaw rotation (passed to fctiwz → HSD_Randi → RotateVecAroundAxis)
+    float box_spawn_yaw_range;     // 0x40, max yaw rotation (passed to fctiwz -> HSD_Randi -> RotateVecAroundAxis)
     float gravity;                 // 0x44, downward acceleration applied to falling items
     float terminal_fall_speed;     // 0x48, max fall speed enforced via Item_LimitFallSpeed
     float bounce_tangential_damping;  // 0x4c, friction along surface during bounce
@@ -1177,11 +1177,11 @@ typedef struct ItemData
 // matching event_*_start handler and clearers from the corresponding _end.
 typedef enum CityEventSpawnFlag
 {
-    CTEVF_DYNABLADE     = 1 << 0, // event_dynablade_start  → SetDynabladeEventFlag
-    CTEVF_METEOR        = 1 << 1, // event_meteor_start     → SetMeteorEventFlag
-    CTEVF_LOCATOR       = 1 << 2, // event_rubberyItems_start → InitLocatorEvent (also sets loc_pos/params)
-    CTEVF_FAKEITEMS     = 1 << 3, // event_fakeItems_start  → InitFakeEvent
-    CTEVF_SAMEITEMS     = 1 << 4, // event_sameItems_start  → SetSameItemsEventFlag
+    CTEVF_DYNABLADE     = 1 << 0, // event_dynablade_start  -> SetDynabladeEventFlag
+    CTEVF_METEOR        = 1 << 1, // event_meteor_start     -> SetMeteorEventFlag
+    CTEVF_LOCATOR       = 1 << 2, // event_rubberyItems_start -> InitLocatorEvent (also sets loc_pos/params)
+    CTEVF_FAKEITEMS     = 1 << 3, // event_fakeItems_start  -> InitFakeEvent
+    CTEVF_SAMEITEMS     = 1 << 4, // event_sameItems_start  -> SetSameItemsEventFlag
 } CityEventSpawnFlag;
 
 // City Trial item manager (0x1c8 bytes), allocated once at boot by Item_InitObj
@@ -1191,7 +1191,7 @@ typedef struct CityItemMgr
 {
     s32 live_item_count;        // 0x000  ++ in CityItem_Create, -- on destruction (cap = 100)
     s32 lifetime_spawn_count;   // 0x004  ++ only, read by City_GetItemSpawnNumber
-    u8 _scaffold[0x1A4];        // 0x008  5 × 84-byte structures, each a doubly-linked chain of four
+    u8 _scaffold[0x1A4];        // 0x008  5 x 84-byte structures, each a doubly-linked chain of four
                                 //         16-byte chunks plus a self-ptr at +0x40 and 16 reserved
                                 //         bytes. Initialized by Item_InitObj but never read elsewhere
                                 //         in retail (vestigial / scaffolded subsystem).
