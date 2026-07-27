@@ -381,11 +381,11 @@ void spawnGordo(RiderData *rd);                           // 0x801aa028, PROJKIN
 
 // Throw / transition wrappers. These act on an already-created projectile
 // (returned by one of the spawn* helpers above), mutating it in place.
-void Rider_TryThrowBomb(void *projGObj, Vec3 *unused, Vec3 *velocity); // 0x801a9580 → 0x80225824
-void Rider_TryThrowSensorBomb(void *projGObj, Vec3 *velocity);         // 0x801a9fe8 → 0x80228f08
-int  Rider_IsGordoThrowable(void *projGObj);                           // 0x801aa008 → 0x8022a244 (PREDICATE, not a throw)
+void Rider_TryThrowBomb(void *projGObj, Vec3 *unused, Vec3 *velocity); // 0x801a9580 -> 0x80225824
+void Rider_TryThrowSensorBomb(void *projGObj, Vec3 *velocity);         // 0x801a9fe8 -> 0x80228f08
+int  Rider_IsGordoThrowable(void *projGObj);                           // 0x801aa008 -> 0x8022a244 (PREDICATE, not a throw)
 
-// Gordo HELD→THROWN_ASCENDING transition. Unlike Rider_TryThrowBomb (which
+// Gordo HELD->THROWN_ASCENDING transition. Unlike Rider_TryThrowBomb (which
 // reads pos/forward/up from `*(proj+0x6c)+8`, a hand-bone matrix that only
 // exists when a rider is actively holding the projectile), this function
 // reads orientation directly from `proj->owner_gobj`'s rider data fields

@@ -718,13 +718,15 @@ typedef struct RiderData
     int x7f0;                           // 0x7f0
     int x7f4;                           // 0x7f4
     // 0x7f8 / 0x7fc: per-ability teardown callbacks installed at grant, each called
-    // with the rider in r3. An ability installs one of the pair: +0x7fc for Fire
-    // (0x801af408), Sword (0x801afd04), Wheel, Bird, etc.; +0x7f8 for Bomb
-    // (0x801b13ac). Both route through Rider_TeardownCopyAbility (0x801a810c),
-    // which resets copy_kind to -1, spawns the "ability lost" poof VFX/SFX, removes
-    // the ability model/hat, and clears the ability callback fields. Don't call
-    // these directly - use Rider_AbilityRemoveModel, which invokes whichever of the
-    // pair is set (that's how the engine strips the old ability on a new inhale).
+    // with the rider in r3. An ability installs into one slot of the pair: +0x7f8
+    // for Fire (0x801af618), Sword (0x801aff1c), Bomb (0x801b13ac); +0x7fc for
+    // Wheel (via 0x801af638) and Bird. Both route through
+    // Rider_TeardownCopyAbility (0x801a810c), which resets copy_kind to -1, spawns
+    // the "ability lost" poof VFX/SFX, and removes the ability model/hat; clearing
+    // the callback field itself is left to the per-ability wrapper. Don't call
+    // these directly - use Rider_AbilityRemoveModel (0x80191554), which calls
+    // +0x7f8 and then +0x7fc, skipping either when NULL (that's how the engine
+    // strips the old ability on a new inhale).
     void (*cb_ability_remove2)(RiderData *); // 0x7f8
     void (*cb_ability_remove)(RiderData *);  // 0x7fc
     int x800;                           // 0x800
@@ -894,7 +896,7 @@ typedef struct RiderData
     int xa34;                           // 0xa34
     int xa38;                           // 0xa38, quick-spin scratch, cleared on Rider_QuickSpin_Enter
     int xa3c;                           // 0xa3c
-    int xa40;                           // 0xa40, quick-spin rotation accumulators: byte +0xa40 = CW frame count, byte +0xa41 = CCW (built by Rider_CheckQuickSpinInput)
+    int xa40;                           // 0xa40, quick-spin rotation accumulators: byte +0xa40 = CW frame count, byte +0xa41 = CCW (built by Rider_UpdateQuickSpinTimers)
     int xa44;                           // 0xa44
     int xa48;                           // 0xa48
     int xa4c;                           // 0xa4c
@@ -1051,15 +1053,19 @@ void Rider_TryStartInhale(RiderData *rd);     // 0x8019c5ac, per-frame entry pro
 void Rider_InhaleCaptureScan(RiderData *rd);  // 0x8019c63c, per-frame scan of the EventActor GObj bucket; captures up to 3/frame (list cap 10) via EventActor_OnCapture
 int  EventActor_IsInhalable(GOBJ *cand);      // 0x802041c8, candidate predicate - admits EventActor enemies only (rejects rider/player/projectile classes); items & yakumono never pass
 
-// Quick spin (stick-rotation spin attack). Rider_CheckQuickSpinInput
-// (0x80191980) builds CW/CCW frame accumulators at RiderData+0xa40 / +0xa41 from
-// the stick, thresholded against the config struct at *0x805DD814 (+0x1b0). When
-// it fires, Rider_QuickSpin_Enter transitions to action-state 0x2c (anim 0x6a CCW
-// / 0x6b CW), grants i-frames, and applies the spin hitbox. Two entry paths funnel
+// Quick spin (stick-rotation spin attack). Rider_UpdateQuickSpinTimers
+// (0x80191a58) ticks the CW/CCW frame accumulators at RiderData+0xa40 / +0xa41 -
+// frames since the stick was last held past the threshold in that direction -
+// and Rider_CheckQuickSpinInput (0x80191980) reads them back against the config
+// struct at *0x805DD814 (+0x1b0) to spot a flick. A state that omits the tick
+// leaves the accumulators frozen, so the detector cannot fire there. When it
+// fires, Rider_QuickSpin_Enter transitions to action-state 0x2c (anim 0x6a CCW /
+// 0x6b CW), grants i-frames, and applies the spin hitbox. Two entry paths funnel
 // here: Rider_IASACheck_QuickSpin (0x801b7e80, excludes copy_kind PLASMA) and the
 // neutral-state entry Rider_TryQuickSpinNeutral (0x801b7e0c). The Tornado copy
 // ability's own spin shares the detector but enters via a DIFFERENT function, so
 // it is unaffected.
+void Rider_UpdateQuickSpinTimers(RiderData *rd); // 0x80191a58, per-frame accumulator tick for +0xa40 / +0xa41 (0 while held in that direction, saturating at 0xfe)
 int  Rider_IASACheck_QuickSpin(RiderData *rd); // 0x801b7e80, per-frame interrupt check: excludes copy_kind PLASMA, reads the stick and enters via Rider_QuickSpin_Enter (@0x801b7ec0) on a flick; returns 1 if it entered the spin. Called from the grounded rider state (groundLogic) but not the airborne state (airControl).
 void Rider_QuickSpin_Enter(float f, RiderData *rd, int dir, int flag); // 0x801b7ee4, arg regs: f1=f, r3=rd, r4=dir (+1 CW / -1 CCW), r5=flag (1 = apply hitbox)
 
@@ -1070,6 +1076,17 @@ void Rider_QuickSpin_Enter(float f, RiderData *rd, int dir, int flag); // 0x801b
 // single call site.
 void Rider_Dedede_QuickSpin_Enter(RiderData *rd, int dir);     // 0x801c05f8, arg regs: r3=rd, r4=dir; sole caller @ 0x801c05d4
 void Rider_MetaKnight_QuickSpin_Enter(RiderData *rd, int dir); // 0x801c3f90, arg regs: r3=rd, r4=dir; sole caller @ 0x801c3f6c
+int  Rider_Dedede_IASACheck_QuickSpin(RiderData *rd);     // 0x801c05a8, Dedede's quick-spin interrupt check; in his grounded states, not Rider_Dedede_AirControl
+int  Rider_MetaKnight_IASACheck_QuickSpin(RiderData *rd); // 0x801c3f40, Meta Knight's quick-spin interrupt check; in his grounded states, not Rider_MetaKnight_AirControl
+
+// Airborne machine-riding state logic. Each rider character has its own rider
+// state-descriptor table, so this state has one callback per character - the
+// three sole callers of the airborne input helper 0x8019fcf0. Kirby's is
+// airControl (0x801ac128). Dedede's runs the charge check then
+// Rider_UpdateQuickSpinTimers; Meta Knight's runs only the charge check, so his
+// spin accumulators stay frozen while airborne.
+void Rider_Dedede_AirControl(RiderData *rd);     // 0x801bf534
+void Rider_MetaKnight_AirControl(RiderData *rd); // 0x801c2b08
 
 // Kirby recolor. Three native paths:
 //   1. Material-index swap (discrete baked palettes - the 8 player colors + wing/fire):

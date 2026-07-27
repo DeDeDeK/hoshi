@@ -112,7 +112,7 @@ typedef enum ActorID
 // Built on the stack by Enemy_SpawnActor and event start functions.
 typedef struct EventActorDesc
 {
-    int actor_id;           // 0x00: ActorID (0x00–0x4E)
+    int actor_id;           // 0x00: ActorID (0x00-0x4E)
     Vec3 position;          // 0x04: spawn world position
     Vec3 forward;           // 0x10: forward direction (unit vector)
     Vec3 up;                // 0x1C: up direction (unit vector)
@@ -174,7 +174,7 @@ typedef struct EnemyData
     int x64;                // 0x64
     int x68;                // 0x68
     int x6c;                // 0x6c
-    void *col_anim;         // 0x70, ColAnim component (anim-script cmd 24/25 → ColAnim_Apply/Reset)
+    void *col_anim;         // 0x70, ColAnim component (anim-script cmd 24/25 -> ColAnim_Apply/Reset)
     int x74;                // 0x74
     int x78;                // 0x78
     int x7c;                // 0x7c
@@ -341,12 +341,12 @@ typedef struct EnemyData
     int x330;               // 0x330
     Vec3 forward;           // 0x334, forward direction unit vector. Model facing.
     Vec3 up;                // 0x340, up direction unit vector. Surface normal for grounded.
-    Vec3 right;             // 0x34c, right direction (cross of up × forward)
+    Vec3 right;             // 0x34c, right direction (cross of up x forward)
     int x358;               // 0x358
     int x35c;               // 0x35c
     int x360;               // 0x360
     float param_pre_header; // 0x364, bulk-copied from *actor_data-0x04. Pre-header value.
-    float param_base_scale; // 0x368, from actor_data+0x00. Param block root (base scale; also → tier_base_scale at 0x2D0).
+    float param_base_scale; // 0x368, from actor_data+0x00. Param block root (base scale; also -> tier_base_scale at 0x2D0).
     float param_scale_2;    // 0x36c, from actor_data+0x04. Per-type secondary params.
     int param_sentinel;     // 0x370, from actor_data+0x08. -1 sentinel word (param-header terminator/flag) - NOT joint/model data.
     float param_374;        // 0x374, from actor_data+0x0C. Dual use: this is a param-header word AND the base pointer of the per-actor animseq table (*(actor_data+0x0C); see EnemyAnimSeqEntry / ed->anim_data above).
@@ -358,7 +358,7 @@ typedef struct EnemyData
     float param_spline_walk_speed_base; // 0x38c, from *actor_data+0x24. Spline walk speed base.
     float param_speed;      // 0x390, from *actor_data+0x28. Speed parameter (scales knockback velocity).
     float param_spline_walk_speed_2; // 0x394, from *actor_data+0x2C. Spline walk speed secondary.
-    float param_random_timing; // 0x398, from *actor_data+0x30. Random timing variation (× HSD_Randf()).
+    float param_random_timing; // 0x398, from *actor_data+0x30. Random timing variation (x HSD_Randf()).
     float param_speed_2;    // 0x39c, from *actor_data+0x34. Speed param.
     float param_3a0;        // 0x3a0, from *actor_data+0x38.
     float param_gravity;    // 0x3a4, from *actor_data+0x3C. Gravity/fall acceleration.
@@ -838,7 +838,7 @@ typedef struct EnemyData
     int xbbc;               // 0xbbc
 } EnemyData;
 
-// Enemy data table at 0x804b22b4 (stride 8). Maps enemy ID → {data_index (int), flags (int)}.
+// Enemy data table at 0x804b22b4 (stride 8). Maps enemy ID -> {data_index (int), flags (int)}.
 // Data index used by Enemy_LoadFile to load archive files.
 
 // Enemy manager functions
@@ -857,7 +857,7 @@ void Enemy_LoadFile(int actor_id); // 0x801fd348, loads enemy archive data from 
 void Enemy_SpawnActor(int spawn_slot, int enemy_id_packed, int position_index); // 0x800f13a8, spawn-slot wrapper (modes 1/3): builds descriptor and calls EventActor_Create. enemy_id_packed = (variant << 8) | enemy_id. Pass -1 to skip creation.
 void Enemy_SpawnActorMode2(int spawn_slot, int position_index); // 0x800f16c0, mode 2 (STKIND_MELEE1) spawn helper: builds descriptor from spawn_entries[position_index] and calls EventActor_Create. Called only from Enemy_SpawnerDecide's mode-2 branch.
 int Enemy_SpawnerDecideMode2(int *out_entry_index); // 0x800f0efc, mode 2 picker: weighted-picks a meta-enemy category from secondary_table[0] (biased by EnemyMgr.time_progress), then a concrete enemy from that category's per-entry weight column. Writes the chosen spawn-entry index to *out_entry_index and returns the enemy_id (-1 if none).
-GOBJ *EventActor_Create(void *desc); // 0x801fbb50, universal actor factory. Creates GOBJ for any ActorID (0x00–0x4E). desc points to an EventActorDesc struct. Returns GOBJ* (0 on failure).
+GOBJ *EventActor_Create(void *desc); // 0x801fbb50, universal actor factory. Creates GOBJ for any ActorID (0x00-0x4E). desc points to an EventActorDesc struct. Returns GOBJ* (0 on failure).
 void EventActor_Destroy(GOBJ *gobj); // 0x801fbf2c, proper actor destruction. Recursively destroys child/attached actors, clears inter-actor references, runs cleanup, then calls GObj_Destroy. Use this instead of raw GObj_Destroy.
 void EventActor_CleanupCollisionSphere(EnemyData *ed); // 0x8021f1bc, destroys xB74 collision sphere if non-null and nulls it.
 void EventActor_CleanupVfxA3C(EnemyData *ed); // 0x8020c6e0, destroys VFX handle at xa3c if != -1.
@@ -899,11 +899,11 @@ void EventActor_ProcPerType(GOBJ *gobj); // 0x801fc848, priority 7: per_type_cb 
 // Priority 8: EventActor_ProcHitCollInit (0x801fc8e8) - single blr, no-op stub
 void EventActor_ProcHitColl(GOBJ *gobj); // 0x801fc8ec, priority 9: HitColl processing + collision checks
 void EventActor_ProcDamage(GOBJ *gobj); // 0x801fc9f0, priority 10: reads HurtData output, calls giveEnemyDamage, dispatches hit_reaction_cb2
-void EventActor_ProcFinal(GOBJ *gobj); // 0x801fcabc, priority 21: pos → pos_prev, ground state flags, lifetime/despawn, OOB destroy
+void EventActor_ProcFinal(GOBJ *gobj); // 0x801fcabc, priority 21: pos -> pos_prev, ground state flags, lifetime/despawn, OOB destroy
 
 // Internal creation/destruction helpers
 void EventActor_InitFromDesc(EnemyData *ed, void *desc); // 0x801fb53c, copies EventActorDesc fields into EnemyData (0x4fc bytes)
-void EventActor_SpawnChild(EnemyData *parent_ed); // 0x801fcda0, spawns child actor (rider/attached entity) and links parent↔child GOBJs
+void EventActor_SpawnChild(EnemyData *parent_ed); // 0x801fcda0, spawns child actor (rider/attached entity) and links parent<->child GOBJs
 void EventActor_StateCleanup(EnemyData *ed); // 0x801fe110, cleans up attach slots (ed+0x918), detaches/destroys orphaned child objects
 void EventActor_SharedUpdate(GOBJ *gobj); // 0x801fd780, updates JObj world matrix from position/orientation/scale
 void EventActor_UpdateFacing(EnemyData *ed); // 0x801fd7bc, recalculates forward/up/right axes from orientation
@@ -936,7 +936,7 @@ void EnemyPath_Advance(EnemyData *ed, Vec3 *input_pos, Vec3 *output_pos, float s
 void EnemyState_AnimEnter(EnemyData *ed); // 0x8020bd68, func1 for states 0-8: animation rate scaling, stun freeze
 void EnemyState_AnimTick(EnemyData *ed); // 0x8020be1c, func2 for states 0-8: death processing, attraction physics, inhale follow
 void EnemyState_AnimExit(EnemyData *ed); // 0x8020c558, func3 for states 0-8: stun frame decrement, ground physics, stun spark VFX
-void EnemyState_DeathEnter(EnemyData *ed); // 0x80203e60, func1 for state 0x09: death effects, model hide, 600-frame timer → destroy
+void EnemyState_DeathEnter(EnemyData *ed); // 0x80203e60, func1 for state 0x09: death effects, model hide, 600-frame timer -> destroy
 void EnemyState_KnockbackEnter(EnemyData *ed); // 0x8020ddb4, func1 for state 0x0B: compute knockback velocity, set launch trajectory
 void EnemyState_TransitionToLaunched(EnemyData *ed); // 0x8020e0bc, enters state 0x0C (launched/airborne)
 void EnemyState_TransitionToSliding(EnemyData *ed); // 0x8020e63c, enters state 0x0D (grounded/sliding)
@@ -1080,7 +1080,7 @@ static EnemySpawnData **stc_enemy_spawn_data = (EnemySpawnData **)(0x805dd0e0 + 
 //   +0x14 int[4] {10, 30, 50, 70} (consumer unidentified)
 //   +0x30 float[4] kb_mag    (per-tier knockback magnitude)
 //   +0x40 float[4] kb_scale  (per-tier knockback scale)
-//   +0x50 float[4] launch    (per-tier launch speed; → ed->kb_launch_speed 0x9D8)
+//   +0x50 float[4] launch    (per-tier launch speed; -> ed->kb_launch_speed 0x9D8)
 //   +0x60 float[4] stun      (per-tier stun frames, e.g. {2,4,6,8})
 //   +0x70 float[4] mode_scale (per-mode scale)
 //   +0x80 float  detect_range (50.0) - player acquisition radius (EnemyActor_FindNearestPlayer)

@@ -1521,12 +1521,12 @@ typedef struct Game3dData
     int x1b0;                                     // 0x1b0
     int x1b4;                                     // 0x1b4
     int x1b8;                                     // 0x1b8
-    int patch_drop_mode0_count;                   // 0x1bc, fixed drop count when caller passes 0 with mode 0
+    int patch_drop_mode0_count;                   // 0x1bc, drop count for mode 0; used unconditionally - mode 0 ignores the stat array, and Rider_DropPatches takes no count argument
     int patch_drop_spawn_arg7;                    // 0x1c0, passed verbatim as r7 (4th int arg) to SpawnItem (0x80253ce4)
     f32 patch_drop_spawn_y_bias;                  // 0x1c4, added to spawn position Y in both sub-handlers
     f32 patch_drop_mode2_factor;                  // 0x1c8, multiplied with sum-of-positive-stats to size mode-2 drops
     f32 patch_drop_mode1_factor;                  // 0x1cc, multiplied with sum-of-positive-stats to size mode-1 drops
-    f32 patch_drop_throw_spread;                  // 0x1d0, max throw-spread half-angle in degrees; ×deg2rad×rand (sign by count parity) fans drop throw directions. Read by Rider_TickDropAllUp / Rider_SpawnDropPatchSeq
+    f32 patch_drop_throw_spread;                  // 0x1d0, max throw-spread half-angle in degrees; x deg2rad x rand (sign by count parity) fans drop throw directions. Read by Rider_TickDropAllUp / Rider_SpawnDropPatchSeq
     PatchDropModeParams patch_drop_mode0_params;  // 0x1d4
     PatchDropModeParams patch_drop_mode1_params;  // 0x1ec
     PatchDropModeParams patch_drop_mode2_params;  // 0x204
@@ -2924,7 +2924,7 @@ void Checklist_LoadModels();                                            // 80182
 void Checklist_DestroyElements();                                       // 80182cac, tears down the checklist GObjs: grid element, banner, Pos element, the 0xf0c[120] cell array, filler array, cursor/info/icon elements
 void loadMainMenuMusic();                                               // 8000bba0, (re)loads/plays the main-menu BGM
 void MainMenu_ClearSoundTestSongThunk();                               // 8000bc10, stops the checklist reward-preview song
-void ClearChecker_GetRewardFromClearKind(GameMode gm, u8 clear_kind, u8 *out_reward_index, u8 *out_reward_param); // 80049ec4, reverse lookup: clear_kind → reward_index + reward_param
+void ClearChecker_GetRewardFromClearKind(GameMode gm, u8 clear_kind, u8 *out_reward_index, u8 *out_reward_param); // 80049ec4, reverse lookup: clear_kind -> reward_index + reward_param
 void ClearChecker_ResetAllData(void);                                    // 8000c604, resets all clear data for all 3 modes (erase menu)
 int ClearChecker_ShouldShowNewUnlocks(GameMode gm);                      // 8000c6f0, returns 1 if mode has new unlocks pending display
 void ClearChecker_MarkNewUnlocksShown(GameMode gm);                      // 8000c734, marks new unlocks as displayed for mode
@@ -2959,10 +2959,10 @@ u8 Ply_GetYakumonoBreakCount(int ply, int desc_id);                      // 8022
 int AirRide_CheckCourseUnlocked(s8 input);                              // 8000c0e0, checks reward index 34 (Nebula Belt) when input==8
 int TitleScreen_CheckMachineUnlocked(s8 machine_class, s8 machine_id);  // 8000c364, clearchecker machine-unlock query (reward indices 19-31, machines 0x09-0x15); only reached via the title-screen attract demo (TitleScreen_SelectRandomMachine 8000daa0), NOT real CPU gameplay
 int AirRide_CheckCharacterAvailable(CharacterKind ckind);               // 8002090c, checks if a CharacterKind is selectable on the Air Ride select screen
-int AirRide_CheckCharacterUnlocked(s8 character);                       // 8000c488, maps 1→32 (Dedede), 2→33 (Meta Knight)
-int CityTrial_CheckLegendaryMachineUnlocked(int machine);               // 8000c508, maps 4→34 (Hydra), 8→30 (Dragoon)
-int AirRide_CheckBonusUnlocked(s8 bonus);                               // 8000c584, maps 1→35 (Bonus Movie), 2→36 (Ending)
-int CityTrial_CheckStadiumIsUnlocked(s8 stadium_kind);                  // 8000c17c, maps StadiumKind 3-22 → reward indices 37-42
+int AirRide_CheckCharacterUnlocked(s8 character);                       // 8000c488, maps 1->32 (Dedede), 2->33 (Meta Knight)
+int CityTrial_CheckLegendaryMachineUnlocked(int machine);               // 8000c508, maps 4->34 (Hydra), 8->30 (Dragoon)
+int AirRide_CheckBonusUnlocked(s8 bonus);                               // 8000c584, maps 1->35 (Bonus Movie), 2->36 (Ending)
+int CityTrial_CheckStadiumIsUnlocked(s8 stadium_kind);                  // 8000c17c, maps StadiumKind 3-22 -> reward indices 37-42
 int Pause_CheckStatsUnlocked();                                         // 8000c768, checks City Trial reward index 43
 int Gm_IsGrKindCity(StageKind stage_kind);  // 0x80262574 - takes StageKind (validates 0..59, indexes the stage-def table at +0x30)
 int Gm_IsDestructionDerby();
@@ -3022,7 +3022,7 @@ typedef enum EventDropSource
 
 ItemKind CityItem_GetEventItem(EventDropSource source);                    // 80254114, weighted random pick from event_source_drop[] using the source's column. Returns -1 if no item.
 ItemKind _CityItem_GetEventItem(EventDropSource source);                   // 800ebe44, internal - public CityItem_GetEventItem just tail-calls this.
-void City_SpawnMiscItems(int *desc, ...);                                  // 80104db0, public dispatch: desc[8]==1 → directed cone (shootPowerUps_); desc[8]==0 → omnidirectional (_City_SpawnMiscItems). desc[7] = drop_source (-1 → fall back to CityEvent_GetRandomItem).
+void City_SpawnMiscItems(int *desc, ...);                                  // 80104db0, public dispatch: desc[8]==1 -> directed cone (shootPowerUps_); desc[8]==0 -> omnidirectional (_City_SpawnMiscItems). desc[7] = drop_source (-1 -> fall back to CityEvent_GetRandomItem).
 
 // Spawn one item with a randomized throw velocity: throw_dir pitched up/down by
 // elev_angle (radians) about a horizontal axis, scaled by speed. spawn_group is

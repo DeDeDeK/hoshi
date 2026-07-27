@@ -984,7 +984,7 @@ void HSD_FogSet(HSD_Fog *fog);
 AreaLight *AreaLight_Create(void *class_ptr, AreaLightData *src, u32 extra);  // 0x80079428
 AreaLight *AreaLight_Create_Default(AreaLightData *src);                       // 0x8007a4d0 - class=0, extra=0
 void AreaLight_Lerp(AreaLight *start, AreaLightData *target, AreaLight *dest, float ratio); // 0x800797a8
-void AreaLight_BroadcastVisFlag(void *class_ptr, u8 vis_flag);                 // 0x80079948 - preset+0x44 bit 0 → +0x38 bit 0x80
+void AreaLight_BroadcastVisFlag(void *class_ptr, u8 vis_flag);                 // 0x80079948 - preset+0x44 bit 0 -> +0x38 bit 0x80
 void AreaLight_StageInit(GOBJ *grobj_or_gobj);                                 // 0x800ef618 - stack-builds default, stores at +0x718
 void AreaLight_LerpToLive(GOBJ *grobj, AreaLight *start, AreaLightData *target, float ratio); // 0x800ef864 - Sky_Update adapter
 

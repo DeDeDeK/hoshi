@@ -130,9 +130,9 @@ typedef union YakumonoParam
 
     // Most break-* kinds have an optional drop descriptor pointer in their
     // param block. The slot offset varies by family:
-    //   gryakubreakrock.c   → param->[+0x24]
-    //   gryakubreakcoral.c  → param->[+0x28]
-    //   gryakubreakhouse.c  → param->[+0x30]
+    //   gryakubreakrock.c   -> param->[+0x24]
+    //   gryakubreakcoral.c  -> param->[+0x28]
+    //   gryakubreakhouse.c  -> param->[+0x30]
     // NULL means "no drop".
 
     // Common gating fields read by Create's init pipeline. Populated for
@@ -140,17 +140,17 @@ typedef union YakumonoParam
     // the stage doesn't actually use.
     //
     //   +0x04  - JObj data (a JObjDesc-ish block). Read by GrYaku_AllocJObj
-    //            (0x800f7308): non-zero → full JObj alloc; zero → empty alloc,
+    //            (0x800f7308): non-zero -> full JObj alloc; zero -> empty alloc,
     //            ydata+0x64 stays NULL (yakumono invisible). Doubles as the
     //            anim gate: GrYaku_AttachAnim (0x800f6394) re-reads this same
     //            field and checks jobj_data[0][0x10] - anim data is bundled
     //            under the JObj descriptor, there is no separate param field
     //            for animation.
     //   +0x0c  - model data. Read by GrYaku_AttachModel (0x800f6274): non-zero
-    //            → model attach via grdata->model_section / grdata->motion;
-    //            zero → no-model branch (no DObj/MObj/PObj attached).
+    //            -> model attach via grdata->model_section / grdata->motion;
+    //            zero -> no-model branch (no DObj/MObj/PObj attached).
     //   +0x14  - audio descriptor (the gyp->fgm source). Read by
-    //            GrYaku_InitAudio (0x800f77dc): non-zero → fills the fgm/audio
+    //            GrYaku_InitAudio (0x800f77dc): non-zero -> fills the fgm/audio
     //            block at ydata+0x118. Layout {idData @0x00, idDataNum @0x04,
     //            track_param @0x08, ... @0x0c/0x10}.
     struct
@@ -335,7 +335,7 @@ typedef struct YakumonoTable
 // ALWAYS walks grdata->yakumono->entries[] afterward (the hook does not replace
 // the generic walker - both run).
 //
-// Of the 28 entries, 15 have real init hooks (notably GroundKind 9 = GrCity1 →
+// Of the 28 entries, 15 have real init hooks (notably GroundKind 9 = GrCity1 ->
 // grDataCity1_CreateYakumono), 12 have NULL hooks (GroundKinds 6, 11, 12, 13, 14,
 // 16, 18, 20, 22, 23, 24, 25), and one is a 4-byte `blr` stub (GroundKind 17 =
 // GrColosseum5 / Kirby Melee 2, functionally equivalent to NULL).
