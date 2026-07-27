@@ -290,7 +290,7 @@ typedef struct SkyPresetEntry
     u32 fade_color;            // 0x10 RGBA lbfade screen tint (transitions only)
     u32 sky_ambient_color;     // 0x14 RGBA ambient sky color (interpolated)
     AreaLightData area_light;  // 0x18 directional light params (0x2C bytes)
-    u8 light_vis_flag;         // 0x44 bit 0 → AreaLight registry +0x38 bit 0x80
+    u8 light_vis_flag;         // 0x44 bit 0 -> AreaLight registry +0x38 bit 0x80
     u8 x45[3];                // 0x45
 } SkyPresetEntry;
 _Static_assert(sizeof(SkyPresetEntry) == 0x48, "SkyPresetEntry must be 0x48 bytes");
@@ -301,7 +301,7 @@ _Static_assert(sizeof(SkyPresetEntry) == 0x48, "SkyPresetEntry must be 0x48 byte
 typedef struct SkyState
 {
     SkyPresetEntry *target_preset;  // 0x00 current target preset
-    s32 transition_frame_counter;   // 0x04 0 → target.transition_frames
+    s32 transition_frame_counter;   // 0x04 0 -> target.transition_frames
     u32 start_fog_color;            // 0x08 RGBA lerp start; reused as Sky_Update output mirror
     float start_fog_start;          // 0x0C
     float start_fog_end;            // 0x10
