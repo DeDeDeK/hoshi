@@ -119,7 +119,7 @@ static int *stc_event_machineformation_loadnum = (int *)(0x805dd0e0 + 0x750); //
 // note: 0x80538088 is the Audio3D global (audio_3d_data, audio.h), not an event global
 static EventFunction (*stc_event_function)[EVKIND_NUM] = (void *)0x804a5410;
 
-// Event SIS ID lookup table. Indices 0-15 = vanilla event names, 16-38 = stadium name lookups
+// Event SIS ID lookup table. Indices 0-15 = vanilla event names, 16-39 = stadium name lookups
 // for prediction event (kind 10). Custom entries placed after stadium range.
 static int *stc_event_sis_id_table = (int *)0x804a7b98;
 
