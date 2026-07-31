@@ -1,25 +1,25 @@
 # hoshi
 
-**hoshi** is a powerful and flexible modloader designed for Kirby Air Ride (NTSC). 
+**hoshi** is a modloader designed for Kirby Air Ride (NTSC). 
 
 ---
 
 ## Features
 
 - **Mod File Loading**  
-  **hoshi** automatically detects and loads all compatible mod binaries placed in the `mods` folder on the game disc. Modders do not need to hardcode any mod paths. **hoshi** handles discovery and initialization automatically.
+  **hoshi** detects and loads all compatible mod binaries placed in the `mods` folder on the game disc. Initialization is handled via callbacks defined in each mod.
 
 - **Code Hooking**  
-  Define callback functions for injecting code at key points in game execution.
+  Inject C code from mods into the dol at runtime.
 
 - **Save File System**  
-  **hoshi** creates and manages its own save file, automatically handling save slots for each mod.
+  **hoshi** creates and manages its own save file, automatically handling save data for mods.
 
 - **Custom Settings Menu**  
   Add your own toggles and menus to a shared in-game settings menu, allowing users to easily configure your mod.
 
 - **Scene Injection Support**  
-  Register new major and minor scenes to integrate fully with the game’s flow and scene manager.
+  Add new major and minor scenes to the game.
 
 ---
 
