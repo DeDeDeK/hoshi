@@ -1013,8 +1013,14 @@ int Rider_IsMachineDead(RiderData *);       // can only be called between the RD
 void Rider_DropPatches(RiderData *, float stat_array[9], int drop_mode); // 0x8019d330. Enqueues a stat-patch drop event onto RiderData (patch_drop_count/_mode/_progress/_cooldown); Rider_TickDropPatches drains the queue per-frame. drop_mode 0=forward, small fixed count, probabilistic all-up; 1=behind, count scaled by stats, no all-ups; 2=forward, count scaled by stats, all remaining all-ups.
 int Rider_CheckCanReceiveAbility(GOBJ *gobj); // returns 1 if rider can receive a copy ability
 int Rider_CheckAndGiveAbility(GOBJ *gobj, int kind); // checks rider is Kirby, then gives copy ability, returns 1 on success
-void Rider_RecordCopyAbility(int ply, int copy_kind); // 0x8022ee00, records ability in history buffer, checks achievement sequences, increments per-ability counters
-void Rider_MarkCopyAbilityObtained(int ply, int copy_kind); // 0x8022f150, sets bit in obtained-abilities bitmask for checklist tracking
+void Rider_RecordCopyAbility(int ply, int copy_kind); // 0x8022ee00, appends to PlayerStats.copy_history, checks the three ability sequences, bumps PlayerStats.copy_obtain_count[copy_kind]. Called from Rider_GiveAbility for every grant, whatever the source
+void Rider_MarkCopyAbilityObtained(int ply, int copy_kind); // 0x8022f150, sets PlayerStats.copy_chance_mask bit (15-copy_kind). Only the copy-wheel paths call it (randomAbility_aPress 0x801ae874, randomAbility_autoSelect 0x801ae910), so the bit means "the wheel gave it"
+
+// Action states ability_Mic (0x801b3dac) drives: the held pose, the singing blast
+// (spawns Effect 0x5a5a2 / SFX 0x2006b), and the recovery the blast ends in.
+#define RIDERSTATE_MIC_HOLD 0x3e
+#define RIDERSTATE_MIC_SING 0x61
+#define RIDERSTATE_MIC_END  0x62
 int randomAbility_giveAbility(RiderData *, int kind); // 0x801a61d4, gives copy ability from copy chance wheel (no unable/queue check)
 void Rider_StartCopyWheel(RiderData *rd, int copy_kind); // 0x801ae550, initializes copy wheel at starting ability, sets rd->copy_wheel_ability_list and index
 int Rider_StartRandomCopyWheel(RiderData *rd); // 0x801ae4ec, picks HSD_Randi(11) starting ability, calls Rider_StartCopyWheel. Returns 1 if wheel started.
