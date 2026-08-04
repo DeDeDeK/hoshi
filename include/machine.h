@@ -197,7 +197,7 @@ typedef struct vcDataLookup
 typedef struct MachineSpawnDesc
 {
     int is_bike; // 0x0
-    u8 kind;     // 0x4
+    u8 kind;     // 0x4, class-relative index into the is_bike half of vcDataLookup, not the VCKIND
     Vec3 pos;    // 0x8
     Vec3 x14;    // 0x14 (is 0,0,-1)
     Vec3 x20;    // 0x20 (is 0,1,0)
@@ -263,7 +263,7 @@ typedef struct MachineData
     int x18;                              // 0x18
     int x1c;                              // 0x1c
     int x20;                              // 0x20
-    MachineKind kind : 8;                 // 0x24
+    MachineKind kind : 8;                 // 0x24, class-relative like PlayerData.machine_kind: indexes the is_bike half of vcDataLookup, so it only equals the VCKIND for stars
     int x28;                              // 0x28
     vcData *vcData;                       // 0x2c
     int x30;                              // 0x30
@@ -465,7 +465,7 @@ typedef struct MachineData
     int x348;                             // 0x348
     int x34c;                             // 0x34c
     int x350;                             // 0x350
-    Vec3 projectile_inherit_velocity;     // 0x354, base velocity inherited by projectiles spawned from this machine's rider (added to rider->self_vel in spawnBomb/spawnGordo/spawnSensorBomb). Read via Machine_GetProjectileBaseVelocity.
+    Vec3 world_velocity;                  // 0x354, measured world displacement this frame: Machine_ShadowThink (0x801c69f0, a per-machine GObj proc) computes pos (0x3e8) - prev_pos (0x3f4) then rolls prev_pos forward. Ground truth rather than commanded motion, so collisions and slope drag are already folded in - this is what AirRide_TrackMinLapSpeed measures. Projectiles spawned by the rider inherit it (added to rider->self_vel in spawnBomb/spawnGordo/spawnSensorBomb); read via Machine_GetProjectileBaseVelocity.
     int x360;                             // 0x360
     int x364;                             // 0x364
     int x368;                             // 0x368
@@ -480,7 +480,7 @@ typedef struct MachineData
     int x38c;                             // 0x38c
     int x390;                             // 0x390
     int x394;                             // 0x394
-    float top_speed_current;              // 0x398, top speed for the active state - the cruise-speed cap the movement controllers clamp velocity against. Set each Machine_AdjustAttributes from top_speed_ground (0x4f0) when grounded (action_state_class 0x754 == 0) or the airborne value (0x5ac) otherwise, and held between recalcs (only AdjustAttributes writes it). Note machine_accel cancels out of the thrust/drag equilibrium, so this cap - not machine_accel - is what scales actual cruise speed.
+    float top_speed_current;              // 0x398, top speed for the active state - the cruise-speed cap the movement controllers clamp velocity against. Set each Machine_AdjustAttributes from top_speed_ground (0x4f0) when grounded (action_state_class 0x754 == 0) or top_speed_air (0x5ac) otherwise, and held between recalcs (only AdjustAttributes writes it). Note machine_accel cancels out of the thrust/drag equilibrium, so this cap - not machine_accel - is what scales actual cruise speed.
     int x39c;                             // 0x39c
     int x3a0;                             // 0x3a0
     int x3a4;                             // 0x3a4
@@ -523,8 +523,8 @@ typedef struct MachineData
     int x450;                             // 0x450
     int x454;                             // 0x454
     int x458;                             // 0x458
-    int base_attributes;                  // 0x45c, start of the derived-attribute block (124 words) memcpy'd from md->vcData each Machine_AdjustAttributes; the real per-vehicle base stats (separate from the patch/cap stat arrays at 0x94C+)
-    int x460;                             // 0x460
+    int x45c;                             // 0x45c
+    int base_attributes;                  // 0x460, start of the derived-attribute block: Machine_AdjustAttributes memcpy's 124 words (0x1f0 bytes) from md->vcData->attr, so attr+k lands at md+0x460+k. The real per-vehicle base stats (separate from the patch/cap stat arrays at 0x94C+); the per-stat scaling callbacks then multiply selected fields in place
     int x464;                             // 0x464
     float model_scale_base;               // 0x468, intrinsic model scale of this vehicle; the machine model appliers bake model_scale * model_scale_base into the model matrix. Per-machine size differences live here, so model_scale rests at 1.0.
     float coll_radius_base;               // 0x46c, mpColl sphere radius (f1 arg to mpColl_Update in Machine_InitialCollisionCheck/SetMpCollPosition -> coll_data->radius)
@@ -560,7 +560,7 @@ typedef struct MachineData
     int x4e4;                             // 0x4e4
     float projectile_charge_scale;        // 0x4e8, scalar multiplier for projectile velocity, likely tied to machine charge/boost state. Read via Machine_GetProjectileChargeScale.
     int x4ec;                             // 0x4ec
-    float top_speed_ground;               // 0x4f0
+    float top_speed_ground;               // 0x4f0, grounded cruise cap in world units per frame; base value is vcData->attr+0x90, then scaled by the accel and top-speed stat ratios
     int x4f4;                             // 0x4f4
     int x4f8;                             // 0x4f8
     float base_charge_rate;               // 0x4fc scaled by charge patches
@@ -607,10 +607,7 @@ typedef struct MachineData
     int x5a0;                             // 0x5a0
     int x5a4;                             // 0x5a4
     int x5a8;                             // 0x5a8
-    u8 x5ac;                              // 0x5ac, Machine_AdjustAttributes reads a 4-byte value here as the airborne top speed (copied into top_speed_current 0x398) - likely a float overlapping the next bytes; reconcile with stadium_kind
-    u8 stadium_kind;                      // 0x5ad
-    u8 x5ae;                              // 0x5ae
-    u8 x5af;                              // 0x5af
+    float top_speed_air;                  // 0x5ac, airborne cruise cap in world units per frame; base value is vcData->attr+0x14c. Machine_AdjustAttributes copies it into top_speed_current (0x398) whenever action_state_class != 0
     int x5b0;                             // 0x5b0
     int x5b4;                             // 0x5b4
     int x5b8;                             // 0x5b8
@@ -1105,7 +1102,7 @@ void Machine_ActOnHitCollision(MachineData *md);       // 0x801d7308. Per-frame 
 void Machine_InitHurtData(MachineData *md);            // 0x801d6e84. Creates HurtData for machine via HurtData_Create(HURTKIND_MACHINE), sets callback at HurtData+0x8C, configures hurt descriptors from itData
 HurtData *MachineGObj_GetHurtData(GOBJ *machine_gobj); // 0x801c8660. Returns *(MachineData+0x660) from GOBJ userdata
 
-// Reads the machine's projectile_inherit_velocity Vec3 (md+0x354) into *out.
+// Reads the machine's world_velocity Vec3 (md+0x354) into *out.
 // Used by the rider-level projectile spawners (spawnBomb/spawnGordo/...) to
 // seed the projectile's initial velocity before adding rider self_vel.
 void MachineGObj_GetProjectileBaseVelocity(GOBJ *machine_gobj, Vec3 *out); // 0x801c7628

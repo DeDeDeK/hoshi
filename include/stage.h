@@ -59,9 +59,21 @@ typedef enum StageKind
 // StageKinds can share one GroundKind. Only members present in the file table
 // are named (the enum is intentionally sparse). Obtain one from a StageKind
 // with Gm_GetGrKindFromStageKind().
+//
+// The 9 Air Ride grounds occupy 0..8 in file order, which is NOT menu order -
+// AirRideCourse 1 (Magma Flows) is GroundKind 1 but course 3 (Frozen Hillside)
+// is GroundKind 8. Code that keys per-course behaviour off the ground index,
+// such as AirRide_CheckRaceDistanceObjectives, uses the order below.
 typedef enum GroundKind
 {
-    GR_PLANTS1    = 0,  // Air Ride: Fantasy Meadows (first of the 9 AR course grounds)
+    GR_PLANTS1    = 0,  // Air Ride: Fantasy Meadows
+    GR_HEAT2      = 1,  // Air Ride: Magma Flows
+    GR_DESERT1    = 2,  // Air Ride: Sky Sands
+    GR_CHECK2     = 3,  // Air Ride: Checker Knights
+    GR_VALLEY2    = 4,  // Air Ride: Celestial Valley
+    GR_MACHINE2   = 5,  // Air Ride: Machine Passage
+    GR_SPACE2     = 6,  // Air Ride: Nebula Belt
+    GR_SKY2       = 7,  // Air Ride: Beanstalk Park
     GR_ICE1       = 8,  // Air Ride: Frozen Hillside (last AR course ground)
     GR_CITY1      = 9,  // City Trial
     GR_ZEROYON1   = 10, // drag-race ground (GrZeroyon1)

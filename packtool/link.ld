@@ -508,6 +508,13 @@ SECTIONS
   Gm_ResetAllData = 0x800079A8;
   Gm_GetAirRideMode = 0x8003D5F0;
   Gm_GetAirRidePlayerSlot = 0x8003D644;
+  Gm_GetCityKind = 0x8000916C;
+  Gm_GetRaceLapTotal = 0x80009190;
+  Gm_GetRaceTimeLimitSeconds = 0x800091E4;
+  Gm_GetPlayerRaceDistance = 0x80009568;
+  AirRide_CheckRaceDistanceObjectives = 0x8004D454;
+  AirRide_CheckRaceLapObjectives = 0x8004D248;
+  AirRide_CheckRaceFinishObjectives = 0x8004AA58;
   Gm_GetCityMode = 0x8003F6CC;
   Gm_GetIntroState = 0x8000A958;
   Gm_IsInCity = 0x8000ACB0;
@@ -697,6 +704,14 @@ SECTIONS
   Ply_GetRiderKind = 0x8022C880;
   Ply_SetRiderKind = 0x8022C898;
   PlyCam_GetCObj = 0x800b8054;
+  PlyCam_Think = 0x800b3540;
+  PlyCam_MachineZoomAdjust = 0x800b61f4;
+  cameraControlThink = 0x800b67cc;
+  PlyCam_OnMachineThink = 0x800c04b0;
+  PlyCam_OnFootThink = 0x800cb3b4;
+  PlyCam_OnFootEnter = 0x800cc050;
+  PlyCam_OnFootSolve = 0x800cb500;
+  PlyCam_OnFootBlend = 0x800cbec8;
   PlyCam_GetFullscreenScissor = 0x80068574;
   PlyCam_Get2PScissor = 0x80068588;
   PlyCam_Get4PScissor = 0x800685ac;
@@ -710,6 +725,7 @@ SECTIONS
   Ply_SetMachineIsBike = 0x8022C8C8;
   Ply_GetMachineIsBike = 0x8022C8B0;
   Ply_AddDeath = 0x8022f648;
+  Ply_RecordEnemyDefeat = 0x8023205c;
   Ply_SetHP = 0x8022ca38;
   Ply_GetAllUpCollected = 0x8022d024;
   Ply_SetAllUpCollected = 0x8022d03c;

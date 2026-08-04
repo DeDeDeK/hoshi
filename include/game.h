@@ -1308,9 +1308,13 @@ typedef struct GameData // 805359d8
     u8 stage_kind;                   // 0xa97, StageKind
     u8 bgm_override;                 // 0xa98, when this is not 1, it plays it as the song id
     u8 is_always_ura_bgm;            // 0xa99
-    u8 race_stage_id;                // 0xa9a, stage-kind index for the active race (Gm_GetRaceStageId); fed to stGetCurrentStageKind/stLoadStageKind. Distinct from stage_kind (0xa97)
+    u8 race_lap_total;               // 0xa9a, laps the race is configured for (Gm_GetRaceLapTotal);
+                                     //        race3D_isFinished flags a finish once player_lap_count
+                                     //        is no longer below it
     u8 xa9b;                         // 0xa9b
-    u16 time_seconds;                // 0xa9c
+    u16 time_seconds;                // 0xa9c, configured round/race time LIMIT in seconds, not the
+                                     //        elapsed clock (Game_Think compares the elapsed counter
+                                     //        against it to end the round); Gm_GetRaceTimeLimitSeconds
     int rng_seed_initial;            // 0xaa0
     u8 xaa4;                         // 0xaa4
     u8 xaa5_unk_damage : 1;          // 0xaa5, 0x80 (Gm_CheckUnkDamage)
@@ -2333,6 +2337,9 @@ typedef struct gmDataAll
 
 // Per-player gameplay-stat record that drives checklist completion. Embedded in
 // PlayerData at +0xB0 (PlayerData.stat_record); Ply_GetItemCollectArray(ply)
+// Bit of PlayerStats.copy_chance_mask for a CopyKind (MSB-first).
+#define COPY_CHANCE_BIT(copy_kind) ((u16)(1 << (15 - (copy_kind))))
+
 // returns &stc_playerdata[ply].stat_record. Offsets here are record-relative
 // (the doc's "stat+0xNNN").
 typedef struct PlayerStats
@@ -2343,9 +2350,12 @@ typedef struct PlayerStats
     int enemy_defeat_by_method[0x1b];             // 0xe4, AR; [0xf]/[0x15]=exhaled star, [0x10]=Quick Spin
     u8 x150[0x331 - 0x150];
     u8 rivals_damaged_mask;                       // 0x331, per-rival "damaged this game" bits 0-4 (cell 0x4e)
-    u8 x332[0x37a - 0x332];
-    u8 copy_chance_flags;                         // 0x37a, bit3 got Bomb, bit5 got Sleep (cells 0x46/0x47)
-    u8 x37b[0x37c - 0x37b];
+    u8 x332[0x334 - 0x332];
+    int copy_obtain_count[COPYKIND_NUM];          // 0x334, times each CopyKind was granted this game (Rider_RecordCopyAbility)
+    int copy_history[6];                          // 0x360, most recent CopyKinds granted, oldest first; count in copy_history_num
+    u8 copy_history_num;                          // 0x378, low 3 bits = ability-sequence flags, high 5 = copy_history entries
+    u8 x379[0x37a - 0x379];
+    u16 copy_chance_mask;                         // 0x37a, MSB-first bit(15-CopyKind) set when the Copy Chance Wheel granted it (cells 0x46/0x47)
     int machine_change_count[0x1a];               // 0x37c, per-MachineKind; sum = AR machine changes (cell 0x06)
     int deaths_by_machine[0x1a];                  // 0x3e4, KO'd, by MachineKind ridden
     int kills_by_machine[0x1a];                   // 0x44c, KOs dealt, by victim MachineKind
@@ -2460,7 +2470,7 @@ typedef struct PlayerData
     u8 player_color;           // 0x8C, plGetPlayerColor/plSetPlayerColor
     u8 controller_index;       // 0x8D, Ply_GetControllerIndex. Setter (8022c6e4) also maintains the controller->slot reverse map at 0x805dd898 (port 4 -> excluded)
     u8 is_bike;                // 0x8E, Ply_GetIsBike/Ply_SetIsBike
-    MachineKind machine_kind;  // 0x8F, u8; Ply_GetMachineKind/Ply_SetMachineKind
+    MachineKind machine_kind;  // 0x8F, u8; Ply_GetMachineKind/Ply_SetMachineKind. Class-relative - indexes the is_bike half of vcDataLookup, so it only equals the VCKIND for stars. Ply_GetMachineKindAbs resolves it
     u8 x90;                    // 0x90, set to this slot's own player index at spawn (8022c960)
     u8 x91;                    // 0x91, viewport/split-screen layout flag: (player_count >= 3) ? 1 : 0 (8022c990)
     u8 x92;                    // 0x92, viewport/split-screen layout tier: 0/1/2 for 1/2/3+ players (8022c9c0)
@@ -2858,6 +2868,50 @@ GmIntroState Gm_GetIntroState();
 CityMode Gm_GetCityMode();
 AirRideMode Gm_GetAirRideMode();      // 0x8003d5f0 - returns GameData[0x35d]
 int Gm_GetAirRidePlayerSlot();         // 0x8003d644 - returns GameData[0x35f], active player slot for Free Run / Time Attack
+
+// GameData.city_kind while a race is set up from the Air Ride rules menu. City
+// Trial and the stadiums put their own, higher values in the same field.
+typedef enum AirRideRule
+{
+    AIRRIDE_RULE_LAPS = 0,  // ends after Gm_GetRaceLapTotal() laps
+    AIRRIDE_RULE_TIME = 1,  // ends after Gm_GetRaceTimeLimitSeconds() seconds
+} AirRideRule;
+
+// Which rule ends the race (GameData.city_kind, 0xa94), an AirRideRule in Air Ride.
+u8 Gm_GetCityKind();                  // 0x8000916c
+
+// Laps the race is configured for (GameData.race_lap_total, 0xa9a). Meaningful only
+// in a lap race - a timed race ends on Gm_GetRaceTimeLimitSeconds() instead.
+u8 Gm_GetRaceLapTotal();              // 0x80009190
+
+// Configured round/race time limit in seconds (GameData.time_seconds, 0xa9c), NOT
+// the elapsed clock. 120 means the race was set to a 2-minute limit - the gate the
+// vanilla "Race over N feet in 2 minutes!" checklist cells test.
+short Gm_GetRaceTimeLimitSeconds();   // 0x800091e4
+
+// Distance travelled along the race course, in METRES (GameData.player_race_distance,
+// 0xa4c). Feet = metres / 0.3048.
+float Gm_GetPlayerRaceDistance(int ply); // 0x80009568
+
+// Evaluates the Air Ride "Race over N feet in 2 minutes!" cells. Switches on the
+// current GroundKind for the per-course threshold and clear_kind, and awards any
+// human slot whose distance in feet is >= the threshold once
+// Gm_GetRaceTimeLimitSeconds() == 120. GR_SPACE2 (Nebula Belt) has no case, so it
+// never fires there. AirRide_CheckRaceFinishObjectives calls this once per Air Ride
+// minor-scene exit and only when Gm_GetCityKind() == 1, so the cells additionally
+// require the race to be a timed one rather than a lap race.
+void AirRide_CheckRaceDistanceObjectives(void); // 0x8004d454
+
+// Evaluates the "Finish N laps in under MM:SS:FF!" cells. Switches on the current
+// GroundKind for two (clear_kind, frame target) tiers, requires
+// Gm_GetRaceLapTotal() to equal the course's canonical lap count (3 for Fantasy
+// Meadows, 2 elsewhere), and awards when the player's finish time is nonzero and
+// <= the target. GR_SPACE2 has no case. Takes the player index.
+void AirRide_CheckRaceLapObjectives(int ply);   // 0x8004d248
+
+// Runs the Air Ride checklist pass at minor-scene exit: 47 cross-course objectives
+// off two dispatch tables, then the per-course distance cells.
+void AirRide_CheckRaceFinishObjectives(void);   // 0x8004aa58
 float Ply_GetCityStatNum(int ply, int stat_idx, int unk);
 GOBJ *Ply_GetRiderGObj(int ply);
 GOBJ *Ply_GetMachineGObj(int ply);
@@ -2873,7 +2927,25 @@ void Ply_SetMachineKind(int ply, MachineKind kind);
 int Ply_GetMachineKind(int ply);
 void Ply_SetMachineIsBike(int ply, int is_bike);
 int Ply_GetMachineIsBike(int ply);
+
+// Ply_GetMachineKind returns a class-relative index, not a MachineKind: for a bike
+// it is an index into the bike half of vcDataLookup, so Wheelie Scooter reads 4 and
+// collides with the star of that VCKIND. Only the star half matches MachineKind
+// directly. This resolves the pair to the absolute kind.
+static inline MachineKind Ply_GetMachineKindAbs(int ply)
+{
+    if (Ply_GetMachineIsBike(ply))
+        return (MachineKind)(VCKIND_WHEELNORMAL + Ply_GetMachineKind(ply));
+    return (MachineKind)Ply_GetMachineKind(ply);
+}
+
 void Ply_AddDeath(int ply, DmgLog *dmg_log, int is_bike, MachineKind machine_kind);
+// The enemy counterpart of Ply_AddDeath. attacker_log is the victim's
+// strongest-attacker record; its byte 3 is the attack-method index that keys
+// enemy_defeat_by_method (0xe = Tornado, 0xf/0x15 = exhaled star, 0x10 = Quick
+// Spin, 0x11/0x12/0x13 = Firework / Sensor Bomb / Gold Spike). Also bumps
+// enemies_defeated and the per-ACTORID defeat counter.
+void Ply_RecordEnemyDefeat(int ply, void *attacker_log, GOBJ *enemy); // 0x8023205c, credits ply with an enemy kill; reached only from 0x802022ec
 void Ply_SetHP(int ply, float hp);
 int Ply_GetAllUpCollected(int ply);
 int Ply_SetAllUpCollected(int ply, int num);

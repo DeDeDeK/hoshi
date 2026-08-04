@@ -24,16 +24,16 @@ typedef struct CameraParam
 typedef struct cmMainParamCommon
 {
     u8 x0[0x32c];
-    float zoom_speed;           // 0x32c
+    float zoom_speed;           // 0x32c, zoom_amt gained per frame at full C-Stick Y
     float x330;                 // 0x330
     float x334;                 // 0x334
     float x338;                 // 0x338
     float x33c;                 // 0x33c
     float x340;                 // 0x340
     float x344;                 // 0x344
-    float zoom_dist_min;        // 0x348
-    float zoom_dist_max;        // 0x34c
-    float x350;                 // 0x350
+    float zoom_dist_min;        // 0x348, most negative zoom_amt (camera pulled in)
+    float zoom_dist_max;        // 0x34c, largest zoom_amt (camera pushed out)
+    float x350;                 // 0x350, interest raise at full zoom_amt
 } cmMainParamCommon;
 
 typedef struct CamInterest
@@ -48,7 +48,7 @@ typedef struct CamInterest
 
 typedef struct CamData
 {
-    int kind;               // 0x0, 1 = normal, 9 = rail
+    int kind;               // 0x0, index into the kind-descriptor table at 0x804a1f0c. 1 = normal, 6 = on foot, 9 = rail
     int x4;                 // 0x4
     int x8;                 // 0x8
     int xc;                 // 0xc
@@ -56,22 +56,22 @@ typedef struct CamData
     CameraParam x14;        // 0x14  (copied from x138)
     u8 x3c[0x38];           // 0x3c
     u8 x74[0x10];           // 0x74
-    u8 x84_80 : 1;          // 0x84
-    float rotation_amt;     // 0x88
-    float zoom_amt;         // 0x8c, max is 8.4
-    float x90;              // 0x90
+    u8 x84_80 : 1;          // 0x84, enables PlyCam_MachineZoomAdjust; raised while a kind feeds rotation_amt/zoom_amt
+    float rotation_amt;     // 0x88, C-Stick X orbit angle, radians
+    float zoom_amt;         // 0x8c, C-Stick Y eye distance offset, clamped to cmMainParamCommon zoom_dist_min..max
+    float x90;              // 0x90, interest raise along up, scaled from zoom_amt by cmMainParamCommon x350
     CamInterest *target;    // 0x94, camera target. is 0x450 of riderdata?
     u8 x98[0x28];           // 0x98
-    CameraParam xc0;        // 0xc0
-    CameraParam xe8;        // 0xe8, gets copied directly from the cobj eye position @ 800b783c
-    CameraParam x110;       // 0x110, final set of values? not sure
-    CameraParam x138;       // 0x138, 
+    CameraParam xc0;        // 0xc0, solved this frame by the kind's per-frame callback
+    CameraParam xe8;        // 0xe8, xc0 smoothed toward over time; gets copied directly from the cobj eye position @ 800b783c
+    CameraParam x110;       // 0x110, xe8 after PlyCam_MachineZoomAdjust applies rotation_amt/zoom_amt
+    CameraParam x138;       // 0x138,
     Vec3 x160;              // 0x160, position referenced when updating audio sources
     u8 x16c[0x14];          // 0x16c
     Vec3 eye_pos;           // 0x180
     Vec3 interest_pos;      // 0x18c
     u8 x198[0x28];          // 0x198
-    float x1c0;             // 0x1c0, rotation at least for when on foot
+    float x1c0;             // 0x1c0, on-foot C-Stick X orbit budget, drained a fraction per frame
 } CamData;
 
 typedef struct PlayerCamData
@@ -117,6 +117,14 @@ typedef struct PlayerCamLookup
 static PlayerCamLookup *stc_plycam_lookup = (PlayerCamLookup *)0x80557248; // array of 32, this is actually part of a larger struct
 
 COBJ *PlyCam_GetCObj(int cam_index);
+void PlyCam_Think();                                            // 0x800b3540, per-frame drive for one player camera
+void PlyCam_MachineZoomAdjust(CamData *cam);                    // 0x800b61f4, folds rotation_amt/zoom_amt into x110; no-op unless x84_80
+void cameraControlThink(CamData *cam, int pad_index, float *p); // 0x800b67cc, C-Stick -> rotation_amt/zoom_amt. p = {rot_scale, zoom_min, zoom_max, interest_raise}
+int PlyCam_OnMachineThink(CamData *cam, int pad_index);         // 0x800c04b0, kind 1 input think
+int PlyCam_OnFootThink(CamData *cam, int pad_index);            // 0x800cb3b4, kind 6 input think; C-Stick X only, no zoom
+void PlyCam_OnFootEnter(CamData *cam, int *unk);                // 0x800cc050, kind 6 on-enter
+void PlyCam_OnFootSolve(CamData *cam, int is_first_frame);      // 0x800cb500, kind 6 per-frame solve into xc0
+void PlyCam_OnFootBlend(CamData *cam);                          // 0x800cbec8, kind 6 smoothing of xc0 into xe8
 void PlyCam_GetFullscreenScissor(CamScissor *out);
 void PlyCam_Get2PScissor(int view_index, CamScissor *out);
 void PlyCam_Get4PScissor(int view_index, CamScissor *out);
