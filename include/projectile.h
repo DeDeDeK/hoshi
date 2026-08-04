@@ -57,7 +57,7 @@ typedef struct ProjectileDesc
     Vec3 forward;           // 0x1c: forward unit vector
     Vec3 up;                // 0x28: up unit vector
     float velocity_scale;   // 0x34: scalar multiplier, vanilla passes 1.0 (FLOAT_805e1348)
-    Vec3 velocity;          // 0x38: initial velocity (vanilla: md->projectile_inherit_velocity + rider->self_vel)
+    Vec3 velocity;          // 0x38: initial velocity (vanilla: md->world_velocity + rider->self_vel)
     int type_flag;          // 0x44: vanilla spawners all pass 1. Copied verbatim to proj+0x78;
                             //       not routed into any per-frame branch. Treat values >1 as uncharted.
     float charge;           // 0x48: vanilla reads md->projectile_charge_scale
@@ -364,8 +364,8 @@ static inline ProjectileData *Projectile_GetData(void *handle)
 // Rider-side projectile spawn helpers used by copy abilities. All require
 // the rider to have the matching ability hat/model loaded; they assert on
 // rd->ability_hat_model being non-null. Position/forward/up are read from
-// the rider's hand bone; velocity from the machine's
-// projectile_inherit_velocity plus rider->self_vel.
+// the rider's hand bone; velocity from the machine's world_velocity plus
+// rider->self_vel.
 void spawnStarBullet(RiderData *rd, int flag);            // 0x801a8c80, PROJKIND_SWORD_STAR_{A,B}
 void spawnStarBullet_charged(RiderData *rd);              // 0x801a8df8, PROJKIND_SWORD_STAR_CHARGED
 void spawnFireBullet(RiderData *rd, Vec3 *pos);           // 0x801a8f68, PROJKIND_FIRE_BULLET
