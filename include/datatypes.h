@@ -58,4 +58,19 @@ struct Vec4
     float W;
 };
 
+// Translation column of a 3x4 row-major matrix (JOBJ.rotMtx, GrCollRecord.world).
+static inline void Mtx_GetTrans(Mtx m, Vec3 *out)
+{
+    out->X = m[0][3];
+    out->Y = m[1][3];
+    out->Z = m[2][3];
+}
+
+static inline void Mtx_SetTrans(Mtx m, const Vec3 *pos)
+{
+    m[0][3] = pos->X;
+    m[1][3] = pos->Y;
+    m[2][3] = pos->Z;
+}
+
 #endif

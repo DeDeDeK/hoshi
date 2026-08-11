@@ -57,7 +57,7 @@ typedef struct EventConfigData
         int occur_chance;                  // 0x8
         int skip_chance;                   // 0xc
         u8 x10[0x4];                             // 0x10, unknown (not read by CityEvent_StateIdle)
-        int min_time;                            // 0x14, min match time (frames) before events start; CityEvent_StateIdle gates on City_GetMinSecMs?() >= this
+        int min_time;                            // 0x14, match frames that must elapse before events start
         int prev_kind_max;                       // 0x18, max history entries
         int music_fadeout_frames;                // 0x1c, number of frames to fade out the music
         int starting_delay;                      // 0x20, frames in state 1 before transitioning to state 2
@@ -134,8 +134,11 @@ static volatile int *stc_meteor_event_data = (volatile int *)(0x805dd0e0 + 0x654
 static volatile int *stc_meteor_spawn_count = (volatile int *)(0x805dd0e0 + 0x658);       // 0x805dd738
 
 void CityEvent_ModifyItemFallDesc(EventKind evkind);
-void CityEvent_ShowHudText(int event_kind, int hud_display_frames); // 0x80113fb4 - gates on IsInCity||IsInStadium, then calls stadiumPrediction
-void CityEvent_SetSisText(int sis_text_index);                     // 0x801169fc - creates/replaces event HUD text object with SIS entry at given index. Stores text at Gm_Get3dData()+0x48. Pass -1 to destroy only.
+// Gates on IsInCity || IsInStadium, then calls stadiumPrediction.
+void CityEvent_ShowHudText(int event_kind, int hud_display_frames); // 0x80113fb4
+// Creates or replaces the event HUD text object from a SIS entry, storing it at
+// Gm_Get3dData()+0x48. Pass -1 to destroy only.
+void CityEvent_SetSisText(int sis_text_index);                     // 0x801169fc
 void *Event_GetInstanceData(EventCheckData *ev_chk); // table lookup: data[0x04][cur_kind * 20 + 16]. returns event instance data pointer
 void event_fakeItems_applyEffect(void *event_data); // applies fake item effect using the event data pointer
 // Returns 1 while a legendary-machine (Dragoon/Hydra) assembly cinematic is

@@ -24,10 +24,9 @@ struct EffectModelDesc
     void     *list_head[2]; // 0x10 self-referencing list-head sentinel (next/prev)
 };
 
-// A loaded effect bank's <name>_ref symbol: the bank's decimal effect-ID range key plus
-// the manifest of effect IDs it provides. Parsed by psInitDataBanks (0x8042a734) into the
-// efGlobal arrays; matched against the paired <name>_form's first word. NOTE this is NOT a
-// {u32 count; entry[]} table - the first word is the base id, not a count.
+// A loaded effect bank's <name>_ref symbol: the bank's effect-ID range key plus
+// the manifest of IDs it provides. Not a {count, entries[]} table - the first
+// word is the base id, not a count.
 typedef struct EffectBankRef
 {
     u32 base_id; // 0x00 group*10000 (range key)
@@ -57,14 +56,52 @@ struct Effect
 // id (group*10000+entry) -> per-kind model descriptor (0x80235190).
 EffectModelDesc *Effect_GetModelData(int id);
 
-// Effect-instance manager (SDA global, built by Effect_InitObjAllocs 0x802332c4). The
-// per-group EffectModelDesc* table is at +0x24 (read by Effect_GetModelData); model-effect
-// descriptor lookup reads only this table.
+// Universal effect spawn. Only the low word of the {r3, r4} handle is declared -
+// it is enough to tell success (0 on failure) and every vanilla caller discards
+// it. Returns 0 while effects are globally suppressed (*(u32*)0x805dd8b8 != 0)
+// or the create gate rejects the scene.
+//
+//   parent      - owning GObj. May be NULL: the owner block is then skipped and
+//                 the owner-player index preseeds to 5 ("none").
+//   id          - group*10000 + entry.
+//   efgroup     - EfGroup bucket. Asserts on -1, so pass a live one; a rider's
+//                 RiderData.efgroup works.
+//   anchor_mode - selects which varargs the placement resolver reads. It fills
+//                 its descriptor purely from the varargs, never from `parent`.
+//
+// Mode 1 takes one vararg, a `void (*)(void *node)` post-spawn callback invoked
+// with the spawn node. It skips the joint-attach path, so no follow proc is
+// installed and the model root's SRT is the caller's to write. This is the
+// world-anchored path; no variant takes a raw Vec3.
+//
+// Modes 200..220 are joint-follow. 218 is the mouth anchor Rider_StartInhale
+// uses: Effect_SpawnSync(rd->gobj, 0x3a982, rd->efgroup, 218, jobj, jobj, ply).
+//
+// A joint-followed effect gets priority-11 procs that rewrite the root's SRT
+// from the target joint each frame (defeat by zeroing the anchor flags at
+// Effect+0x1e) and arm the anim loop after the intro. Mode 1 installs neither,
+// so a mod-spawned effect must arm its own looping
+// (JObj_SetAllAOBJLoopByFlags(root, 0xffff) + Effect.life = 1) or the animation
+// stalls on the intro's last frame.
+u32 Effect_SpawnSync(GOBJ *parent, int id, int efgroup, int anchor_mode, ...); // 0x80236c40
+
+// Spawn-node fields the anchor-mode-1 callback needs.
+#define EFFECT_NODE_GOBJ 0x5c  // node -> the effect GObj
+
+// NEVER GObj_Destroy a spawned effect. The spawn node keeps pointing at the GObj
+// and the per-node kill destroys node+0x5c unconditionally when the group is
+// retired, double-freeing it - the GObj returns to the free list, gets handed
+// out again, and trips an unrelated GObj_AddUserData assert. To retire a mode-1
+// effect, hide its model tree (JObj_SetFlagsAll(root, JOBJ_HIDDEN)) and let the
+// engine own the lifetime.
+
+// Effect-instance manager. The per-group EffectModelDesc* table at +0x24 is the
+// only source for model-effect descriptor lookup.
 static void **const gEffectMgr = (void **)0x8055D7A0;
 
 // Bank-install registry (4x u32[64] + generator-template count/array), written by
-// psInitDataBanks from each loaded bank's _ptcl/_ref/_form symbols. Consumed ONLY by the
-// point-particle path - independent of the gEffectMgr+0x24 model-descriptor table.
+// psInitDataBanks. Consumed only by the point-particle path, independent of the
+// gEffectMgr+0x24 model-descriptor table.
 static void **const efGlobal = (void **)0x8058C208;
 
 #endif // KAR_H_EFFECT
