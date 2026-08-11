@@ -4,22 +4,17 @@
 #include "hoshi.h"
 #include "os.h"
 
-// Bumped when KARPlusSave's fixed layout changes (2: added the card-tile header; 3: moved the tile
-// ahead of metadata[] so the icon falls in the file's first 512 bytes; 4: added the banner slot).
-// Saves are not migrated - an existing card file from an older layout must be deleted by hand, so
-// this is informational.
+// Bumped when KARPlusSave's fixed layout changes. Informational only - saves are
+// never migrated, so an older card file has to be deleted by hand.
 #define VERSION_MAJOR 4
 #define VERSION_MINOR 0
 
-// Number of RGB5A3 icon frames reserved in the card tile. Each frame is CARD_ICON_SIZE_RGB5A3
-// (2KB), so this dominates the save size: 1 frame keeps the save at one 8KB block; raise it (up
-// to CARD_ICON_MAX) for an animated icon at the cost of a larger save.
+// RGB5A3 icon frames reserved in the card tile. At 2KB each these dominate the
+// save size - 1 frame keeps it inside one 8KB block.
 #define HOSHI_SAVE_ICON_FRAMES 1
 
-// Reserve a 96x32 RGB5A3 card banner ahead of the icon. Costs CARD_BANNER_SIZE_RGB5A3 (6KB), which
-// pushes the save past one 8KB block, so leave it 0 unless a mod supplies a banner via
-// Hoshi_SetSaveBanner. The banner must precede the icon: the CARD library derives the icon's file
-// offset from iconAddr + banner size, so the image block is a single contiguous banner-then-icon run.
+// Reserve a 96x32 RGB5A3 card banner ahead of the icon. Costs 6KB, pushing the
+// save past one 8KB block, so leave it 0 unless a mod supplies one.
 #define HOSHI_SAVE_BANNER 1
 
 #define SAVE_SIZE ((sizeof(KARPlusSave) + CARD_BLOCK_SIZE - 1) / CARD_BLOCK_SIZE) * CARD_BLOCK_SIZE
@@ -30,11 +25,11 @@ typedef enum DataKind
     DATAKIND_USER,
 } DataKind;
 
-// Card-manager tile (comment + optional banner + animated icon) embedded in the save file. The
-// CARDStat directory entry points at these bytes by offset, so they must live inside the file, and
-// the banner (when present) must come immediately before the icon - the CARD library lays out the
-// image block as one contiguous banner-then-icon run. All images are RGB5A3. Populated via
-// Hoshi_SetSaveIcon / Hoshi_SetSaveBanner; left zeroed (blank tile) if no mod sets it.
+// Card-manager tile embedded in the save file - the CARDStat directory entry
+// points at these bytes by offset, so they must live inside it. A banner must
+// come immediately before the icon: the CARD library derives the icon's offset
+// as iconAddr + banner size, making the image block one contiguous run. All
+// images are RGB5A3. Left zeroed for a blank tile if no mod sets one.
 typedef struct KARPlusSaveTile
 {
     char comment[CARD_COMMENT_SIZE]; // title[0..31] + description[32..63]
@@ -54,10 +49,9 @@ typedef struct KARPlusSave
     u8 version_minor;
     u8 mod_num;
     u8 pad;
-    // Card-manager tile (comment + icon), placed before the metadata table so the icon image
-    // starts within the file's first 512 bytes: CARDSetStatus rejects an iconAddr >= 512 with
-    // CARD_RESULT_FATAL_ERROR, and metadata[] alone is 1000 bytes - far too large for a trailing
-    // tile's icon to be in range.
+    // Placed before metadata[] so the icon starts within the file's first 512
+    // bytes - CARDSetStatus rejects an iconAddr at or past 512, and metadata[]
+    // alone is 1000 bytes.
     KARPlusSaveTile tile;
     struct
     {
