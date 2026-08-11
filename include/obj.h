@@ -290,6 +290,7 @@ struct AOBJ
     struct _HSD_Obj *hsd_obj; // 0x18, points to spline data
 };
 
+// 0x20 bytes (MObjInfoInit 0x803fb08c).
 struct MOBJ
 {
     int *parent;
@@ -298,17 +299,8 @@ struct MOBJ
     HSD_Material *mat;      // 0xC
     struct _HSD_PEDesc *pe; // 0x10
     AOBJ *aobj;             // 0x14
-    /*
-    struct _HSD_TObj *ambient_tobj;
-    struct _HSD_TObj *specular_tobj;
-    */
-    struct _HSD_TExpTevDesc *tevdesc;
-    union _HSD_TExp *texp;
-
-    struct _HSD_TObj *tobj_toon;
-    struct _HSD_TObj *tobj_gradation;
-    struct _HSD_TObj *tobj_backlight;
-    f32 z_offset;
+    struct _HSD_TExpTevDesc *tevdesc; // 0x18
+    union _HSD_TExp *texp;            // 0x1C
 };
 
 struct JOBJDesc
@@ -467,6 +459,9 @@ struct POBJ
     AOBJ *aobj; // 0x18
 };
 
+// 0x18 bytes (DObjInfoInit 0x803f4afc). flags bit 0 is DOBJ_HIDDEN; bits 1/2/3
+// are the render bucket (OPA/XLU/TEXEDGE), derived from mobj->rendermode by
+// DObjLoad (0x803f465c) and tested by HSD_JObjDispSub_ (0x8040f218).
 struct DOBJ
 {
     int parent;
@@ -475,7 +470,6 @@ struct DOBJ
     POBJ *pobj; // 0x0C
     AOBJ *aobj; // 0x10
     u32 flags;  // 0x14
-    u32 unk;
 };
 
 struct JOBJ
@@ -614,7 +608,7 @@ struct _HSD_TObjTev
     u8 alpha_c;      // 0x0E
     u8 alpha_d;      // 0x0F
 
-    GXColor constant; // 0x10 primary KColor (recolor target; opacity via alpha_b)
+    GXColor constant; // 0x10 primary KColor (recolor target; RGB only - opacity is MObj.mat->alpha)
     GXColor tev0;     // 0x14 secondary blend color (color_a)
     GXColor tev1;     // 0x18 tertiary register (unused by the inhale model)
     uint flags;       // 0x1C color/alpha-tree enable bits (inhale model = 0xC000007F)
@@ -670,8 +664,10 @@ struct LObjDesc
 {
     char *class_name;               // 0x00
     LObjDesc *next;                 // 0x04
-    u16 flags;                      // 0x08 -- low 2 bits = LOBJ_AMBIENT/INFINITE/POINT/SPOT (validity, asserted by LObjLoad); bits 2-5 = LOBJ_DIFFUSE/SPECULAR/ALPHA/HIDDEN. OR'd into LOBJ.flags.
-    u16 attnflags;                  // 0x0A -- bit 0: LOBJ_RAW_PARAM. When set, u.attn is a raw 6-float block; else u.spot is a 3-word computed block.
+    u16 flags;                      // 0x08 -- low 2 bits = LOBJ_AMBIENT/INFINITE/POINT/SPOT (asserted by
+                                    //         LObjLoad), bits 2-5 = DIFFUSE/SPECULAR/ALPHA/HIDDEN
+    u16 attnflags;                  // 0x0A -- bit 0 LOBJ_RAW_PARAM: u.attn is a raw 6-float block,
+                                    //         otherwise u.spot is a 3-word computed block
     GXColor color;                  // 0x0C
     struct _HSD_WObjDesc *position; // 0x10 -- loaded as WObj if flags & 3 != 0
     struct _HSD_WObjDesc *interest; // 0x14 -- loaded as WObj if flags & 3 == 3 (LOBJ_SPOT)

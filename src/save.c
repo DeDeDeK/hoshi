@@ -32,10 +32,10 @@ static int stc_hoshi_save_hash;
 // struct holds defaults, and writing it would overwrite a good on-card file with them.
 static int stc_hoshi_save_ready;
 
-// Disc filenames (without ".dat") for the tile art, registered at mod boot and read into the tile
-// during save create (KARPlusSave_LoadTileArt). Kept out of the tile itself so no path string is
-// written to the card. NULL = no art of that kind. The names must contain no "_" or "." - the DVD
-// loader only appends ".dat" to names without one (any "_"/"." makes it treat the name as complete).
+// Disc filenames (without ".dat") for the tile art, read into the tile during
+// save create. Kept out of the tile so no path string reaches the card; NULL
+// means no art of that kind. A name must contain no "_" or "." - the DVD loader
+// only appends ".dat" to names without one.
 static const char *stc_tile_icon_file;
 static const char *stc_tile_banner_file;
 
@@ -252,9 +252,8 @@ static int KARPlusSave_ApplyTile(CARDFileInfo *fileInfo)
 
     stat.commentAddr = (u32)((int)&tile->comment - (int)stc_hoshi_save);
 
-    // iconAddr points at the start of the contiguous image block and must stay under 512 bytes
-    // (CARDSetStatus rejects an iconAddr >= 512). With a banner reserved the block starts at the
-    // banner, and the CARD library derives the icon's offset as iconAddr + banner size.
+    // iconAddr points at the start of the contiguous image block - the banner when
+    // one is reserved - and must stay under 512 bytes or CARDSetStatus rejects it.
 #if HOSHI_SAVE_BANNER
     stat.iconAddr = (u32)((int)&tile->banner - (int)stc_hoshi_save);
     stat.bannerFormat = tile->has_banner ? CARD_STAT_BANNER_RGB5A3 : CARD_STAT_BANNER_NONE;
@@ -652,9 +651,8 @@ void *KARPlusSave_Alloc(GlobalMod *mod, int menu_size, int user_size)
     // copy mod hash
     stc_hoshi_save->metadata[stc_hoshi_save->mod_num].mod_hash = mod_hash;
 
-    // Reject the alloc if it would not fit in the data region. Without this an
-    // over-budget mod silently writes past SAVE_SIZE into whatever the persistent
-    // allocator placed next (the mod-loader registry), zeroing it on save load.
+    // Reject an alloc that would not fit the data region; otherwise an over-budget
+    // mod writes past SAVE_SIZE into whatever the allocator placed next.
     if (menu_size + user_size > KARPlusSave_CheckFreeData())
     {
         LOG_ERROR("Save: no room for mod %s (need 0x%x, free 0x%x)",
@@ -662,9 +660,8 @@ void *KARPlusSave_Alloc(GlobalMod *mod, int menu_size, int user_size)
         return 0;
     }
 
-    // Data offsets are relative to data[] (mod 0 starts at 0). All readers index
-    // &stc_hoshi_save->data[offset], which already adds offsetof(data) - so the
-    // offset must NOT include it again.
+    // Offsets are relative to data[], which readers already index from - so the
+    // offset must not include offsetof(data) again.
     int menu_offset;
     if (stc_hoshi_save->mod_num == 0)
         menu_offset = 0;

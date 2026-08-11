@@ -74,6 +74,23 @@ typedef struct CamData
     float x1c0;             // 0x1c0, on-foot C-Stick X orbit budget, drained a fraction per frame
 } CamData;
 
+// Per-view eye-offset record. PlyCam_Think builds the camera's right/up basis and
+// then, gated on gate > 0, offsets the eye it hands the COBJ by
+// right * eye_right * scale_right + up * eye_up * scale_up. The scales initialise
+// to 1.0, so writing the two offsets in world units and raising the gate is the
+// whole screen-shake mechanism - CamData.eye_pos/interest_pos are not in the
+// render path.
+typedef struct CamShakeRec
+{
+    u8 x00[0x20];       // 0x00
+    float scale_right;  // 0x20, init 1.0
+    float scale_up;     // 0x24, init 1.0
+    float eye_right;    // 0x28, eye offset along the camera's right axis
+    float eye_up;       // 0x2c, eye offset along the camera's up axis
+    u8 x30[0x44 - 0x30];
+    float gate;         // 0x44, > 0 enables the offset
+} CamShakeRec;
+
 typedef struct PlayerCamData
 {
     CamData *cam_data;      // 0x0
@@ -94,6 +111,7 @@ typedef struct PlayerCamData
     u8 lod;                 // 0x71, level of detail this camera uses (1 = highest poly, 2 is 2p, 3 is 4p?), 0 = none?
     u8 x72;                 // 0x72
     u8 x73;                 // 0x73
+    CamShakeRec *shake;     // 0x74
 } PlayerCamData;
 
 typedef struct PlayerCamLookup
@@ -119,7 +137,8 @@ static PlayerCamLookup *stc_plycam_lookup = (PlayerCamLookup *)0x80557248; // ar
 COBJ *PlyCam_GetCObj(int cam_index);
 void PlyCam_Think();                                            // 0x800b3540, per-frame drive for one player camera
 void PlyCam_MachineZoomAdjust(CamData *cam);                    // 0x800b61f4, folds rotation_amt/zoom_amt into x110; no-op unless x84_80
-void cameraControlThink(CamData *cam, int pad_index, float *p); // 0x800b67cc, C-Stick -> rotation_amt/zoom_amt. p = {rot_scale, zoom_min, zoom_max, interest_raise}
+// C-Stick to rotation_amt / zoom_amt. p = {rot_scale, zoom_min, zoom_max, interest_raise}.
+void cameraControlThink(CamData *cam, int pad_index, float *p); // 0x800b67cc
 int PlyCam_OnMachineThink(CamData *cam, int pad_index);         // 0x800c04b0, kind 1 input think
 int PlyCam_OnFootThink(CamData *cam, int pad_index);            // 0x800cb3b4, kind 6 input think; C-Stick X only, no zoom
 void PlyCam_OnFootEnter(CamData *cam, int *unk);                // 0x800cc050, kind 6 on-enter

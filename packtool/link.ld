@@ -433,6 +433,18 @@ SECTIONS
   stGetCurrentStageKind = 0x80261ECC;
   Gr_GetCurrentGrKind = 0x800d1d3c;
   Gr_GetYakumonoSpawnTotal = 0x800F7DB0;
+  grGetDashZoneParam = 0x800d1ff0;
+  grGetDashGateZoneParam = 0x800d21f8;
+  grGetSuperJumpZoneParam = 0x800d24fc;
+  grGetJumpZoneParam = 0x800d25a8;
+  grGetSpinZoneParam = 0x800d2654;
+  grGetLocalDeadZoneParam = 0x800d50f8;
+  grZone_BuildRecord = 0x800dcf08;
+  grColl_Alloc = 0x800d6dcc;
+  mpColl_SweptSphereMapColl = 0x802454f8;
+  mpColl_InsertContact = 0x80241ca8;
+  grColl_CountArrays = 0x800d6290;
+  grColl_Free = 0x800d7060;
   Gm_GetGrKindFromStageKind = 0x80261ce8;
   TopRide_GetSelectedCourse = 0x8000b2b8;
   TopRide_SetSelectedCourse = 0x8000b2dc;
@@ -570,6 +582,9 @@ SECTIONS
   CityItem_CopyCommonAttr = 0x80251294;
   CityItem_CanCollect = 0x80252df0;
   CityItem_ResetQueuedVelocity = 0x80250340;
+  Item_ClearAirborne = 0x80254ccc;
+  Item_SetAirborne = 0x80254cd8;
+  Item_SetGroundedFlag = 0x802557a8;
   CityItem_EnterExpire = 0x8025611c;
   CityItem_EnterFall = 0x802578c8;
   CityItem_InitData = 0x8024eaf4;
@@ -686,6 +701,7 @@ SECTIONS
   Machine_GiveDamage = 0x801e1ee8;
   Machine_EnterHitReaction = 0x801e05bc;
   Machine_OnKO = 0x801e568c; /* KO/destroy a machine: captures the rider ply into +0x1b48 (sentinel 5 = unridden), sets is_dead (0xc35 bit 0x20), disables hit-collision, and enters the BreakDown state (29) whose proc runs the explosion VFX + break SFX + GObj_Destroy (gated by md[0x78] bit 0x40). Rider-safe (every rider deref guards on the +0x1b48==5 sentinel). Also fired automatically each frame by Machine_CheckKO'd (0x801e5628) when md->hp==0. */
+  Machine_FreeAudioEmitter = 0x801dc618; /* Stops and frees the machine's five audio tracks, then frees its AudioEmitter. Only Machine_Destroy (0x801c6b44) calls it, and scene teardown never runs that - the heap reset reclaims MachineData directly - so a scene that wants its machines' audio slots back calls this from the minor's cb_Exit. Does not stop the machine's loops. */
   Machine_ActOnHitCollision = 0x801d7308;
   Machine_CheckRiderCollision = 0x801d6fd0;
   Machine_CheckMachineCollision = 0x801d706c;
@@ -1091,7 +1107,14 @@ SECTIONS
   mpColl_SetFlag = 0x80247e2c;
   mpColl_GetFirstCollObj = 0x802414d4;
 
-  EnvColl_Raycast = 0x800d1ac4;
+  Raycast_Any = 0x800d1a54;
+  Raycast_Ground = 0x800d1ac4;
+  Raycast_Wall = 0x800d1b34;
+  Raycast_AnyTagged = 0x800d1ba4;
+  Machine_GetWallContactNum = 0x801cde84;
+  Machine_GetWallContactTriID = 0x801cde9c;
+  Machine_GetWallContactPos = 0x801cdf00;
+  Rider_GetGroundContactNum = 0x8019a3b8;
   PointCollision_EnsureIDValid = 0x800d1838;
   PointCollision_GetNormalByID = 0x800d1860;
   grGetGroundTypeFromTriangleID = 0x800cec28;
