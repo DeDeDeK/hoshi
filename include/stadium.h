@@ -122,29 +122,11 @@ float Ply_GetStadiumDistance(int ply);   // 0x8000B798 - metres
 int Gm_StadiumRoundNum();
 u8 Gm_GetStadiumRound(); // 0x8000AE08 - the pure read of GameData.city.stadium_round
 
-// Direct bitfield writes - bypass the checklist cache.
-// Use these for permanent modifications that must
-// survive cache invalidation. The ROM Write/Check functions above
-// route through a temporary cache when the checklist menu is active,
-// and writes to the cache are discarded when the menu closes.
-static inline void Gm_StadiumSetUnlockedDirect(StadiumKind kind)
-{
-    *(volatile u32 *)0x80536EE8 |= (1 << kind);
-}
-
-static inline void Gm_StadiumClearUnlockedDirect(StadiumKind kind)
-{
-    *(volatile u32 *)0x80536EE8 &= ~(1 << kind);
-}
-
-static inline void Gm_StadiumSetNewLabelDirect(StadiumKind kind)
-{
-    *(volatile u32 *)0x80536EEC |= (1 << kind);
-}
-
-static inline void Gm_StadiumClearNewLabelDirect(StadiumKind kind)
-{
-    *(volatile u32 *)0x80536EEC &= ~(1 << kind);
-}
+// The two StadiumKind-indexed bitfields the Write/Check functions above front.
+// Touching them directly bypasses the temporary cache those route through while
+// the checklist menu is open - whose writes are discarded when it closes - so a
+// permanent unlock has to be written here.
+static volatile u32 *stc_stadium_unlocked = (volatile u32 *)0x80536EE8;
+static volatile u32 *stc_stadium_new_label = (volatile u32 *)0x80536EEC;
 
 #endif

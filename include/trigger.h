@@ -25,7 +25,7 @@ typedef struct TriggerDesc
 // 2. As an attack parameter container for enemies/items. In this case,
 //    Trigger_InitParameters copies HurtParams[0..12] into offsets 0x04-0x34:
 //      +0x04 = base_damage, +0x08 = dmg_distance_factor, +0x24 = base_knockback,
-//      +0x28 = kb_distance_factor, +0x30 = hit_flags. See HurtParams in hurt.h.
+//      +0x28 = kb_distance_factor, +0x30 = hit_flags. Mirrors HurtParams.
 typedef struct TriggerData
 {
     void *x0;               // 0x00, hurtdesc pointer (trigger zones) or context ptr

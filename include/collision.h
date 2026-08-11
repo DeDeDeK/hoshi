@@ -9,10 +9,159 @@ typedef enum CollShapeKind
     Mp_CollShapeKind_Sphere,
 } CollShapeKind;
 
-// mpCollInfo - floor/wall/ceiling collision results sub-struct.
-// Allocated internally by mpColl_Create via mpColl_AllocCollInfo (0x802416cc).
-// Pointed to by CollData+0x44.
-typedef struct mpCollInfo mpCollInfo;
+// One contact the pushback resolved against a map triangle.
+typedef struct mpCollContact
+{
+    int   tri_id;       // 0x00, index into GrCollParam.tri. Not range checked on this path
+    float t;            // 0x04, sweep sort key, ascending; smaller is the earlier impact
+    Vec3  pos;          // 0x08, world contact point
+    Vec3  from_center;  // 0x14, pos - the swept sphere's centre at t
+    int   x20;          // 0x20
+    float x24;          // 0x24
+    int   x28;          // 0x28, caller tag; the machine's wall picker takes a wall when this is 0
+} mpCollContact;        // 0x2c
+
+// One pushback substep's result. Which list a contact lands in is decided by
+// GrCollTri.kind bits 0..2, baked per triangle, not by a runtime normal test.
+typedef struct mpCollRec
+{
+    u8 best_kind;               // 0x00, 0 none, 1 GrCFK_Under, 2 GrCFK_Wall, 4 GrCFK_Top
+    u8 hit_mask;                // 0x01, those bits OR'd for everything recorded this substep
+    u8 x2[2];
+    mpCollContact *under;       // 0x04
+    int under_num;              // 0x08
+    mpCollContact *wall;        // 0x0c
+    int wall_num;               // 0x10
+    mpCollContact *top;         // 0x14
+    int top_num;                // 0x18
+} mpCollRec;                    // 0x1c
+
+// mpCollInfo - floor/wall/ceiling collision results sub-struct. Allocated
+// internally by mpColl_Create via mpColl_AllocCollInfo (0x802416cc), pointed to
+// by CollData+0x44. mpColl_SetDefaultParams (0x802460d4) clears it and then runs
+// mpColl_UpdateCollision (0x802485e0) for up to 10 substeps, so the counts below
+// describe the frame's own pushback and survive until the next step clears them.
+// A body is touching a wall this frame exactly when wall_rec_num is non-zero;
+// wall_recs[i]->wall names the triangle it was stopped by and where.
+typedef struct mpCollInfo
+{
+    mpCollRec  rec[10];         // 0x000, one per substep
+    int        cur_step;        // 0x118
+    mpCollRec *under_recs[10];  // 0x11c
+    int        under_rec_num;   // 0x144
+    mpCollRec *wall_recs[10];   // 0x148
+    int        wall_rec_num;    // 0x170
+    mpCollRec *top_recs[10];    // 0x174
+    int        top_rec_num;     // 0x19c
+    mpCollRec  prev_pass_rec;   // 0x1a0, the previous pass's last substep
+    int        capacity;        // 0x1bc, 1 - one contact per kind per substep
+    u8         x1c0[0x1d0 - 0x1c0];
+    int        contact_tri_id;  // 0x1d0, cached triangle id into GrCollParam.tri, -1 = none.
+                                //        destroyBigStar (0x800d7b8c) is the only confirmed
+                                //        reader: it takes tri[id].record as the instance the
+                                //        body is in contact with.
+} mpCollInfo;                   // >= 0x1d4
+
+// Map collision. One vertex pool and one triangle array hold both baked terrain
+// and every placed prop's triangles, each prop owning a contiguous slice through
+// its instance record. Allocated exactly-sized by grColl_Alloc (0x800d6dcc) into
+// the HSD heap and freed by grColl_Free (0x800d7060), field by field - so
+// swapping in a mod-owned buffer leaks the original and hands a foreign pointer
+// to OSFreeToHeap. Raise a coll_max count before allocation to get slack instead.
+typedef struct GrCollRecord GrCollRecord;
+
+typedef struct GrCollVtx
+{
+    Vec3 pos;   // 0x00 world space, baked from the model at load
+    Vec3 prev;  // 0x0C previous frame, for moving-platform delta math
+} GrCollVtx;    // 0x18
+
+typedef struct GrCollTri
+{
+    Vec3 *v0;              // 0x00 into GrCollParam.vtx
+    Vec3 *v1;              // 0x04
+    Vec3 *v2;              // 0x08
+    Vec3 normal;           // 0x0C outward unit normal
+    Vec3 aabb_center;      // 0x18
+    Vec3 aabb_half;        // 0x24
+    u32 kind;              // 0x30 bits 0..2 response category, bits 4..11 ground type
+    u32 flags;             // 0x34 gameplay flags
+    GrCollRecord *record;  // 0x38 owning instance record, never NULL
+    u8 state;              // 0x3C
+    u8 pad3d[3];
+} GrCollTri;               // 0x40
+
+#define GRCOLL_KIND_GROUNDTYPE_SHIFT 4
+#define GRCOLL_KIND_GROUNDTYPE_MASK  0xFF0
+// Bits 0..2 are the baked surface category. Every query ANDs its own mask
+// against them first, so these decide whether a triangle can be stood on,
+// walled off, or hit at all - not a runtime normal test. A runtime-built
+// surface must set them to match its own facing.
+#define GRCOLL_KIND_CATEGORY         0x7
+#define GRCOLL_KIND_UNDER            0x1 // ground: what a rider stands and lands on
+#define GRCOLL_KIND_WALL             0x2
+#define GRCOLL_KIND_TOP              0x4 // ceiling
+#define GRCOLL_FLAG_ROUGH            0x00000003 // gets an extruded prism entry
+#define GRCOLL_FLAG_MOVING           0x00000020 // re-baked per frame by grColl_RebakeMovingRecord, and
+                                                // selects the impact path that runs the collider through
+                                                // the record's prev_inv/world - which rewrites a
+                                                // synthetic frame delta, so clear it to force a
+                                                // fabricated collider through unchanged
+#define GRCOLL_STATE_SURFACE_PARAM   0x20 // set on every triangle the builder emits
+#define GRCOLL_STATE_COLLIDABLE      0x40 // cleared by grScene_SetInstanceColl on a break
+#define GRCOLL_STATE_DEGENERATE      0x80 // normal could not be computed; never collides
+// Clearing GRCOLL_STATE_COLLIDABLE hides a triangle from every query, but not
+// from entities holding a cached triangle id - those keep reading its fields
+// until their next query. A live City Trial triangle reads state 0x60.
+
+struct GrCollRecord
+{
+    JOBJ *jobj;           // 0x00 joint the moving rebake re-transforms from
+    GrCollVtx *vtx;       // 0x04 this instance's slice of the vertex pool
+    int vtx_num;          // 0x08
+    GrCollTri *tri_begin; // 0x0C first triangle of this instance's slice
+    int tri_num;          // 0x10 how many, NOT an end pointer
+    Vec3 aabb_center;     // 0x14 broadphase box for the whole slice
+    Vec3 aabb_half;       // 0x20
+    Mtx world;            // 0x2C jobj's world matrix as of the last bake
+    Mtx prev_inv;         // 0x5C inverse of the previous frame's world matrix;
+                          //      the swept-sphere query multiplies the collider
+                          //      through prev_inv then world, so both must be
+                          //      valid (identity for a synthetic record)
+    int desc_kind;        // 0x8C the yakumono break dispatch fires on == 3
+    GOBJ *yaku_gobj;      // 0x90 owning prop, NULL for terrain
+    u8 flags;             // 0x94 bit 7 = moved during the last rebake
+    u8 x95[3];
+};                        // 0x98
+
+typedef struct GrCollParam
+{
+    GrCollVtx *vtx;               // 0x54
+    int vtx_num;                  // 0x58
+    GrCollTri *tri;               // 0x5C
+    int tri_num;                  // 0x60
+    GrCollRecord *record;         // 0x64
+    int record_num;               // 0x68
+    Vec3 *aux;                    // 0x6C zone vertex pool, from GrCollisionNode.zone_vtx
+    int aux_num;                  // 0x70
+    void *zone;                   // 0x74 0x140 stride
+    int zone_num;                 // 0x78
+    void *rough;                  // 0x7C 0x1C stride: {GrCollTri*, Vec3 center, Vec3 half}
+    int rough_num;                // 0x80 one entry per triangle with flags & 3
+    GrCollRecord **moving_record; // 0x84 brute-forced by every query
+    int moving_record_num;        // 0x88
+    void **moving_zone;           // 0x8C
+    int moving_zone_num;          // 0x90
+    void **moving_rough;          // 0x94
+    int moving_rough_num;         // 0x98
+} GrCollParam;                    // 0x48
+
+// One entry of GrObj.joint_table, the stage model's flat joint registry.
+typedef struct GrJoint
+{
+    JOBJ *jobj;       // 0x00
+    JOBJDesc *desc;   // 0x04
+} GrJoint;            // 0x08
 
 typedef struct CollData
 {
@@ -28,188 +177,10 @@ typedef struct CollData
     int x3c;                       // 0x3c
     int x40;                       // 0x40
     mpCollInfo *coll_info;         // 0x44, floor/wall/ceiling collision results
-    mpCollInfo *coll_info2;        // 0x48, second collision info set (freed in mpColl_Destroy)
-    int x4c;                       // 0x4c
-    int x50;                       // 0x50
-    int x54;                       // 0x54
-    int x58;                       // 0x58
-    int x5c;                       // 0x5c
-    int x60;                       // 0x60
-    int x64;                       // 0x64
-    int x68;                       // 0x68
-    int x6c;                       // 0x6c
-    int x70;                       // 0x70
-    int x74;                       // 0x74
-    int x78;                       // 0x78
-    int x7c;                       // 0x7c
-    int x80;                       // 0x80
-    int x84;                       // 0x84
-    int x88;                       // 0x88
-    int x8c;                       // 0x8c
-    int x90;                       // 0x90
-    int x94;                       // 0x94
-    int x98;                       // 0x98
-    int x9c;                       // 0x9c
-    int xa0;                       // 0xa0
-    int xa4;                       // 0xa4
-    int xa8;                       // 0xa8
-    int xac;                       // 0xac
-    int xb0;                       // 0xb0
-    int xb4;                       // 0xb4
-    int xb8;                       // 0xb8
-    int xbc;                       // 0xbc
-    int xc0;                       // 0xc0
-    int xc4;                       // 0xc4
-    int xc8;                       // 0xc8
-    int xcc;                       // 0xcc
-    int xd0;                       // 0xd0
-    int xd4;                       // 0xd4
-    int xd8;                       // 0xd8
-    int xdc;                       // 0xdc
-    int xe0;                       // 0xe0
-    int xe4;                       // 0xe4
-    int xe8;                       // 0xe8
-    int xec;                       // 0xec
-    int xf0;                       // 0xf0
-    int xf4;                       // 0xf4
-    int xf8;                       // 0xf8
-    int xfc;                       // 0xfc
-    int x100;                      // 0x100
-    int x104;                      // 0x104
-    int x108;                      // 0x108
-    int x10c;                      // 0x10c
-    int x110;                      // 0x110
-    int x114;                      // 0x114
-    int x118;                      // 0x118
-    int x11c;                      // 0x11c
-    int x120;                      // 0x120
-    int x124;                      // 0x124
-    int x128;                      // 0x128
-    int x12c;                      // 0x12c
-    int x130;                      // 0x130
-    int x134;                      // 0x134
-    int x138;                      // 0x138
-    int x13c;                      // 0x13c
-    int x140;                      // 0x140
-    int x144;                      // 0x144
-    int x148;                      // 0x148
-    int x14c;                      // 0x14c
-    int x150;                      // 0x150
-    int x154;                      // 0x154
-    int x158;                      // 0x158
-    int x15c;                      // 0x15c
-    int x160;                      // 0x160
-    int x164;                      // 0x164
-    int x168;                      // 0x168
-    int x16c;                      // 0x16c
-    int x170;                      // 0x170
-    int x174;                      // 0x174
-    int x178;                      // 0x178
-    int x17c;                      // 0x17c
-    int x180;                      // 0x180
-    int x184;                      // 0x184
-    int x188;                      // 0x188
-    int x18c;                      // 0x18c
-    int x190;                      // 0x190
-    int x194;                      // 0x194
-    int x198;                      // 0x198
-    int x19c;                      // 0x19c
-    int x1a0;                      // 0x1a0
-    int x1a4;                      // 0x1a4
-    int x1a8;                      // 0x1a8
-    int x1ac;                      // 0x1ac
-    int x1b0;                      // 0x1b0
-    int x1b4;                      // 0x1b4
-    int x1b8;                      // 0x1b8
-    int x1bc;                      // 0x1bc
-    int x1c0;                      // 0x1c0
-    int x1c4;                      // 0x1c4
-    int x1c8;                      // 0x1c8
-    int x1cc;                      // 0x1cc
-    int x1d0;                      // 0x1d0
-    int x1d4;                      // 0x1d4
-    int x1d8;                      // 0x1d8
-    int x1dc;                      // 0x1dc
-    int x1e0;                      // 0x1e0
-    int x1e4;                      // 0x1e4
-    int x1e8;                      // 0x1e8
-    int x1ec;                      // 0x1ec
-    int x1f0;                      // 0x1f0
-    int x1f4;                      // 0x1f4
-    int x1f8;                      // 0x1f8
-    int x1fc;                      // 0x1fc
-    int x200;                      // 0x200
-    int x204;                      // 0x204
-    int x208;                      // 0x208
-    int x20c;                      // 0x20c
-    int x210;                      // 0x210
-    int x214;                      // 0x214
-    int x218;                      // 0x218
-    int x21c;                      // 0x21c
-    int x220;                      // 0x220
-    int x224;                      // 0x224
-    int x228;                      // 0x228
-    int x22c;                      // 0x22c
-    int x230;                      // 0x230
-    int x234;                      // 0x234
-    int x238;                      // 0x238
-    int x23c;                      // 0x23c
-    int x240;                      // 0x240
-    int x244;                      // 0x244
-    int x248;                      // 0x248
-    int x24c;                      // 0x24c
-    int x250;                      // 0x250
-    int x254;                      // 0x254
-    int x258;                      // 0x258
-    int x25c;                      // 0x25c
-    int x260;                      // 0x260
-    int x264;                      // 0x264
-    int x268;                      // 0x268
-    int x26c;                      // 0x26c
-    int x270;                      // 0x270
-    int x274;                      // 0x274
-    int x278;                      // 0x278
-    int x27c;                      // 0x27c
-    int x280;                      // 0x280
-    int x284;                      // 0x284
-    int x288;                      // 0x288
-    int x28c;                      // 0x28c
-    int x290;                      // 0x290
-    int x294;                      // 0x294
-    int x298;                      // 0x298
-    int x29c;                      // 0x29c
-    int x2a0;                      // 0x2a0
-    int x2a4;                      // 0x2a4
-    int x2a8;                      // 0x2a8
-    int x2ac;                      // 0x2ac
-    int x2b0;                      // 0x2b0
-    int x2b4;                      // 0x2b4
-    int x2b8;                      // 0x2b8
-    int x2bc;                      // 0x2bc
-    int x2c0;                      // 0x2c0
-    int x2c4;                      // 0x2c4
-    int x2c8;                      // 0x2c8
-    int x2cc;                      // 0x2cc
-    int x2d0;                      // 0x2d0
-    int x2d4;                      // 0x2d4
-    int x2d8;                      // 0x2d8
-    int x2dc;                      // 0x2dc
-    int x2e0;                      // 0x2e0
-    int x2e4;                      // 0x2e4
-    int x2e8;                      // 0x2e8
-    int x2ec;                      // 0x2ec
-    int x2f0;                      // 0x2f0
-    int x2f4;                      // 0x2f4
-    int x2f8;                      // 0x2f8
-    int x2fc;                      // 0x2fc
-    int x300;                      // 0x300
-    int x304;                      // 0x304
-    int x308;                      // 0x308
-    int x30c;                      // 0x30c
-    int x310;                      // 0x310
-    int x314;                      // 0x314
-    int x318;                      // 0x318
-    int x31c;                      // 0x31c
+    int zone_hit[20];              // 0x48, GrCollParam.zone indices this body is inside
+    int zone_hit_num;              // 0x98
+    u8 moving_zone_hit[20][0x20];  // 0x9c, {zone_idx, sub_idx, ...} per moving zone hit
+    int moving_zone_hit_num;       // 0x31c
     int x320;                      // 0x320
     int x324;                      // 0x324
     int x328;                      // 0x328
@@ -279,29 +250,48 @@ typedef struct CollData
     int x3fc;                      // 0x3fc
 } CollData;
 
-CollData *mpColl_Create(void);                    // 0x80245b4c. Allocates CollData from pool, links to global list, creates coll_info/shape_data
-void mpColl_Init(CollData *cd, int type, Vec3 *pos, Vec3 *dir, Vec3 *extents, int param, float radius, float f2); // 0x80245c10. Sets position/direction/scale, inits subsystems
+// Allocates CollData from the pool, links it into the global list and creates
+// its coll_info and shape_data.
+CollData *mpColl_Create(void);                    // 0x80245b4c
+// Sets position, direction and scale, then inits the subsystems.
+void mpColl_Init(CollData *cd, int type, Vec3 *pos, Vec3 *dir, Vec3 *extents, int param, float radius, float f2); // 0x80245c10
 void mpColl_Reinit(CollData *cd, Vec3 *pos, Vec3 *dir); // 0x80245db0. Re-initializes with new position/direction
-void mpColl_Destroy(CollData *cd);                // 0x80245ed0. Frees coll_info, coll_info2, shape_data, unlinks from global list
-void mpColl_Update(CollData *cd, Vec3 *pos, Vec3 *dir, Vec3 *extents, int r7); // 0x80245f70. Per-frame: update pos, compute delta, update shape
+void mpColl_Destroy(CollData *cd);                // 0x80245ed0. Frees shape_data and its two sub-allocations (+0x44, +0x48), unlinks from global list
+// Per-frame: updates position, computes the delta, updates the shape.
+void mpColl_Update(CollData *cd, Vec3 *pos, Vec3 *dir, Vec3 *extents, int r7); // 0x80245f70
 void mpColl_SetDefaultParams(CollData *cd);       // 0x802460d4. Sets default collision check parameters
 void mpColl_UpdateShapeExtents(CollData *cd, Vec3 *pos); // 0x8024625c. Updates shape extents from scale
 void mpColl_SetFlag(CollData *cd, int value);     // 0x80247e2c. Sets/clears bit 7 of flags byte at +0x34C
 CollData *mpColl_GetFirstCollObj(void);           // 0x802414d4. Returns head of global CollData linked list
+int mpColl_UpdateCollision(void);                 // 0x802485e0. Recursive pushback substep; records its contacts into coll_info
 
-int EnvColl_Raycast(Vec3 *start, Vec3 *end, Vec3 *out_pos); // 0x800d1ac4. Wrapper around Raycast_Do. Returns triangle ID
-int PointCollision_EnsureIDValid(int triangle_id); // 0x800d1838. Returns 0 if valid, 1 if invalid
+// Four byte-identical wrappers over Raycast_Do(&GrObj.coll, start, end, kind_mask,
+// filter, out_pos), differing only in the two constants they pass. Each returns the
+// nearest triangle id along the segment or -1, and writes the hit point to out_pos.
+//
+// kind_mask is ANDed with GrCollTri.kind in grColl_RayVsTri (0x800d95dc+0x118)
+// before the state bits are looked at, and kind bits 0..2 are the baked surface
+// category - 1 GrCFK_Under, 2 GrCFK_Wall, 4 GrCFK_Top. So a wrapper's mask decides
+// which surfaces exist as far as its caller is concerned: Raycast_Ground cannot
+// see a wall, and Raycast_Wall cannot see the floor in front of it.
+//
+// The filter argument, when non-zero, additionally drops any triangle that is
+// neither ground (kind & 1) nor tagged with flags bit 0x8000.
+int Raycast_Any(Vec3 *start, Vec3 *end, Vec3 *out_pos);       // 0x800d1a54. mask 7, filter 0 - every surface
+int Raycast_Ground(Vec3 *start, Vec3 *end, Vec3 *out_pos);    // 0x800d1ac4. mask 1, filter 0 - GrCFK_Under only
+int Raycast_Wall(Vec3 *start, Vec3 *end, Vec3 *out_pos);      // 0x800d1b34. mask 2, filter 0 - GrCFK_Wall only
+int Raycast_AnyTagged(Vec3 *start, Vec3 *end, Vec3 *out_pos); // 0x800d1ba4. mask 7, filter 1
+// The only range check on a triangle id anywhere in the collision system, and
+// every ground / landing / shadow consumer runs it. The wall sweep and the
+// surface-property lookups do not, and index GrCollParam.tri by the raw id.
+int PointCollision_EnsureIDValid(int triangle_id); // 0x800d1838. Returns 0 if valid, 1 if outside [0, tri_num)
 void PointCollision_GetNormalByID(int triangle_id, Vec3 *out_normal); // 0x800d1860. Looks up triangle normal (stride 0x40)
 int grGetGroundTypeFromTriangleID(int triangle_id); // 0x800cec28. Returns ground type from triangle ID
 
-// --- Collision debug-draw (vanilla visualizers) ---
-// The collision system is sphere/capsule based (see CollShapeKind), so the engine's only
-// debug shape primitives are a capsule drawer (degenerates to a bare sphere when its two
-// endpoints coincide) and a flat quad drawer - there is no cone primitive, and Nintendo's
-// gxutil shape helpers (GXDrawSphere/Cone/Cylinder) are not linked into this game. The color
-// args are GXColor* (kept as void* here to avoid a gx.h dependency); signatures are inferred.
-void Debug_DrawCapsule(Vec3 *p0, Vec3 *p1, float radius, void *mat_color, void *amb_color); // 0x8007d988. Two hemisphere caps + a cylinder body spanning p0..p1; bare sphere when p0==p1.
-void Debug_DrawQuad(Vec3 corners[4], Vec3 *normal, void *mat_color, void *amb_color);       // 0x8007e61c. One lit GX_QUADS quad from 4 corners + a shared normal.
+// Two hemisphere caps and a cylinder spanning p0..p1; a bare sphere if p0 == p1.
+void Debug_DrawCapsule(Vec3 *p0, Vec3 *p1, float radius, void *mat_color, void *amb_color); // 0x8007d988
+// One lit GX_QUADS quad from 4 corners and a shared normal.
+void Debug_DrawQuad(Vec3 corners[4], Vec3 *normal, void *mat_color, void *amb_color);       // 0x8007e61c
 // Higher-level callers (all debug): Trigger_DrawCollision (0x800826a4), Hit_DrawCollision
 // (0x80082838), Hurt_DrawHurtbox (0x8008252c), Map_Debug_DrawCollisionMode (0x800a3ab0).
 
