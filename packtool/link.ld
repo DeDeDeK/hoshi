@@ -826,6 +826,8 @@ SECTIONS
   Rider_CheckUnableAbility = 0x80191798;
   Rider_AbilityRemoveModel = 0x80191554;
   Rider_AbilityClearQueued = 0x801915c4;
+  Rider_ResolveQueuedAbility = 0x801a8454;
+  AS_StarWait = 0x801ab1a0;
   Rider_LoseAbilityState_Enter = 0x801b0adc;
   Rider_GiveIntangibility = 0x80195f68;
   Rider_GiveInvincibility = 0x80195f28;
