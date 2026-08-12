@@ -1052,11 +1052,14 @@ typedef struct EnemySpawnEntry
         // mode 2 (STKIND_MELEE1): two-stage select. A meta-enemy category is
         // chosen from secondary_table[0], then one enemy is drawn from that
         // category's weight column here. enemy_id is this entry's enemy; the
-        // weight_columns array has one short per meta-enemy category.
+        // column for a category is indexed by its meta id - 0x50, so the array
+        // is sized to the space the entry has (0x08..0x2F) rather than to the
+        // stage's category count. Declaring it any shorter lets the compiler
+        // fold away writes to columns past the end.
         struct
         {
-            short enemy_id;          // 0x06
-            short weight_columns[1]; // 0x08, one weight per meta-enemy category (variable count)
+            short enemy_id;           // 0x06
+            short weight_columns[20]; // 0x08, weight per meta-enemy category, indexed by id - 0x50
         } mode2;
         // mode 3 (STKIND_MELEE2): up to 5 {id, weight} pairs, weight -1 terminates.
         struct
@@ -1100,6 +1103,9 @@ typedef struct EnemySpawnEntry
 // secondary_table is a pointer-array indexed by meta-enemy ID (0x50-0x5E offset
 // by -0x50). Each entry points to a sub-table of {enemy_id, weight} short pairs,
 // -1 terminated. May be NULL.
+#define ENEMY_META_ID_BASE 0x50
+#define ENEMY_META_NUM     15   // meta-enemy IDs 0x50-0x5E
+
 typedef struct EnemySpawnConfig
 {
     char x00[0x28];     // 0x00, layout unknown
