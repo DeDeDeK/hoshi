@@ -1040,6 +1040,13 @@ void Rider_AbilityRemoveModel(RiderData *);
 // Cancels queued copy-ability and power-up grants, freeing their pending objects
 // and resetting queued_ability_kind / queued_powerup_kind to -1.
 void Rider_AbilityClearQueued(RiderData *); // 0x801915c4
+// Grants queued_ability_kind / queued_powerup_kind if one is pending, otherwise runs
+// the rider's IASA fallback chain and settles on AS_StarWait. The engine's generic
+// "resolve or return to neutral" step - the tail of Rider_StartCopyWheel and the exit
+// of the inhale START state.
+void Rider_ResolveQueuedAbility(RiderData *); // 0x801a8454
+// Neutral riding/on-foot state (RiderStateChange 0x21). Last resort of the IASA chain.
+void AS_StarWait(RiderData *); // 0x801ab1a0
 void Rider_LoseAbilityState_Enter(RiderData *);
 void Rider_GiveIntangibility(RiderData *, int time);
 void Rider_GiveInvincibility(RiderData *, int time);
