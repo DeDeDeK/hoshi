@@ -299,6 +299,16 @@ typedef union ItemUniqueAttr
     int x00;                    // all other 53 kinds - single int copied to ItemData.x144 + 0x00; never read back
 } ItemUniqueAttr;
 
+// One animation slot, picked by the anim_index a state names. Every vanilla kind
+// has one except kind 20, which has two, and nothing records how many exist.
+typedef struct ItemAnimEntry
+{
+    AnimJointDesc *joint_anim;  // 0x00
+    MatAnimJointDesc *mat_anim; // 0x04
+    void *script;               // 0x08, state script; becomes ItemData.script_data
+    u32 flags;                  // 0x0c, bit 30 loops the AObjs, bit 29 accumulates wrap overflow
+} ItemAnimEntry;
+
 typedef struct itData
 {
     ItemCommonAttr *attr;       // 0x0
@@ -311,13 +321,7 @@ typedef struct itData
                                 //       (0x80252824, reached from Item_Create) asserts each <= 11
                                 //       ("item parts model num over!"). Zero for every vanilla kind.
     } *model;                   // 0x8
-    struct
-    {
-        AnimJointDesc *joint_anim;
-        MatAnimJointDesc *mat_anim;
-        void *script;
-        int joint_num;
-    } *anim_data;               // 0xc
+    ItemAnimEntry *anim_data;   // 0xc, indexed by the state's anim_index
     struct
     {
         HurtDesc *desc;         // 0x0
@@ -1338,6 +1342,7 @@ int CityItem_IsGoodPatch(ItemKind kind);              // 0x802540a8. Returns 1 i
 // Fills hurt_params when CTEVF_FAKEITEMS is active; returns whether it was.
 int CityItem_ProcessFakeItem(GOBJ *item_gobj, void *hurt_params); // 0x802542dc
 void CityItem_CopyCommonAttr(GOBJ *item_gobj);        // 0x80251294. Copies ItemCommonAttr fields to ItemData (0x118-0x140), then calls per-kind init
+void CityItem_BindStateAnim(GOBJ *item_gobj);         // 0x80251894. HSD_JObjAddAnimAll of ItemData.current_anim's joint/mat animation onto the model
 
 // Two distinct per-kind lookups, often conflated:
 //

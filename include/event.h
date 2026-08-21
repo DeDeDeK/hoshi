@@ -148,4 +148,16 @@ void event_fakeItems_applyEffect(void *event_data); // applies fake item effect 
 // certain item pickups during the cutscene. For "in a stadium" use
 // CityTrial_IsInStadium(); for "on the open CT map" use Gm_IsInCity().
 int Gm_IsLegendaryAssembling(); // 0x8000c934
+void Gm_SetLegendaryAssemblyGObj(GOBJ *gobj);  // 0x8000c964, writes GameData+0xA8C
+
+// GameData+0xA90 is a different object: the piece-pickup hitstop, not the
+// cinematic. LegendaryMachine_StartAssembly cancels it before it runs.
+int Gm_IsLegendaryHitstopActive();             // 0x8000c994
+GOBJ *Gm_GetLegendaryHitstopGObj();            // 0x8000c9f4
+void Gm_SetLegendaryHitstopGObj(GOBJ *gobj);   // 0x8000c9c4
+
+// stage 0 sets PAUSEKIND_EXPLODE, 1 hides the HUD, 2 clears the freeze and
+// restores it; anything else is a no-op. Only the legendary assembly and the
+// piece-pickup hitstop call it.
+void Gm_SetCinematicFreezeStage(int stage); // 0x8000aa2c
 #endif
