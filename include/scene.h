@@ -854,4 +854,67 @@ int Scene_GetDirection();               // usually the button used to change sce
 void Scene_InitHeaps();                 //
 ScMenuCommon *Gm_GetMenuData();         // 0x801311e0, returns stc_scene_menu_common (0x80558788)
 void MainMenu_InitAllVariables();
+
+// Character select icon layout. Both screens keep the icon world positions in the
+// ipos GObj's userdata, behind 20 anchor JObj pointers at +0x10. The layout pass
+// sets the anchor animation's frame to the icon count and reads the posed anchors
+// back, so the count is what decides the grid shape.
+void AirRideSelect_LayoutIcons(s8 count);            // 0x80133f68
+void _AirRideSelect_LayoutIcons(s8 count);           // 0x80151258
+void AirRideSelect_CreateSIcon(s8 ckind, s8 index);  // 0x80133f48
+void _AirRideSelect_CreateSIcon(s8 ckind, s8 index); // 0x80151644
+void AirRideSelect_GetIconPos(s8 index, Vec3 *out);  // 0x80151020
+void AirRideSelect_GetIconScale(Vec3 *out);          // 0x80150fcc
+void AirRideSelect_CreateIPos(void);                 // 0x801510fc
+
+void CitySelect_LayoutMachineIcons(s8 count);              // 0x801355f4
+void _CitySelect_LayoutMachineIcons(s8 count);             // 0x8015bd14
+void CitySelect_CreateMachineIcon(s8 ckind, s8 index);     // 0x801355d4
+void _CitySelect_CreateScMenSelplySiconCt(s8 ckind, s8 index); // 0x8015c100
+void CitySelect_GetIconPos(s8 index, Vec3 *out);           // 0x8015badc
+void CitySelect_GetIconScale(Vec3 *out);                   // 0x8015ba88
+void CitySelect_CreateIPos(void);                          // 0x8015bbb8
+
+// Machine name and description under a select screen's cursor. Both screens load
+// their SIS file into slot 0 and turn a CharacterKind into a pair of text indices
+// through two 20-entry tables of words read as signed bytes - 0x804aa3d8 and
+// 0x804aa428 on Air Ride, 0x804aa598 and 0x804aa5e8 on City Trial. -1 in either
+// suppresses both texts.
+void AirRideSelect_LoadSisFile(void);                    // 0x8013bacc, SisSelply.dat
+void CitySelect_LoadSisFile(void);                       // 0x8013c4a8, SisSelplyCt.dat
+void AirRideSelect_SetMachineText(s8 player, s8 ckind);  // 0x80153d2c
+void CitySelect_SetMachineText(s8 player, s8 ckind);     // 0x8015e740
+void AirRideSelect_CreateMachineText(s8 player, s8 name_text, s8 desc_text, Vec3 *pos); // 0x8013bea0
+void CitySelect_CreateMachineText(s8 player, s8 name_text, s8 desc_text, Vec3 *pos);    // 0x8013c740
+
+// The character plate on a select screen and its Siconbig counterpart on a results
+// screen. Both fold a CharacterKind and a color anim frame into one texture frame:
+// kinds 0..17 at their own index, Dedede at 20 + color, Meta Knight at 30 + color.
+void AirRideSelect_SetSIcon2Color(s8 player, s8 color);       // 0x80151ab4
+void AirRideSelect_SetSIcon2Character(s8 player, s8 ckind);   // 0x80151b78
+void CitySelect_SetSIcon2Color(s8 player, s8 color);          // 0x8015c574
+void CitySelect_SetSIcon2Character(s8 player, s8 ckind);      // 0x8015c638
+void MnResult_CreateSiconBig(s8 ckind, s8 color);                     // 0x80167250
+void MnResult2_CreateSiconBig(s8 row, s8 ckind, s8 color);            // 0x8016aff4
+void MnResult4_CreateSiconBig(s8 row, s8 ckind, s8 color);            // 0x8016e924
+void MnResultCt_CreateSiconBig(s8 row, s8 board, s8 ckind, s8 color); // 0x80177ae8
+
+// Which race results screen runs is the human count: under two picks MnResult, two
+// picks MnResult2, more picks MnResult4. City Trial always picks MnResultCt, whose
+// board argument is the 1 / 2 / 4 player layout. Each indexes its own archive's
+// element banks into ScMenuCommon and builds one element group per board row; only
+// MnResult4 gives CPU slots a row, drawn in a neutral color.
+void MnResult_IndexKiconSymbol(void);      // 0x801662a0
+void MnResult2_IndexKiconSymbol(void);     // 0x8016a000
+void MnResult4_IndexKiconSymbol(void);     // 0x8016de9c
+void MnResultCt_IndexKiconSymbol(void);    // 0x801724b8
+void MnResult_IndexSiconBigSymbol(void);   // 0x80167204
+void MnResult2_IndexSiconBigSymbol(void);  // 0x8016afa8
+void MnResult4_IndexSiconBigSymbol(void);  // 0x8016e8d8
+void MnResultCt_IndexSiconBigSymbol(void); // 0x80177a9c
+void MnResult_CreatePlayerElements(s8 slot, s8 color, s8 place, s8 ckind, s8 rider_kind);        // 0x801368ac
+void MnResult2_CreatePlayerElements(s8 row, s8 slot, s8 color, s8 place, s8 ckind, s8 rkind);    // 0x80136d80
+void MnResult4_CreatePlayerElements(s8 row, s8 slot, s8 color, s8 place, s8 ckind, s8 rkind);    // 0x80137248
+void MnResult4_CreateCpuElements(s8 row, s8 slot, s8 color, s8 place, s8 ckind, s8 rkind);       // 0x801372bc
+void MnResultCt_CreatePlayerElements(s8 row, s8 board, s8 color, s8 place, s8 ckind, s8 rkind);  // 0x80137a74
 #endif

@@ -142,6 +142,8 @@ typedef struct DevText DevText;
 typedef struct EffectModelDesc EffectModelDesc;
 typedef struct PtclDesc PtclDesc;
 typedef struct TexGDesc TexGDesc;
+typedef struct TexGBank TexGBank;
+typedef struct ParticleGroup ParticleGroup;
 typedef struct EffectDataTable EffectDataTable;
 typedef struct Effect Effect;
 typedef struct Particle Particle;

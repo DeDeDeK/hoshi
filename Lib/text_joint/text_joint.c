@@ -232,6 +232,7 @@ float TextJoint_GetWidth(Text *t)
     return (width * t->viewport_scale.X);
 }
 
+// Truncates and returns 0 if the sanitized text does not fit; out is always terminated.
 int Text_Sanitize(char *in, char *out, int buffer_size)
 {
     // symbol lookup
@@ -361,7 +362,10 @@ int Text_Sanitize(char *in, char *out, int buffer_size)
             (this_char >= 'a' && this_char <= 'z'))
         {
             if ((out_size + 1 + 1) >= buffer_size)
+            {
+                out[0] = '\0';
                 return 0;
+            }
 
             // copy directly
             out[0] = in[0];
@@ -381,7 +385,10 @@ int Text_Sanitize(char *in, char *out, int buffer_size)
                 if (this_char == symbol_lookup[i].ascii)
                 {
                     if ((out_size + 2 + 1) >= buffer_size)
+                    {
+                        out[0] = '\0';
                         return 0;
+                    }
 
                     *((u16 *)&out[0]) = symbol_lookup[i].text_code;
                     in++;
@@ -398,7 +405,10 @@ int Text_Sanitize(char *in, char *out, int buffer_size)
             if (!is_found)
             {
                 if ((out_size + 1 + 1) >= buffer_size)
+                {
+                    out[0] = '\0';
                     return 0;
+                }
 
                 // copy directly
                 out[0] = in[0];

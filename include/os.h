@@ -719,6 +719,9 @@ int File_LoadSync(char *file_name, void *buffer, int *out_size);
 // descriptors then dangle). Reload per scene-context, or for a persistent asset read
 // the file into your own buffer (File_LoadSync) and Archive_Init it in place.
 int Gm_LoadGameFile(HSD_Archive **out, char *file_name);
+// 0x80059798 - the matching free. Asserts the archive is non-NULL and carries
+// HSD_ARCHIVE_DONT_FREE, then releases the file blob and the archive struct.
+void Gm_FreeGameFile(HSD_Archive *archive);
 // Same ".dat"-append rule as File_LoadSync, and likewise panics if the file is missing.
 int File_GetSize(char *file_name);
 // void memcpy(void *dest, void *source, int size);

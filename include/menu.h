@@ -109,17 +109,19 @@ GOBJ *MenuElement_Create(JOBJDesc *jobjdesc);
 MenuElementData *MenuElement_AddData(GOBJ *menu_element_gobj, int element_kind);
 
 CharacterKind SelIcon_GetCKind(int row_idx, int col_idx);
+CharacterKind SelIcon_GetCKindLinear(int idx); // 0x8000b9a8, the single-row strip
 CharacterDesc *Character_GetDesc(CharacterKind ckind);
 
-// Resolve a CharacterDesc's machine_kind field to its absolute MachineKind
-// (VCKIND). For non-bikes, machine_kind is the VCKIND directly. For bikes,
-// machine_kind is a bike-relative index and the actual VCKIND is
-// VCKIND_WHEELNORMAL + machine_kind.
+// The reverse of CharacterDesc_GetMachineKind, over two byte tables: stars at
+// 0x80495850 (19 entries) and bikes at r13 - 0x7fbc (7). The results screens and
+// the time-attack board use it to reach a machine's art.
+CharacterKind Machine_GetCKind(int is_bike, int class_index); // 0x8000b9f4
+
+// CharacterDesc.machine_kind is a class-relative slot, not a MachineKind: it
+// equals the VCKIND only for the vanilla stars.
 static inline MachineKind CharacterDesc_GetMachineKind(CharacterDesc *desc)
 {
-    if (desc->is_bike)
-        return VCKIND_WHEELNORMAL + desc->machine_kind;
-    return desc->machine_kind;
+    return MachineKind_FromClassIndex(desc->is_bike, desc->machine_kind);
 }
 
 #endif

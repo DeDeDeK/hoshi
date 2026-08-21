@@ -129,7 +129,8 @@ void Preload_LoadCustomMenuFile()
                                 0,
                                 1,
                                 100,
-                                32);
+                                32,
+                                0);
         }
     }
 
@@ -156,7 +157,8 @@ void Preload_LoadCustomGameFile()
                                 0,
                                 1,
                                 2,     // 5
-                                0x40); // 0x20
+                                0x40,  // 0x20
+                                0);
         }
 
         else if (stc_custom_game_files.file[i].heap_kind == PRELOADHEAPKIND_ALLM &&

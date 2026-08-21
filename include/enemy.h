@@ -889,7 +889,7 @@ void EventActor_EnableRendering(GOBJ *gobj); // 0x80204198, clears bit 4 of rend
 void EventActor_DisableRendering(GOBJ *gobj); // 0x802041b0, sets bit 4 of render_flags (+0xB08).
 // Note: render_flags bits and JOBJ_HIDDEN are independent. For actors with id >= 0x4C,
 // clearing render_flags alone is insufficient - must also JObj_ClearFlagsAll(jobj, JOBJ_HIDDEN).
-double EventActor_GetParentScale(GOBJ *parent_gobj); // 0x802049b8, reads parent_gobj->userdata + 0x2B0 (scale). Crashes if parent_gobj is null.
+double EventActor_GetParentAnimRate(GOBJ *parent_gobj); // 0x802049b8, reads parent_gobj->userdata + 0x2B0 (anim_rate). Crashes if parent_gobj is null.
 int Gm_CheckEnemyEnabled(void); // 0x8000a348, returns 1 if enemy spawning is enabled
 
 // State machine

@@ -94,7 +94,10 @@
 #define DOBJ_HIDDEN (1 << 0)           // 0x00000001
 #define DOBJ_RENDER_ORDER_UNK (1 << 2) // 0x00000004
 
-// POBJ flags
+// POBJ flags. HSD_PObjDisp (0x80407988) maps the two cull bits to GX cull modes
+// and skips the POBJ entirely when both are set. An outward-facing surface is
+// wound clockwise, so CULLBACK is ordinary backface culling and CULLFRONT leaves
+// only the far side of a closed shape.
 #define POBJ_ANIM (1 << 3)
 #define POBJ_SKIN (0 << 12)
 #define POBJ_SHAPEANIM (1 << 12)
@@ -279,6 +282,28 @@ typedef struct _HSD_AObjDesc
     u32 obj_id;                     // 0x0C
 } HSD_AObjDesc;
 
+// One animation track. `track` is the HSD_A_T_* channel it drives - for a joint,
+// 1-3 rotation, 5-7 translation, 8-10 scale, 12 branch.
+//
+// `buffer` is a keyframe stream of exactly `length` bytes, walked by 0x80403858
+// under HSD_FObjInterpretAnim (0x80404928): a run header byte carrying the
+// interpolation op in its low nibble and (count - 1) in bits 4-6, extended by
+// 7-bit groups while bit 7 is set, then per key the value, the slope for ops that
+// carry one, and the frame delta as a 7-bit varint. Values and slopes are
+// little-endian; flag 0 is a raw float, otherwise bits 5-7 pick s16/u16/s8/u8
+// (0x20/0x40/0x60/0x80) and bits 0-4 the power of two to divide by.
+typedef struct _HSD_FObjDesc
+{
+    struct _HSD_FObjDesc *next; // 0x00
+    u32 length;                 // 0x04
+    f32 start_frame;            // 0x08
+    u8 track;                   // 0x0C
+    u8 value_flag;              // 0x0D
+    u8 tan_flag;                // 0x0E
+    u8 pad;                     // 0x0F
+    void *buffer;               // 0x10
+} HSD_FObjDesc;
+
 struct AOBJ
 {
     u32 flags;                // 0x0
@@ -356,13 +381,15 @@ struct MatAnimJointDesc
     MatAnimDesc *matanim;
 };
 
+// Binds by tree position: HSD_JObjAddAnimAll (0x80409480) walks this tree in
+// lockstep with a JObj tree, so a node drives whichever joint sits where it does.
 struct AnimJointDesc
 {
     AnimJointDesc *child;
     AnimJointDesc *next;
-    void *aobj;
-    int flags;
-    int flags2;
+    void *aobj;      // 0x08, HSD_AObjDesc*
+    void *robj_anim; // 0x0c, RObj animation for the same joint
+    int flags;       // 0x10, bit 0 is the joint's classical scaling
 };
 
 struct WOBJDesc
@@ -879,6 +906,16 @@ void JObj_SetAllMOBJFlags(JOBJ *joint, int flags);
 void JObj_SetFlagAllMOBJ(JOBJ *joint, int flags); // enables this flag for all mobjs
 int JObj_CheckAObjPlaying(JOBJ *joint);
 void JObj_SetAllAOBJRateByFlags(JOBJ *j, int flags, float rate);
+// Binds an HSD_FigaTree to a JObj tree: walks it in preorder against the
+// FigaTree's per-node track-count table (+0x0c, 0xff-terminated), building an
+// AObj per node and one FObj per track out of the 0x0c-byte records at +0x10.
+// The end frame at +0x08 becomes every AObj's.
+void JObj_AddFigaTreeAnim(JOBJ *joint, void *figatree);  // 0x8006e2c0
+float FigaTree_GetEndFrame(void *figatree);              // 0x8006e58c, +0x08, or 0 when NULL
+// Despite the name, the engine's general "place a JObj in the world": builds a
+// TRS matrix from an orthonormal basis (right = forward x up, normalized) scaled
+// by scale, translates it to pos and stamps it on the joint.
+void gmLanMenu_Scale3DObject(f32 scale, JOBJ *joint, Vec3 *forward, Vec3 *up, Vec3 *pos); // 0x80054414
 void JObj_SetAllAOBJLoopByFlags(JOBJ *j, int flags);
 void JObj_CompileTEVAllMOBJ(JOBJ *joint);
 void JObj_DispAll(JOBJ *joint, Mtx *vmtx, int rendermode, int mobj_flags);
@@ -938,6 +975,9 @@ Vec3 *COBJ_ProjectPoint(COBJ *cobj, Vec3 *pos, Vec3 *out, int unk); // returns t
 GOBJ *GObj_Create(int entity_class, int p_link, int p_priority);
 void GObj_Destroy(GOBJ *gobj);
 JOBJ *GObj_GetJObjIndex(GOBJ *gobj, int index); // 0x80055AF0, depth-first traversal to get Nth JOBJ from gobj->hsd_object
+// 0x804293f4. Moves an existing GObj onto another p_link at the given priority.
+// Relinking a HUD element to GAMEPLINK_PAUSEHUD is what keeps it drawn while paused.
+void GObj_SetPLink(GOBJ *gobj, int p_link, u8 p_priority);
 void GObj_AddGXLink(GOBJ *gobj, void *cb, int gx_link, int gx_pri);
 void GObj_DestroyGXLink(GOBJ *gobj);
 void GObj_GXReorder(GOBJ *gobj, int unk);

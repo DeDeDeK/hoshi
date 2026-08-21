@@ -818,7 +818,11 @@ typedef struct GameData // 805359d8
     } airride_select_ply;
     struct
     {
-        u8 x160[0x37];                    // 0x160 to 0x196 - header bytes outside the lobby init range
+        // 0x160 to 0x196 - outside the lobby init range, and shared with the Air Ride
+        // select screen, whose own block runs 0x10a to 0x196: packed icon count at
+        // 0x16f, its 20-entry CharacterKind list at 0x170, the row-layout flag at
+        // 0x184 and the debug-grid flag at 0x185. Nothing reads 0x186 up.
+        u8 x160[0x37];
         // Lobby data, cleared by TopRide_InitSelectData (memset of 0x39 bytes).
         u8 x197;                          // 0x197
         u8 init_flag;                     // 0x198, set to 0xFF on InitSelectData; consumed by lobby update
@@ -876,7 +880,7 @@ typedef struct GameData // 805359d8
             u8 num;            // 0x235, total number of machines selectable
             u8 c_kind_arr[20]; // 0x236, 0x66, array of c_kind indices
         } machine_select;
-        u8 x24a;  // 0x24a
+        u8 x24a;  // 0x24a, debug-grid flag, set from the debug flags before the icons are built
         u8 x24b;  // 0x24b
         int x24c; // 0x24c
         int x250; // 0x250
@@ -2202,6 +2206,15 @@ typedef struct Game3dData
     int xcf4;                                     // 0xcf4
     int xcf8;                                     // 0xcf8
     int xcfc;                                     // 0xcfc
+    u8 pad_d00[0xdec - 0xd00];                    // 0xd00, unmapped
+    // The legendary-piece HUD, indexed out of IfAll2X.dat by
+    // 3DHud_IndexLegendaryPiecesSymbols (0x8012b39c) when the HUD file loads. An icon
+    // takes the first free anchor of its half, so its slot is a count, not a piece id.
+    JOBJSet **legendary_hud_pos;                  // 0xdec, ScInfSpPos{N}_scene_models
+    JOBJSet **legendary_hud_efx;                  // 0xdf0, ScInfSpEfx{N}, the set-complete flourish
+    JOBJSet **legendary_hud_hydra[3];             // 0xdf4, ScInfSpHydra{A,B,C}{N}
+    JOBJSet **legendary_hud_dragoon[3];           // 0xe00, ScInfSpDragoon{A,B,C}{N}
+    GOBJ *legendary_hud_gobj[4];                  // 0xe0c, position-model element per viewport
 } Game3dData;
 
 // Reward type encoding for RewardEntry.reward_type
@@ -2371,8 +2384,8 @@ typedef struct PlayerStats
     u8 x379[0x37a - 0x379];
     u16 copy_chance_mask;                         // 0x37a, MSB-first bit(15-CopyKind) set when the Copy Chance Wheel granted it (cells 0x46/0x47)
     int machine_change_count[0x1a];               // 0x37c, per-MachineKind; sum = AR machine changes (cell 0x06)
-    int deaths_by_machine[0x1a];                  // 0x3e4, KO'd, by MachineKind ridden
-    int kills_by_machine[0x1a];                   // 0x44c, KOs dealt, by victim MachineKind
+    int kills_by_machine[0x1a];                   // 0x3e4, on the attacker's record: KOs dealt, indexed by the victim's MachineKind; sum = the Destruction Derby score
+    int deaths_by_machine[0x1a];                  // 0x44c, on the victim's record: KO'd, by MachineKind ridden. Written by Ply_AddDeath, read by nothing
     int ko_cpu_machine_broken;                    // 0x4b4, KO-by-cause (cell 0x4d)
     int ko_firework;                              // 0x4b8, KO-by-cause (cell 0x60)
     int ko_gold_spike;                            // 0x4bc, KO-by-cause (cell 0x5f)
@@ -2431,7 +2444,7 @@ typedef struct PlayerStats
     int cannon_simul_launch;                      // 0x844, AR Machine Passage (cell 0x6b)
     int king_dedede_ko_frame;                     // 0x848, CT; 0 = not yet (cell 0x2f)
     u8 flags_84c;                                 // 0x84c, CT bit0 dmg Dyna Blade, bit1 trampled, bit7 rival-dmg<10s
-    u8 flags_84d;                                 // 0x84d, CT bit1 sky garden, bit2 Hydra, bit3 Dragoon, bit4 castle, bit5 restoration
+    u8 flags_84d;                                 // 0x84d, CT bit1 sky garden, bit2 Dragoon, bit3 Hydra, bit4 castle, bit5 restoration
     u8 x84e[0x850 - 0x84e];
     int grindrail_crater_flag;                    // 0x850, CT (cell 0x42)
     u8 flags_854;                                 // 0x854, CT: bit3 off-machine at timeout, bit4 on-rails at
@@ -2451,6 +2464,10 @@ typedef struct PlayerStats
     u16 x_bits0_6 : 7;          // bits 6-0 (LSB side)
     u8 x85a[0x85c - 0x85a];                   // 0x85a, tail
 } PlayerStats;
+
+// PlayerStats.flags_84d, set by Ply_MarkLegendaryMachineAssembled (0x80231198).
+#define PLYSTATS_DRAGOON_ASSEMBLED 0x04
+#define PLYSTATS_HYDRA_ASSEMBLED   0x08
 
 // Per-player slot record (5 at stc_playerdata, stride 0x90c). Holds the
 // spawn/respawn descriptor (kind, transform, stats) plus the embedded
@@ -2965,12 +2982,15 @@ int Ply_GetMachineIsBike(int ply);
 // directly. This resolves the pair to the absolute kind.
 static inline MachineKind Ply_GetMachineKindAbs(int ply)
 {
-    if (Ply_GetMachineIsBike(ply))
-        return (MachineKind)(VCKIND_WHEELNORMAL + Ply_GetMachineKind(ply));
-    return (MachineKind)Ply_GetMachineKind(ply);
+    return MachineKind_FromClassIndex(Ply_GetMachineIsBike(ply), Ply_GetMachineKind(ply));
 }
 
 void Ply_AddDeath(int ply, DmgLog *dmg_log, int is_bike, MachineKind machine_kind);
+// All three fold (is_bike, class slot) into an absolute MachineKind themselves,
+// with no bounds check, and the two getters sum their whole array.
+void Ply_IncrementGetOnMachineNum(int ply, GOBJ *machine_gobj); // 0x8022f5bc, PlayerStats.machine_change_count
+int Ply_GetMachineChangeCount(int ply);                         // 0x8022f19c, sums it
+int Ply_GetKONum(int ply);                                      // 0x8022f2a0, sums PlayerStats.kills_by_machine
 // The enemy counterpart of Ply_AddDeath. attacker_log is the victim's
 // strongest-attacker record; its byte 3 is the attack-method index that keys
 // enemy_defeat_by_method (0xe = Tornado, 0xf/0x15 = exhaled star, 0x10 = Quick
@@ -3085,6 +3105,12 @@ int AirRide_CheckCourseUnlocked(s8 input);                              // 8000c
 // Only reached via the title-screen attract demo, not real CPU gameplay.
 int TitleScreen_CheckMachineUnlocked(s8 machine_class, s8 machine_id);  // 8000c364
 int AirRide_CheckCharacterAvailable(CharacterKind ckind);               // 8002090c, checks if a CharacterKind is selectable on the Air Ride select screen
+// Both build the packed icon list their select screen draws from: a count at select
+// base +0x65 and one CharacterKind per icon from +0x66, then a layout pass and one
+// icon GObj per entry. The bases are GameData +0x10a and +0x1d0; the byte after each
+// list is live, so the lists hold 20.
+void AirRide_PopulateSelectIcons(void);                                 // 80020a08
+void CitySelect_CreateMachineIcons(void);                               // 8002e3c4
 int AirRide_CheckCharacterUnlocked(s8 character);                       // 8000c488, maps 1->32 (Dedede), 2->33 (Meta Knight)
 int CityTrial_CheckLegendaryMachineUnlocked(int machine);               // 8000c508, maps 4->34 (Hydra), 8->30 (Dragoon)
 int AirRide_CheckBonusUnlocked(s8 bonus);                               // 8000c584, maps 1->35 (Bonus Movie), 2->36 (Ending)
@@ -3174,10 +3200,55 @@ typedef struct LegendaryAssemblyParams
     u8 ply;               // 0x04, player index
     u8 pad[3];            // 0x05
     Vec3 pos;             // 0x08, machine position
-    Vec3 up;              // 0x14, machine up vector
-    Vec3 forward;         // 0x20, machine forward vector
+    Vec3 forward;         // 0x14, machine forward vector
+    Vec3 up;              // 0x20, machine up vector
 } LegendaryAssemblyParams;
 
 void LegendaryMachine_StartAssembly(LegendaryAssemblyParams *params);      // 80283cf0, starts assembly cinematic
+
+// The cinematic itself. StartAssembly cancels any running piece-pickup hitstop
+// and tail-calls CreateAssembly, which allocates state from 0x8055f760, loads
+// VsDragoon.dat / VsHydra.dat, freezes the world and installs AssemblyThink -
+// a wait, a build, 150 frames of animation, then teardown.
+void LegendaryMachine_CreateAssembly(LegendaryAssemblyParams *params);     // 802838a0
+void LegendaryMachine_AssemblyThink(GOBJ *gobj);                          // 802839b8
+void LegendaryMachine_FreeAssemblyState(void *state);                     // 80283874
+// Both take machine_index. Load returns the archive's vsData; the two globals
+// it fills are the archive handle and the resolved public.
+void *LegendaryMachine_LoadAssemblyArchive(int machine_index);            // 80283e18
+void LegendaryMachine_FreeAssemblyArchive(int machine_index);             // 80283e88
+void LegendaryMachine_RenderAssemblyModel(GOBJ *gobj, int pass);          // 80283ed8, skips pass 3
+f32 LegendaryMachine_GetAssemblyEndFrame(void *state, void **model_desc); // 80283f00, reads the FigaTree's end frame
+void LegendaryMachine_AdvanceAssemblyAnims(void *state);                  // 80283f24
+void LegendaryMachine_BindAssemblyAnims(int unused, JOBJ *jobj, void **model_desc); // 80283f74
+void LegendaryMachine_PreloadAssemblyArchives(int scene);                 // 80283d98, scene 9 only
+
+// vsData<X>, the public in VsDragoon.dat / VsHydra.dat.
+typedef struct LegendaryAssemblyData
+{
+    void **glow;        // 0x00, {JOBJDesc*, FigaTree*, MatAnimJoint*}. Anchors the
+                        //       camera; its FigaTree sets the 150-frame length
+    void **parts;       // 0x04, same shape, the machine split into its parts
+    void **cam_anim;    // 0x08, -> {HSD_CObjDesc*, HSD_CameraAnim**}
+} LegendaryAssemblyData;
+
+// The dramatic pause on a piece pickup, held at GameData+0xa90: a PAUSEKIND_EXPLODE
+// freeze, then a second interval at a scaled engine speed. Independent of the
+// assembly cinematic at GameData+0xa8c, which cancels it before starting.
+void LegendaryPiece_InitHitstopPool(void);                                // 80284004
+void LegendaryPiece_CreateHitstop(int freeze_frames, int slow_frames, f32 speed); // 8028406c
+void LegendaryPiece_HitstopThink(GOBJ *gobj);                             // 80284190
+void LegendaryPiece_DestroyHitstop(void *state);                          // 80284140
+void LegendaryPiece_FreeHitstopState(void *state);                        // 80284040
+void LegendaryMachine_CancelPieceHitstop(void);                           // 80283d70
+
+// Sky preset swap the cinematic leaves up after it finishes.
+void Sky_SetDragoonPreset(void);                                          // 800d5490, preset 13
+void Sky_SetHydraPreset(void);                                            // 800d54d8, preset 14
+
+// The particle render pass for gx_link 26, the bucket the cinematic's models and
+// the assembling rider draw in.
+void Ptcl_CreateCinematicRenderPass(void);                                // 80233b04
+void Ptcl_DestroyCinematicRenderPass(void);                               // 80233b30
 
 #endif

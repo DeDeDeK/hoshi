@@ -147,4 +147,13 @@ void PlyCam_OnFootBlend(CamData *cam);                          // 0x800cbec8, k
 void PlyCam_GetFullscreenScissor(CamScissor *out);
 void PlyCam_Get2PScissor(int view_index, CamScissor *out);
 void PlyCam_Get4PScissor(int view_index, CamScissor *out);
+
+// Scripted cinematic camera, on a spare slot (5-31) of cam_gobjs. The anchor's
+// world matrix is sampled once and every eye/interest key transformed through it,
+// so the animation is authored in anchor-local space. Returns the slot index, the
+// handle PlyCam_DestroySlot takes. desc is {HSD_CObjDesc*, HSD_CameraAnim**}, a
+// NULL-terminated anim array.
+int PlyCam_CreateAnimCamera(int ply, JOBJ *anchor, void *desc, int open_frames, int restore_frames); // 0x800b9c74
+void PlyCam_DestroySlot(int slot);                              // 0x800b94c8, destroys the camera GObj and clears the slot
+int PlyCam_FindFreeSlot(void);                                  // 0x800b9370, first free slot in 5-31
 #endif
