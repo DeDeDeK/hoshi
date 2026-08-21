@@ -154,8 +154,11 @@ typedef struct ProjKindData
     const void                 *params;              // +0x00: 4 words; params[3] = default lifetime in frames
     const void                 *render_state_tmpl;   // +0x04: copied into proj+0x104. word0 is the muzzle
                                                      //        speed plasma / sword-star post_inits apply.
-    void                       *model_desc;          // +0x08: model joint descriptor (HSD_JObjLoadJoint);
-                                                     //        NULL falls back to a global default model
+    void                       *model_desc;          // +0x08: two words - the model's JOBJDesc, then a word
+                                                     //        whose top byte is that tree's joint count.
+                                                     //        NULL falls back to a global default model.
+                                                     //        The walker at 0x80221914 asserts if the tree
+                                                     //        holds a different number, or more than 10
     const void                 *state_anim_spec_array; // +0x0c: 16-byte stride by state_id
     const void                 *vuln_region_spec;    // +0x10: vulnerable-region list (0x44 stride). NULL for
                                                      //        every kind but FIRE_BULLET and SENSORBOMB; the
@@ -176,6 +179,8 @@ typedef struct ProjKindVTable
     void                      (*aux_a)(void *proj);         // 0x14: state-exit cleanup; NULL for some kinds
     void                      (*post_init)(void *proj);     // 0x18: one-shot at create, after proc registration
     void                      (*aux_b)(void *proj);         // 0x1c: per-frame kind-specific hook; NULL for some kinds
+    void                      (*despawn)(void *proj);       // 0x20: Projectile_Despawn's exit; NULL falls back to
+                                                            //       GObj_Destroy. Most kinds install a bare one
 } ProjKindVTable;
 
 // Inner projectile data - 0x220 bytes, reached via *(handle + 0x2c). Known
@@ -202,7 +207,9 @@ typedef struct ProjectileData
                                          //       animation/blend record
     u8             pad_3c[0x70 - 0x3c];  // 0x3c..0x6f: anim accumulator + sub-vtable refs (internal)
     float          velocity_scale;       // 0x70: desc.velocity_scale copy
-    float          cur_scale;            // 0x74
+    float          cur_scale;            // 0x74: live size scale, seeded from velocity_scale. The shared
+                                         //       pipeline only reads it - HurtData size, env sweep radius
+                                         //       and render cull radius all come off this one field
     int            type_flag;            // 0x78: desc.type_flag copy
     Vec3           accel;                // 0x7c: per-frame acceleration, zeroed at prio 0 and integrated
                                          //       into velocity at prio 4. Nothing supplies gravity - a
@@ -288,6 +295,14 @@ void Projectile_DespawnGObj(void *projGObj); // 0x802230a0
 // Writes a state entry's flags word into the projectile's per-state animation
 // bytes (proj+0x17c / 0x184 / 0x18a / 0x18b).
 void Projectile_AssignStateFlags(void *proj, int flags); // 0x80222298
+
+// Tail of Projectile_Create: seeds cur_scale, lifetime, the animation
+// accumulators and the alive flags. A projectile is unusable before it runs.
+void Projectile_InitRuntimeState(void *proj); // 0x8021f2a0
+
+// Ends a projectile through its kind's despawn slot. The prio-1 proc calls it the
+// frame lifetime reaches zero.
+void Projectile_Despawn(void *proj); // 0x80220364
 
 // Rider-side spawn helpers used by copy abilities. All assert on the rider
 // having the matching ability hat model loaded. Position/forward/up come from

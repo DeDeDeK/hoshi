@@ -844,7 +844,8 @@ void Menu_GetSaveSize(MenuDesc *desc, int *size)
         }
         case (OPTKIND_VALUE):
         {
-            (*size) += 3;
+            if (!desc->options[opt_idx]->no_save)
+                (*size) += 3;
             break;
         }
         }
@@ -867,7 +868,8 @@ void Option_GetSaveSize(OptionDesc *desc, int *size)
     }
     case (OPTKIND_VALUE):
     {
-        (*size) += 3;
+        if (!desc->no_save)
+            (*size) += 3;
         break;
     }
     }
@@ -908,6 +910,9 @@ void Menu_ExecOptionChange(MenuDesc *desc)
 }
 void Option_CopyFromSave(GlobalMod *mod, char *menu_name, OptionDesc *desc)
 {
+    if (desc->no_save)
+        return;
+
     // hash this option name
     u16 opt_hash = Option_Hash(menu_name, desc->name);
     MenuSave *save = mod->save.menu_data;
@@ -957,6 +962,9 @@ void Menu_CopyFromSave(GlobalMod *mod, char *menu_name, MenuDesc *desc)
 }
 void Option_CopyToSave(GlobalMod *mod, char *menu_name, OptionDesc *desc)
 {
+    if (desc->no_save)
+        return;
+
     // hash this option name
     u16 opt_hash = Option_Hash(menu_name, desc->name);
     MenuSave *save = mod->save.menu_data;
