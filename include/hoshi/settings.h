@@ -29,7 +29,8 @@ struct OptionDesc
     char *name;
     char *description;
     OptionKind kind : 16;
-    MenuPriority pri : 16;
+    MenuPriority pri : 15;
+    unsigned int no_save : 1; // OPTKIND_VALUE: keep this option out of the memory card block
     union
     {
         struct

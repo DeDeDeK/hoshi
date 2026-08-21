@@ -700,8 +700,6 @@ typedef struct RiderData
         };
         float values[9];
     } stats;
-    int x768;                  // 0x768
-    int x76c;                  // 0x76c
     int x770;                  // 0x770
     int x774;                  // 0x774
     CpuData *cpu;              // 0x778, CPU rider AI state / virtual pad. NULL for human riders.
@@ -753,6 +751,8 @@ typedef struct RiderData
     void (*cb_ability_remove)(RiderData *);  // 0x7fc
     int x800;                           // 0x800
     int x804;                           // 0x804
+    // Four motion-script variables, written by the opcode handler at 0x8019b98c.
+    // x808 is what RiderState_LegendaryAssemblyAnimThink polls for the machine swap.
     int x808;                           // 0x808
     int x80c;                           // 0x80c
     int x810;                           // 0x810
@@ -852,10 +852,11 @@ typedef struct RiderData
         CopyKind copy_wheel_result;     // CopyKind the copy wheel selected
         s32 inhale_timer;               // reused during the inhale action-state; the
                                         // gesture ends when it counts down to 0
+        GOBJ *saved_plink_neighbour;    // reused during a legendary assembly
     };
-    int x940;                           // 0x940
-    int x944;                           // 0x944
-    int x948;                           // 0x948
+    int x940;                           // 0x940, saved gx_link neighbour GOBJ during a legendary assembly
+    int x944;                           // 0x944, staged is_bike for Rider_RespawnFullRecreate
+    int x948;                           // 0x948, staged class slot for Rider_RespawnFullRecreate
     int x94c;                           // 0x94c
     int x950;                           // 0x950
     int x954;                           // 0x954
@@ -1025,6 +1026,12 @@ int  Rider_GetCPUStickY(RiderData *rd);   // 0x80275ca0, returns CpuData.stick_y
 void Rider_InputThink(GOBJ *gobj);        // 0x8018ee28, rider proc: selects effective input (human / CPU / replay)
 
 void Rider_RespawnEnter(RiderData *);
+// 0x80193900. Tears the rider's current machine down and recreates rider plus
+// machine on (is_bike, class_index) in place. Called by the legendary assembly and
+// by the copy ability's star removal; the trailing arguments are the literals both
+// call sites pass.
+void Rider_RespawnFullRecreate(RiderData *rd, int is_bike, u8 class_index,
+                               int a4, int a5, int a6, u8 a7, u32 a8);
 int Rider_GiveAbility(RiderData *, CopyKind);
 int Rider_CheckUnableAbility(RiderData *); // checks if the rider can receive an ability?
 // 0x80191554. Universal "remove the currently-held copy ability" teardown: if
@@ -1045,8 +1052,29 @@ void Rider_AbilityClearQueued(RiderData *); // 0x801915c4
 // "resolve or return to neutral" step - the tail of Rider_StartCopyWheel and the exit
 // of the inhale START state.
 void Rider_ResolveQueuedAbility(RiderData *); // 0x801a8454
+
+// Legendary assembly, the rider's half. Kirby only. Enter relinks the rider GOBJ
+// from GAMEPLINK_RIDER to p_link 32 and gx_link 6 to 26, saving both neighbours in
+// +0x93c / +0x940, and enters RiderStateChange(0x82, 0x220 + machine_index). p_link
+// 32 is outside PAUSEKIND_EXPLODE's freeze mask, which is how the rider keeps
+// animating while the world is frozen. The machine swap itself is data-driven, off
+// the motion-script variable at +0x808.
+void Ply_EnterLegendaryAssembly(int ply, int machine_index);    // 0x8022d6b4, also clears that set's piece bits
+void Ply_ExitLegendaryAssembly(int ply);                        // 0x8022d71c
+void Rider_EnterLegendaryAssembly(GOBJ *rider, int machine_index); // 0x8019248c
+void Rider_ExitLegendaryAssembly(GOBJ *rider);                  // 0x801924f8
+void RiderState_LegendaryAssemblyEnter(RiderData *rd, int machine_index); // 0x801bda34
+void RiderState_LegendaryAssemblyAnimThink(RiderData *rd);      // 0x801bdb2c
+void RiderState_LegendaryAssemblyExit(RiderData *rd);           // 0x801bdbac
+// Motion-script opcode: writes the command word's low 24 bits into RiderData
+// +0x808, +0x80c, +0x810 or +0x814, picked by the command byte's low 2 bits.
+void RiderScript_SetVariable(RiderData *rd, void *script);      // 0x8019b98c
 // Neutral riding/on-foot state (RiderStateChange 0x21). Last resort of the IASA chain.
 void AS_StarWait(RiderData *); // 0x801ab1a0
+// Ends a machine charge and spends it on a boost (RiderStateChange 0x2a), from the
+// A-release interrupt check and the full-charge hold state's think.
+// MachineData.charge_value still holds the charge on entry. Kirby only.
+void AS_StarChargeRelease(RiderData *); // 0x801abc64
 void Rider_LoseAbilityState_Enter(RiderData *);
 void Rider_GiveIntangibility(RiderData *, int time);
 void Rider_GiveInvincibility(RiderData *, int time);

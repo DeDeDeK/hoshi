@@ -363,6 +363,17 @@ int HSD_Randi(int max);
 float HSD_Randf();
 void *HSD_MemAlloc(int size);
 void HSD_Free(void *ptr);
+// What HSD_MemAlloc/HSD_Free dispatch to: OSAllocFromHeap / OSFreeToHeap against
+// HSD_GetHeapID(). Unusable before HSD_OSInit has made that heap - the id is -1
+// and the alloc asserts.
+void *HSD_HeapAlloc(int size); // 0x804101b4
+void HSD_HeapFree(void *ptr);  // 0x80410214
+
+// Bounds of the region HSD_OSInit (0x8040ff8c) hands to OSCreateHeap. hoshi
+// carves its persistent storage off the front beforehand by bumping the start
+// pointer; rewinding it before the call is how that storage is given back.
+static u8 **stc_hsd_heap_start = (u8 **)0x805de290;
+static u8 **stc_hsd_heap_end = (u8 **)0x805de294;
 void HSD_ObjAllocInit(HSD_ObjAllocData *data, size_t size, u32 align);
 void *HSD_ObjAlloc(HSD_ObjAllocData *obj_def);
 void HSD_ObjFree(HSD_ObjAllocData *obj_def, void *obj);

@@ -391,15 +391,54 @@ struct AXLive
     UserVolume user_vol[64];             // 0x8059a178, indexed by sg
 };
 
-typedef struct 
+// One FGM script command: an opcode byte then a 24-bit operand whose delay /
+// payload split depends on the opcode. FGMinstance_UpdateScript (0x80441760)
+// runs them, dispatching through the table at 0x80508aa0.
+typedef enum FGMScriptOp
 {
-    int x0;
-    int x4;
-    int bank_num;
-    int bank_index_start[];     // contains "bank_num" elements;
-    // after the array above exists a pointer array to all scripts i believe
-    // this is pointed to via r13 @ stc_fgm_script_data
-} SEMFile;                      // is the contents of the .sem file. alloc'd in audio heap, pointed to via r13
+    FGMSCRIPT_SOUND = 0x01,       // [op][delay:8][global sound index:16]
+    FGMSCRIPT_LOOP_COUNT = 0x02,
+    FGMSCRIPT_LOOP_BACK = 0x03,
+    FGMSCRIPT_VOLUME = 0x06,
+    FGMSCRIPT_PITCH = 0x0c,
+    FGMSCRIPT_END = 0x0e,
+    FGMSCRIPT_END_RELEASE = 0x0f,
+} FGMScriptOp;
+
+// A .ssm sound bank as it sits on disc: this header, one record per sound, then
+// the ADPCM at the next 32-byte boundary. Sound indices are global across every
+// bank, so this bank's sound i is index sound_base + i.
+typedef struct SSMHeader
+{
+    u32 table_size;  // 0x00, bytes of sound records, from 0x10
+    u32 data_size;   // 0x04, bytes of ADPCM, and the ARAM the bank needs
+    u32 sound_num;   // 0x08
+    u32 sound_base;  // 0x0c, global sound index of this bank's sound 0
+} SSMHeader;
+
+// One loaded sound, in the audio heap. Audio_AllocPID (0x80448f08) finds it by
+// hashing `index` into stc_ssm_sound_hash; an index no bank claims is never
+// found and the sound drops.
+typedef struct SSMSound
+{
+    struct SSMSound *next;  // 0x00, hash chain
+    int index;              // 0x04, global sound index
+    int channel_num;        // 0x08
+    int sample_rate;        // 0x0c
+    // 0x10, channel_num * 0x40 bytes of AXPBADDR / AXPBADPCM / AXPBADPCMLOOP
+} SSMSound;
+
+// One loaded .ssm, at the head of its audio-heap block with its SSMSounds packed
+// behind it. Banks sharing an SSM slot chain here.
+typedef struct SSMChunk
+{
+    struct SSMChunk *next;  // 0x00
+    int entrynum;           // 0x04
+    int sound_base;         // 0x08
+    int sound_num;          // 0x0c
+    u32 aram_base;          // 0x10
+    u32 data_size;          // 0x14
+} SSMChunk;                 // 0x18
 
 typedef struct FGMInstanceData
 {
@@ -409,8 +448,7 @@ typedef struct FGMInstanceData
     FGMInstance instance;       // 0xc, index in the FGMInstanceData array
     PID pid;                    // 0x10, as evidenced by assert @ 80442538 and 80441274
     u32 sfx_id;                 // 0x14, what was passed into SFX_Play. internally fid
-    u8 x18;                     // 0x18
-    u8 priority;                // 0x19
+    u16 sound_index;            // 0x18, global sound index, written by script opcode 0x01
     u16 audio_track;            // 0x1a. is r6 of SFX_Play
     u8 x1c;                     // 0x1c, seems to be limited between 2 and 29? @ 804428b4
     u8 x1d;                     // 0x1d
@@ -613,7 +651,10 @@ typedef struct
 typedef struct Audio3D
 {
     int x0;                         // 0x80538088, not sure, initialized num? seems to always be 1
-    int largest_ssm_sizes[9];       // indexed by group?
+    int x4[3];                      // 0x04
+    int largest_ssm_sizes[9];       // 0x10, ARAM carved per SSM slot. FGM_IndexLargestSSMSize
+                                    //       (0x8005b8d8) writes it unbounded, so past slot 8 it
+                                    //       corrupts `volume`
     struct
     {
         // 0 is min, 255 is max.
@@ -660,10 +701,20 @@ static FGMInstanceData **p_voices = (FGMInstanceData **)0x8058e298;         // F
 static AXLive *ax_live = (AXLive *)0x80597660;                          // indexe by pid & AXDRIVER_PIDMASK
 static VPB **stc_vpb_adjust_queue = (VPB **)0x805de504;                 // 0x1424(r13), function 8044adb4 adds VPB's to this linked list and adjusts them next audio frame
 
-static void **stc_fgm_script_data = (void **)0x805de460;        // 0x1380(r13)
-static int *stc_fgm_script_num = (int *)0x805de464;             // 0x1384(r13) number of sem scripts?
+static void **stc_fgm_script_data = (void **)0x805de460;        // 0x1380(r13), u32* per script
+static int *stc_fgm_script_num = (int *)0x805de464;             // 0x1384(r13), 825 in retail
 static int **stc_fgm_bank_start_script = (int **)0x805de468;    // 0x1388(r13), array of ints containing the first script index in the bank
-static int *stc_fgm_bank_num = (int *)0x805de46c;               // 0x138C(r13) seems to be the total number of banks on disc
+static int *stc_fgm_bank_num = (int *)0x805de46c;               // 0x138C(r13), 20 in retail
+
+// SSM slots. Each holds one span of the ARAM sample arena and any number of
+// chained .ssm chunks. The arrays below are packed back to back, so their 32
+// entries are a hard ceiling; retail carves 9.
+static SSMHeader *stc_ssm_load_header = (SSMHeader *)0x80596da0; // hsd_SynthSFXLoadBuf, header of the file being read
+static SSMChunk **stc_ssm_slot_chunks = (SSMChunk **)0x80596dc0; // per slot, newest first
+static u32 *stc_ssm_slot_aram = (u32 *)0x80597040;               // hsd_SynthSFXBank, per-slot ARAM write cursor
+static SSMSound **stc_ssm_sound_hash = (SSMSound **)0x805970c0;  // 32 buckets, keyed by index & 0x1f
+static u32 *stc_ssm_slot_end = (u32 *)0x80597140;                // hsd_SynthSFXBankHead, slot k spans [k], [k+1]
+static int *stc_ssm_slot_num = (int *)0x805de4ec;                // hsd_SynthSFXBankNum, slots carved of 32
 
 static int *stc_fgm_instance_activenum = (int *)0x805de454;                     // 0x1374(r13), 
 static FGMInstanceData **stc_fgm_data_start = (FGMInstanceData **)0x805de480;   // 0x13A0(r13), points to the first FGMInstanceData, used for iterating through with the next pointer
@@ -678,10 +729,10 @@ static BGMKind *stc_bgmkind_cur_playing = (BGMKind *)0x8054f508;         //
 
 // look into 0x1458, 0x1430. used by HPS_AcquireVoice
 
-int SFX_Play(int sfxID);                                                        // will play a sound effect with max priority (works when game is paused)
-int SFX_PlayMenuSFX(int sfxID);                                                 //
-int SFX_PlayRaw(int sfx, int volume, int pan, int audio_track, int sg);         // sg is 0x42 of AudioEmitterData any audio_track other than 0 will remember the current instance and destroy it if another is requested to play with that slot
-int SFX_PlayFullVolume(int sfxID);                                              // 8006176c, plays a sound effect at full volume
+int SFX_Play(int sfxID);                                                        // 0x800615f0, max volume/center pan wrapper over SFX_PlayRaw (works when game is paused)
+int SFX_PlayMenuSFX(int sfxID);                                                 // 0x80061620
+int SFX_PlayRaw(int sfx, int volume, int pan, int audio_track, int sg);         // 0x80442a10, sg is 0x42 of AudioEmitterData. any audio_track other than 0 will remember the current instance and destroy it if another is requested to play with that slot
+int SFX_PlayFullVolume(int sfxID);                                              // 0x8006176c, plays a sound effect at full volume
 int SFX_PlayCommon(int sfxID);
 int SFX_PlayCrowd(int sfxID);
 void SFX_StopCrowd();
@@ -691,11 +742,24 @@ void SFX_StopCrowd();
 int playSoundFX_errorNoise(void);   // 0x80061734, "denied/error" buzzer for rejected menu actions
 
 void AudioHeap_SetAllocAndFree(void *alloc_func, void *free_func);
-void Audio_ResetCache(int group_index);
-void Audio_QueueFileLoad(int group_index, u64 ssm_index);
-void Audio_UpdateCache();
-void Audio_RequestSSMLoad(int ssm_id);
-void Audio_SyncLoadAll();
+
+// Carves the next SSM slot out of the ARAM sample arena, returning its index or
+// -1 when the arena or the 32 slots are exhausted. Prefer it over
+// FGM_IndexLargestSSMSize (0x8005b8d8), which also records the size in Audio3D.
+int FGM_GetNextLargestSSMSizeIndex(int aram_size);                            // 0x80448274
+
+// Fired as each queued bank lands, with the file's DVD entrynum and the arg
+// passed to FGM_QueueLoad.
+typedef void (*FGMLoadCallback)(int entrynum, void *arg);
+typedef void (*FGMTaskFunc)(void);
+
+// Queues a .ssm by full FST path onto the DVD queue. The bank's global sound
+// index base comes from stc_ssm_load_header, filled in by the file's own header
+// as the queue reaches it.
+void FGM_QueueLoad(char *path, int slot, FGMLoadCallback cb, void *arg);      // 0x8044809c
+void FGM_SychronousLoad(FGMTaskFunc do_tasks);                                // 0x80448220, spins until the queue drains
+int FGM_InitSEM(void *sem_file);                                              // 0x80444208, relocates the image in place and installs it
+void DoTasks(void);                                                           // 0x80059cfc
 void BGM_DecideMenuBGM();
 int BGM_GetMenuBGM();
 void BGM_PlayFile(char *filename, int volume, int pan, int stream_index);
@@ -717,6 +781,14 @@ int FGM_SetVolume(u32 sfxid, u8 volume);
 int FGM_SetPanning(u32 sfxid, u8 panning);
 void FGM_ResumeKind(int kind); //
 void FGM_PauseKind(int kind);  // pausing in-game pauses kinds 5,6,7,8
+// BGM slots 1 and 2 out and back, and every FGM kind in 4..62 out and back. The
+// legendary assembly cinematic brackets itself with all four.
+int BGM_PauseAll(void);        // 0x8005e6c8
+int BGM_ResumeAll(void);       // 0x8005e728
+void FGM_PauseAllKinds(void);  // 0x80061acc
+void FGM_ResumeAllKinds(void); // 0x80061b08
+// Ends both BGM slots and starts BGM_LEGENDARYAIRRIDEMACHINE with a fade.
+void BGM_PlayLegendaryTheme(void); // 0x8006215c
 void FGM_LoadInGameBanks();
 
 AudioEmitter AudioEmitter_Alloc(AudioEmitterKind kind, int idx); // 

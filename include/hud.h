@@ -138,4 +138,9 @@ void HUD_UpdateElement(JOBJ *j, int frame);
 HSD_Archive **Gm_GetIfAllCityArchive();   // IfAll1c, contains common city trial specific graphics (timer, ready, pause, etc)
 HSD_Archive **Gm_GetIfAllScreenArchive(); // IfAll1Xs, contains player related HUD that needs to be scaled down based on screen number
 
+// The pair Gm_SetCinematicFreezeStage toggles: removeHUD / drawHUD plus, when the
+// view count allows, the player dots, the minimap and three more elements.
+void HUD_HideForCinematic(void);   // 0x801129f8
+void HUD_ShowAfterCinematic(void); // 0x80112a78
+
 #endif
