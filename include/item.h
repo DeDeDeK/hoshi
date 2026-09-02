@@ -572,11 +572,14 @@ typedef struct ItemData
     int x21c;                   // 0x21c
     int x220;                   // 0x220
     int damage_processed;       // 0x224, "damage taken this frame" latch - cleared at end of CityItem_ApplyDamageFromHurtData (proc priority 10)
-    int x228;                   // 0x228
-    int effect_gfx_a;           // 0x22c, particle/GFX effect handle
+    float anim_start_frame;     // 0x228, frame the next CityItem_StateChange starts its animation on;
+                                //        cleared by CityItem_InitData, and the box family counts damaging
+                                //        hits into it so it doubles as the crack stage its texture shows
+    int efgroup;                // 0x22c, EfGroup bucket this item's effects spawn into
     int effect_gfx_b;           // 0x230, particle/GFX effect handle
     int x234;                   // 0x234
-    int effect_timer_a;         // 0x238, effect animation timer
+    int effect_timer_a;         // 0x238, effect animation timer; the high word of
+                                //        Box_SpawnImpactEffect's sign-extended return
     int effect_timer_b;         // 0x23c, effect animation timer
 
     int audio_source;           // 0x240, audio source ID, -1 = not allocated. Set by Item_AllocAudioSource
@@ -1404,7 +1407,41 @@ void Event_FakeItems_FillHurtParams(void *fake_data, void *hurt_params); // 0x80
 void CityItemSpawn_Create();                           // 0x800ec4cc. Creates item spawn system GObj
 void CityItemSpawn_Init();                             // 0x800ebf70. Initializes spawn parameters
 void CityItemSpawn_InitItemFallChances(int stadium_group); // 0x800eb374. Populates grBoxGeneObj spawn tables from item data
-void GrBoxGeneratorDetermine(int *box_color, int *box_size); // 0x800ebc04. Picks box color (BoxKind 0-2) and size (0-2) from weighted chance table
+int GrBoxGeneratorDetermine(int *box_color, int *box_size);  // 0x800ebc04. Picks box color (BoxKind 0-2) and size (0-2) from the weighted chance table, and returns the box's ItemKind (ITKIND_BOXBLUE + color)
+
+// The per-tick spawn preamble CityItemSpawn_Think runs before it picks a kind.
+// DetermineBoxPos rolls an unoccupied spawn slot: coll_kind 0 routes the position
+// through grLoadItemPosition, 1 through CityItemSpawn_DeterminePos, 2 means the
+// field is full and nothing spawns. spawn_style selects the descriptor's
+// is_airborne / coll_kind pair inside PowerUp_SpawnFromSky.
+void CityItemSpawn_DetermineBoxPos(int picked, int *out_coll_kind, int *out_area, int *out_spawn_style); // 0x800eab7c
+void CityItemSpawn_DeterminePos(int area, Vec3 *out_pos, Vec3 *out_forward, Vec3 *out_scratch, int *out_exist_index); // 0x800ec800
+void grLoadItemPosition(int area, Vec3 *out_pos, Vec3 *out_forward, Vec3 *out_scratch); // 0x800d10dc
+// Adds delta to grBoxGeneInfo.cur_num_items, and to total_spawn_count when positive.
+void CityItemSpawn_IncrementNum(int delta);            // 0x800ec57c
+// Bumps the per-area occupancy byte at grBoxGeneInfo + 0x4c + area, ground slots only.
+void CityItemSpawn_IncrementAreaCount(int area, int coll_kind); // 0x800ec600
+// Rolls the 2nd..4th item of a multi-item box from the subsequent-patch pool.
+ItemKind CityBox_DecideSubsequentPatch(ItemKind first_kind, int group); // 0x800eba70
+// Drops one item into the city from a spawn slot. box_color and box_size land in
+// ItemData +0x3c / +0x40; area and coll_kind in +0x34 / +0x38.
+GOBJ *PowerUp_SpawnFromSky(ItemKind kind, int box_color, int box_size, Vec3 *pos, Vec3 *forward, int area, int coll_kind, int spawn_style); // 0x800ecdf4
+
+// Rolls a broken box's contents into ItemData.child_gobjs[]. forced_item (+0x35c)
+// wins when set; otherwise the kind comes from the box color's pool and the count
+// (1 / 2 / 4) from box_size, but only for vanilla patch kinds 3..0x12.
+void Box_OutcomeLogic(ItemData *id);                   // 0x80250ae8
+// The box's hit / break particle burst: picks one of the six yakumono-bank effects
+// 50000..50005 from ItemData.kind and is_break, then Effect_SpawnSync's it onto joint
+// 1 in anchor mode 205. Returns the effect id, which the caller sign-extends into
+// ItemData.effect_timer_a/b; -1 selects nothing and returns 0.
+int Box_SpawnImpactEffect(GOBJ *gobj, int is_break);   // 0x80251f64
+// Spawns one item out of a breaking box: horiz is the scatter distance, angle the
+// launch pitch in radians (clamped to pi/2), dir the yaw-rotated forward vector,
+// and multi selects the vertical-spread variant.
+GOBJ *Box_SpawnContents(ItemKind kind, int spawn_type, Vec3 *pos, Vec3 *dir, int multi, float horiz, float angle); // 0x80253378
+// 1 if n more items fit under the field's simultaneous-item cap.
+int CityItem_CanSpawnNMore(int n);                     // 0x80252d40
 
 AudioEmitter Item_AllocAudioEmitter(int index);
 #endif
