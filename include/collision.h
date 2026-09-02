@@ -200,7 +200,9 @@ typedef struct CollData
     } *shape_data;
     float radius;                  // 0x344, collision sphere radius
     int param;                     // 0x348, mode/flag parameter from mpColl_Init
-    u8 flags;                      // 0x34c, bit 7 set by mpColl_SetFlag
+    u8 flags;                      // 0x34c, bit 2 = this collider may break scene objects
+                                   //        (mpColl_SceneObjBreakGate, 0x80241574), bit 7 set by
+                                   //        mpColl_SetFlag
     u8 x34d;                       // 0x34d
     u8 x34e;                       // 0x34e
     u8 x34f;                       // 0x34f
@@ -252,7 +254,8 @@ typedef struct CollData
 
 // Allocates CollData from the pool, links it into the global list and creates
 // its coll_info and shape_data.
-CollData *mpColl_Create(void);                    // 0x80245b4c
+CollData *mpColl_Create(GOBJ *owner);             // 0x80245b4c. Stores owner at +0x04; every
+                                                  // break-credit lookup resolves a player from it
 // Sets position, direction and scale, then inits the subsystems.
 void mpColl_Init(CollData *cd, int type, Vec3 *pos, Vec3 *dir, Vec3 *extents, int param, float radius, float f2); // 0x80245c10
 void mpColl_Reinit(CollData *cd, Vec3 *pos, Vec3 *dir); // 0x80245db0. Re-initializes with new position/direction
@@ -262,6 +265,11 @@ void mpColl_Update(CollData *cd, Vec3 *pos, Vec3 *dir, Vec3 *extents, int r7); /
 void mpColl_SetDefaultParams(CollData *cd);       // 0x802460d4. Sets default collision check parameters
 void mpColl_UpdateShapeExtents(CollData *cd, Vec3 *pos); // 0x8024625c. Updates shape extents from scale
 void mpColl_SetFlag(CollData *cd, int value);     // 0x80247e2c. Sets/clears bit 7 of flags byte at +0x34C
+// Sets/clears flags bit 2. With it set, the map sweep runs the yakumono break
+// dispatch for this collider, so it can break City Trial props; force is
+// CollData.radius (+0x344) x impactSpeed^2 against the prop's HP. Vanilla sets
+// it on machines only - mpColl_Create clears it.
+void mpColl_SetSceneObjBreak(CollData *cd, int enabled); // 0x80247e58
 CollData *mpColl_GetFirstCollObj(void);           // 0x802414d4. Returns head of global CollData linked list
 int mpColl_UpdateCollision(void);                 // 0x802485e0. Recursive pushback substep; records its contacts into coll_info
 

@@ -707,6 +707,15 @@ s32 DVDReadAbsAsyncPrio(
 );
 int DVDWaitForRead();
 int File_Read(int entrynum, int file_offset, void *buffer, int read_size, int flags, int unk_index, void (*cb)(int r3, void *arg), void *cb_arg2); // just use 0x21 for flags if dram, 0x23 if aram, 1 for unk_index
+// Completion callback for File_Read: sets *stc_file_read_done to 1, asserting first
+// that the read reported no error. Clear the flag before the read and spin on
+// File_Wait afterwards to turn File_Read into a blocking one - buffer and read_size
+// must be 32-byte aligned, file_offset a multiple of 32.
+void File_ReadDone(int r3, void *arg);
+// Pumps the file task queue (DoTasks) and returns *stc_file_read_done, so a
+// `while (File_Wait() == 0);` loop both drives and waits for an outstanding read.
+int File_Wait();
+static int *stc_file_read_done = (int *)0x805dd5a8;
 int File_CopyFromARAMToDRAM(int entrynum, int file_offset, void *buffer, int read_size, int flags, int unk_index);                                          // just use 0x21 for flags if dram, 0x23 if aram, 1 for unk_index
 // Reads the whole file into buffer, writes size to *out_size. ".dat" is appended ONLY when
 // file_name has no "_" or "." - a name containing either is taken verbatim (pass its full
@@ -759,6 +768,7 @@ int SIGetType(s32 chan);
 int SIGetResponse(s32 chan, void *out);
 void DCFlushRange(void *startAddr, u32 nBytes);
 void DCInvalidateRange(void *startAddr, u32 nBytes);
+void DCStoreRange(void *startAddr, u32 nBytes);
 void TRK_FlushCache(void *startAddr, u32 nBytes);
 // int memcmp(void *buf1, void *buf2, u32 nBytes);
 void blr();
