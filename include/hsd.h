@@ -363,6 +363,10 @@ int HSD_Randi(int max);
 float HSD_Randf();
 void *HSD_MemAlloc(int size);
 void HSD_Free(void *ptr);
+// 0x8005884c - the allocator Archive_LoadFile goes through. Heap 0 selects the HSD
+// heap and forwards to HSD_MemAlloc with that heap id made current, so it allocates
+// from the same per-scene storage a loaded archive does and is reclaimed with it.
+void *Heap_Alloc(int heap_id, int size);
 // What HSD_MemAlloc/HSD_Free dispatch to: OSAllocFromHeap / OSFreeToHeap against
 // HSD_GetHeapID(). Unusable before HSD_OSInit has made that heap - the id is -1
 // and the alloc asserts.

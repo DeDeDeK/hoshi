@@ -97,53 +97,64 @@ static const char *const MachineKind_Names[VCKIND_NUM] = {
     [VCKIND_WHEELVSDEDEDE]  = "VS Dedede Wheelie",
 };
 
-typedef struct vcStarCommonAttr
+// Per-machine handling block, authored at vcData+0x14 and copied by
+// Machine_CopyCommonAttributes into MachineAttrWork.handling. Both classes use
+// the same 0xf8 bytes; the star and bike controllers read different subsets, so
+// a field named for one class means nothing under the other.
+typedef struct vcHandlingAttr
 {
-    float x0;        // 0x0
-    float x4;        // 0x0
-    float x8;        // 0x0
-    float xc;        // 0x0
-    float x10;       // 0x0
-    float x14;       // 0x0
-    float x18;       // 0x0
-    float max_speed; // 0x1c
-    float x20;       // 0x0
-    float x24;       // 0x0
-    float x28;       // 0x0
-} vcStarCommonAttr;
+    float x000;             // 0x000
+    float lift_ceiling;     // 0x004, ceiling MachineData.lift_accum is clamped to; seeds lift_max
+    float accel_floor;      // 0x008, floor under the grounded per-frame accel, itself capped at
+                            //        top_speed_ground. 0 on Slick, 4.0 on Hydra
+    float accel_turn_keep;  // 0x00c, fraction of that accel still applied at full slip
+    float turn_rate_rest;   // 0x010, grounded yaw per stick unit at a standstill, radians/frame
+    float turn_rate_top;    // 0x014, ...and at top speed; Machine_RotateDuringCharge lerps the two
+                            //        on |velocity| / top_speed_current
+    float x018;             // 0x018
+    float x01c;             // 0x01c
+    float slip_penalty_deg; // 0x020, slip angle past which a turn is damped
+    float slip_penalty;     // 0x024, the damping factor, 0.2 on every machine
+    float x028[7];          // 0x028
+    float x044[5];          // 0x044, scaled together by five of the nine stats; no direct reader
+    float x058[5];          // 0x058
+    float x06c[10];         // 0x06c
+    float x094;             // 0x094, model pitch per unit of the machine's fore/aft measure
+    float lean_approach;    // 0x098, fraction of the way to the target lean taken per frame
+    float lean_step_max;    // 0x09c, per-frame lean step cap toward a nonzero target, degrees
+    float lean_step_max_0;  // 0x0a0, ...and toward a zero target
+    float pitch_max_down;   // 0x0a4, model pitch clamp, degrees
+    float pitch_max_up;     // 0x0a8, 36 on most stars, 1 on Formula, -20 on Dragoon
+    float roll_max;         // 0x0ac, model roll per unit of stick, degrees
+    float roll_scale;       // 0x0b0, extra roll multiplier on the second lean path
+    int x0b4;               // 0x0b4
+    float x0b8;             // 0x0b8
+    float air_accel;        // 0x0bc, airborne counterpart of accel_floor, capped at top_speed_air
+    float air_accel_fwd;    // 0x0c0, multiplier while the stick agrees with the heading
+    float air_accel_back;   // 0x0c4, ...and while it opposes it
+    float air_impulse;      // 0x0c8, scales the impulse a steep surface contact returns; 600 on
+                            //        Slick, 1800 on Flight Warp Star, 20 on Formula
+    float air_recover_len;  // 0x0cc, frames the post-airborne velocity blend runs over
+    float x0d0[4];          // 0x0d0
+    float x0e0[6];          // 0x0e0
+} vcHandlingAttr;           // 0x0f8
 
-typedef struct vcWheelCommonAttr
-{
-    float x0;  // 0x0
-    float x4;  // 0x0
-    float x8;  // 0x0
-    float xc;  // 0x0
-    float x10; // 0x0
-    float x14; // 0x0
-    float x18; // 0x18
-} vcWheelCommonAttr;
+_Static_assert(sizeof(vcHandlingAttr) == 0xf8, "vcHandlingAttr must be 0xf8 bytes");
 
-typedef struct vcWheelHandlingAttr
+// The live attribute block, allocated per machine by Machine_AllocAttrStruct and
+// reached through MachineData.attr. Machine_CopyCommonAttributes refills the two
+// copied halves - `common` from a per-class table indexed by MachineData.kind,
+// `handling` from the machine's own vcData->handling_attr - and
+// Machine_ApplyStarStatScaling then scales fields in place from the patch stats.
+typedef struct MachineAttrWork
 {
-    float x0;        // 0x0
-    float x4;        // 0x4
-    float x8;        // 0x8
-    float xc;        // 0xc
-    float x10;       // 0x10
-    float x14;       // 0x14
-    float x18;       // 0x18
-    float x1c;       // 0x1c
-    float x20;       // 0x20
-    float x24;       // 0x24
-    float x28;       // 0x28
-    float x2c;       // 0x2c
-    float x30;       // 0x30
-    float x34;       // 0x34
-    float x38;       // 0x38
-    float x3c;       // 0x3c
-    float x40;       // 0x40
-    float max_speed; // 0x40
-} vcWheelHandlingAttr;
+    u8 common[0xa8];         // 0x000, per-class, shared by every machine of the class.
+                             //        +0x1c is the class-wide speed cap accelerateStar clamps to
+    vcHandlingAttr handling; // 0x0a8
+    int x1a0;                // 0x1a0, past both copies; only zz_801e97a8_ reads it
+} MachineAttrWork;           // 0x1a4
+
+_Static_assert(sizeof(MachineAttrWork) == 0x1a4, "MachineAttrWork must be 0x1a4 bytes");
 
 typedef struct vcDataKindStar
 {
@@ -155,7 +166,7 @@ typedef struct vcDataKindStar
     {
         int x0;
     } *x4;
-    vcStarCommonAttr *attr; // 0x8
+    void *attr; // 0x8
 
 } vcDataKindStar;
 
@@ -258,7 +269,11 @@ typedef struct vcAttributes
     float hit_knockback;            // 0x038
     u8 x03c[0x048 - 0x03c];         // 0x03c
     float perfect_land_max_angle;   // 0x048
-    u8 x04c[0x06c - 0x04c];         // 0x04c
+    float x04c;                     // 0x04c
+    int charge_full_duration;       // 0x050, frames a full meter holds before auto-discharge;
+                                    //        360 on Slick, 1600 on Hydra
+    int charge_cooldown_duration;   // 0x054, frames the overcharge lockout runs
+    u8 x058[0x06c - 0x058];         // 0x058
     float base_hp;                  // 0x06c, seeds MachineData.hp_max
     float hitbox_size;              // 0x070
     float hitbox_dist_x;            // 0x074
@@ -271,36 +286,52 @@ typedef struct vcAttributes
     float slope_speed_down;         // 0x098
     float charge_rate;              // 0x09c
     float charge_rate_turning;      // 0x0a0
-    float charge_deplete_rate;      // 0x0a4
-    float boost_gain_none;          // 0x0a8, speed gained by an uncharged boost
-    float boost_gain_half;          // 0x0ac
-    float x0b0;                     // 0x0b0
-    float boost_gain_full;          // 0x0b4
-    u8 x0b8[0x0c4 - 0x0b8];         // 0x0b8
-    float boost_gain_third_quad;    // 0x0c4
-    u8 x0c8[0x0d8 - 0x0c8];         // 0x0c8
-    float boost_gain_any;           // 0x0d8
+    float charge_deplete_rate;      // 0x0a4, how fast a spent boost bleeds off; 0.00012 on Hydra,
+                                    //        whose boost is therefore near-permanent
+    float boost_gain[11];           // 0x0a8, speed a charge release is worth, sampled at
+                                    //        charge_display_value in tenths and lerped between
+                                    //        neighbours. Hydra's first eight entries are 0, which
+                                    //        is what makes it require a near-full charge
+    float boost_gain_spin;          // 0x0d4, the quick-spin release's own gain
+    float boost_gain_any;           // 0x0d8, flat multiplier on the sampled gain, 1.0 everywhere
     float boost_gain_sliding;       // 0x0dc
-    float turn_handling;            // 0x0e0
-    u8 x0e4[0x11c - 0x0e4];         // 0x0e4
+    float ground_grip;              // 0x0e0, how hard velocity is pulled onto the heading each
+                                    //        frame; seeds MachineData.ground_grip. 0.01 on Slick
+                                    //        Star, 0.233 on Warp Star, 0.8 on Compact Star
+    float ground_grip_2;            // 0x0e4
+    u8 x0e8[0x11c - 0x0e8];         // 0x0e8
     float landing_hitbox_size;      // 0x11c
     float landing_hitbox_dist_x;    // 0x120
     u8 x124[0x134 - 0x124];         // 0x124
     float quick_spin_tornado_size;  // 0x134
     float turn_speed_on_slope;      // 0x138
-    float takeoff_speed;            // 0x13c
-    u8 x140[0x14c - 0x140];         // 0x140
+    float takeoff_speed;            // 0x13c, pop off a lip; 3.0375 on Jet Star, ten times the norm
+    float x140;                     // 0x140, nonzero only on Jet Star and Turbo Star
+    float x144;                     // 0x144
+    float x148;                     // 0x148
     float top_speed_air;            // 0x14c, MachineData.top_speed_air before stat scaling
-    float air_turn_sharpness;       // 0x150
-    u8 x154[0x160 - 0x154];         // 0x154
+    float air_grip;                 // 0x150, ground_grip's airborne counterpart; seeds
+                                    //        MachineData.air_grip
+    u8 x154[0x15c - 0x154];         // 0x154
+    float x15c;                     // 0x15c, fall-speed tier, scaled by the glide and weight stats
     float full_charge_midair_speed; // 0x160
-    u8 x164[0x174 - 0x164];         // 0x164
+    float x164;                     // 0x164
+    float x168;                     // 0x168, fall-speed tier
+    float x16c;                     // 0x16c, fall-speed tier
+    float x170;                     // 0x170
     float glide_up_speed;           // 0x174
     float glide_up_amount;          // 0x178
     float glide_down_speed;         // 0x17c
     float glide_down_amount;        // 0x180
-    u8 x184[0x1f0 - 0x184];         // 0x184
+    u8 x184[0x190 - 0x184];         // 0x184
+    float descent_x190;             // 0x190, the four descent-rate terms a glider lowers together:
+    float descent_x194;             // 0x194, Flight Warp Star runs 1.5 / 0.4 / 0.38 / 0.015 where
+    float descent_x198;             // 0x198, Warp Star runs 1.8 / 0.45 / 0.45 / 0.02
+    float descent_x19c;             // 0x19c
+    u8 x1a0[0x1f0 - 0x1a0];         // 0x1a0
 } vcAttributes;                     // 0x1f0
+
+_Static_assert(sizeof(vcAttributes) == 0x1f0, "vcAttributes must be 0x1f0 bytes");
 
 // The DObj indices to draw at one LOD; the engine enables exactly these.
 typedef struct vcLODTable
@@ -372,7 +403,7 @@ typedef struct vcData
     void *unk_collision_group;          // 0x08
     void *coll_attr;                    // 0x0c, 0x38-byte analytic float table
     void *coll_sphere;                  // 0x10, 0x18
-    vcWheelHandlingAttr *handling_attr; // 0x14, 0xf8
+    vcHandlingAttr *handling_attr;      // 0x14, copied to MachineData.attr->handling
     vcAnimationStar *anim;              // 0x18, vcAnimationWheel on the bike class
 } vcData;
 
@@ -667,8 +698,10 @@ typedef struct MachineData
     int x378;                             // 0x378
     int x37c;                             // 0x37c
     int x380;                             // 0x380
-    int x384;                             // 0x384
-    int x388;                             // 0x388
+    float lift_accum;                     // 0x384, running vertical thrust, clamped to lift_max and
+                                          //        restored from it on every state entry
+    float lift_max;                       // 0x388, seeded by Machine_Star_Init from
+                                          //        attr->handling.lift_ceiling
     int x38c;                             // 0x38c
     int x390;                             // 0x390
     int x394;                             // 0x394
@@ -720,10 +753,12 @@ typedef struct MachineData
     int x454;                             // 0x454
     int x458;                             // 0x458
     int x45c;                             // 0x45c
-    int base_attributes;                  // 0x460, derived-attribute block: Machine_AdjustAttributes memcpy's
-                                          //        124 words from md->vcData->attr, so attr+k lands at +0x460+k,
-                                          //        then the per-stat scaling callbacks multiply fields in place.
-                                          //        The per-vehicle base stats, distinct from the patch arrays.
+    int base_attributes;                  // 0x460, first word of the 0x1f0 block Machine_AdjustAttributes
+                                          //        memcpy's out of md->vcData->attr, so vcAttributes
+                                          //        field k lands at +0x460+k and the named fields
+                                          //        through +0x64c below are that block. The per-stat
+                                          //        scaling callbacks then multiply fields in place.
+                                          //        Per-vehicle base stats, distinct from the patch arrays.
     int x464;                             // 0x464
     float model_scale_base;               // 0x468, intrinsic model scale of this vehicle. Per-machine size
                                           //        differences live here, so model_scale rests at 1.0.
@@ -850,17 +885,10 @@ typedef struct MachineData
     int x644;                             // 0x644
     int x648;                             // 0x648
     int x64c;                             // 0x64c
-    union                                 // 0x650
-    {                                     //
-        vcStarCommonAttr *star;           //
-        struct                            //
-        {                                 //
-            vcWheelCommonAttr common;     //
-            vcWheelHandlingAttr handling; //
-        } *wheel;                         //
-    } attr;                               //
+    MachineAttrWork *attr;                // 0x650, the live attribute block, allocated per machine
     int x654;                             // 0x654
-    int x658;                             // 0x658
+    int x658;                             // 0x658, per-class table of {min, max} multiplier pairs
+                                          //        Machine_ScaleFromRatio lerps a stat ratio across
     int x65c;                             // 0x65c
     HurtData *hurt_data;                  // 0x660, passed as first arg to Machine_ApplyHurt. Created by Machine_InitHurtData
     struct                                //
@@ -901,9 +929,14 @@ typedef struct MachineData
     int x6dc;                             // 0x6dc
     int x6e0;                             // 0x6e0
     int x6e4;                             // 0x6e4
-    int x6e8;                             // 0x6e8
-    int x6ec;                             // 0x6ec
-    int x6f0;                             // 0x6f0
+    float thrust;                         // 0x6e8, per-frame forward accel budget, rebuilt on every
+                                          //        state entry from the active top speed and
+                                          //        attr->handling.accel_floor / .air_accel
+    float ground_grip;                    // 0x6ec, seeded by Machine_Star_Init from
+                                          //        vcData->attr->ground_grip
+    float air_grip;                       // 0x6f0, ...and from vcData->attr->air_grip. Neither is
+                                          //        rewritten by Machine_AdjustAttributes, so a
+                                          //        mid-round attribute swap has to reseed both
     int x6f4;                             // 0x6f4
     CollData *coll_data;                  // 0x6f8, machine's mpColl CollData, created at spawn and queried each
                                           //        frame by Machine_ProcessEnvColl. Sphere radius lives at
@@ -1340,9 +1373,18 @@ void Machine_AddCharge(double rate, MachineData *md);   // 0x801ca334, used by S
 // Like Machine_AddCharge but also updates the charge-state flags at +0xc32; used
 // by rail-run and the wheelie ready push. f1 = rate, r3 = md.
 void Machine_AddChargeEx(double rate, MachineData *md); // 0x801cc378
-// Recalculates derived attributes from stats, dispatching per-vehicle through
-// vcDataCommon+0x1c (attribute memcpy) and +0x20 (the AdjustAttributes* pair).
+// Rebuilds every derived attribute from md->vcData and the patch stats: memcpys
+// vcData->attr over base_attributes, then dispatches per class through
+// vcDataCommon+0x1c (Machine_CopyCommonAttributes) and +0x20 (the
+// AdjustAttributes* pair, which apply the stat scaling). Safe to call mid-round -
+// Machine_GivePatch already does - but it does not touch the fields
+// Machine_Star_Init seeds once (ground_grip, air_grip, lift_max).
 void Machine_AdjustAttributes(MachineData *md); // 0x801c7278
+// Refills md->attr: `common` from a per-class table indexed by MachineData.kind,
+// `handling` from md->vcData->handling_attr.
+void Machine_CopyCommonAttributes(MachineData *md); // 0x801e812c
+// Allocates md->attr. Called once as a machine is created.
+void Machine_AllocAttrStruct(MachineData *md); // 0x801c71a8
 // Summed per-stat source contributions / Patch_GetMaxValue(), clamped to [0,1].
 float Machine_GetStatRatio(MachineData *md, int stat_idx);  // 0x801caa8c
 // The same ratio lerped across the per-stat min/max attribute pair, giving the
@@ -1363,6 +1405,28 @@ void Machine_AdjustAttributesBike(MachineData *md); // 0x801f4dac
 // suppress_attr_recalc for Wing Kirby and Compact respectively.
 void Machine_SetupModelWing(MachineData *md); // 0x801e7ad4, wing variants
 void Machine_SetupModelStar(MachineData *md); // 0x801f37d4, star variants
+
+// Star-class movement. UpdateThrust rebuilds MachineData.thrust on every state
+// entry from the active top speed and handling.accel_floor / .air_accel;
+// ApplyGroundThrust and ApplyAirThrust spend it into MachineData.accel, damped by
+// handling.accel_turn_keep and the air_accel_fwd / _back pair; ApplyGrip is what
+// drags velocity onto the heading, by ground_grip on the floor and air_grip off
+// it. Machine_RotateDuringCharge is the grounded steer for every state, not just
+// the charge: it lerps handling.turn_rate_rest to .turn_rate_top on
+// |velocity| / top_speed_current.
+void Machine_Star_UpdateThrust(MachineData *md);      // 0x801eb57c
+void Machine_Star_ApplyGroundThrust(MachineData *md); // 0x801ecae4
+void Machine_Star_ApplyAirThrust(MachineData *md);    // 0x801ed4d8
+void Machine_Star_ApplyGrip(MachineData *md);         // 0x801ebc90
+
+// Samples a table at `step` intervals with linear interpolation between
+// neighbours: i = (int)(x / step), lerp(t[i], t[i+1]). Machine_ApplyChargeBoost
+// calls it with step 0.1 over vcAttributes.boost_gain to turn a charge into a
+// speed gain.
+float LerpTable(double step, double x, const float *table); // 0x80062c4c
+// Spends a charge release: samples boost_gain at charge_display_value, scales by
+// boost_gain_any, and writes the boost velocity.
+int Machine_ApplyChargeBoost(MachineData *md, float *out_gain); // 0x801da3c0
 // The star class's spawn reset and per-frame update. Each ends by indexing a
 // 19-entry handler table - 0x804b15c0 for Init, 0x804b160c for Think - by the
 // class-relative MachineData.kind, with no bounds check. Only Hydra, Formula,
