@@ -2794,30 +2794,20 @@ typedef struct grBoxGeneInfo // r13 + 0x610
     int x240;                         // 0x240
     int x244;                         // 0x244
     int x248;                         // 0x248
-    int x24c;                         // 0x24c
-    int x250;                         // 0x250
-    int x254;                         // 0x254
-    int x258;                         // 0x258
-    int x25c;                         // 0x25c
-    int x260;                         // 0x260
-    int x264;                         // 0x264
-    int x268;                         // 0x268
-    int x26c;                         // 0x26c
-    int x270;                         // 0x270
-    int x274;                         // 0x274
-    int x278;                         // 0x278
-    int x27c;                         // 0x27c
-    int x280;                         // 0x280
-    int x284;                         // 0x284
-    int x288;                         // 0x288
-    int x28c;                         // 0x28c
+    // Ring of the slots the last 8 spawns used, written by CityItemSpawn_Think and
+    // read back by CityItemSpawn_DetermineBoxPos to avoid refilling one of them.
+    int recent_slot[8][2];            // 0x24c, [n] = { coll_kind, area }
+    int recent_slot_index;            // 0x28c, next entry to overwrite
     int timer_minutes;                // 0x290
     int timer_seconds_in_minute;      // 0x294
     int timer_subseconds;             // 0x298, out of 100
     int match_subseconds_left;        // 0x29c,
     int match_initial_subseconds;     // 0x2a0, initial time at the beginning of the game
     float match_progress;             // 0x2a4, goes from 0 -> 1
-    int flags_x2a8;                   // 0x2a8, 0x40 = is_match_intro
+    // Every engine read is an lbz of this one byte, so the masks are byte masks -
+    // declaring the field wider would put them in the wrong byte.
+    u8 flags_x2a8;                    // 0x2a8, 0x80 = spawner running, 0x40 = is_match_intro
+    u8 x2a9[3];                       // 0x2a9
     int x2ac;                         // 0x2ac
     int x2b0;                         // 0x2b0
     int x2b4;                         // 0x2b4
@@ -3095,6 +3085,11 @@ int TopRide_GetTimeAttackPlayerSlot(void);                               // 8003
 TopRideStats *TopRide_GetStats(void);                                    // 80287040, returns TopRideStats pointer (via gmGetClearcheckerType1_2Ptr)
 PlayerStats *Ply_GetItemCollectArray(int ply);                           // 8022d248, returns &stc_playerdata[ply].stat_record
 PlayerStats *Ply_GetStatRecordBase(int ply);                             // 8022d260, same base as Ply_GetItemCollectArray
+// Single producer of PlayerStats.item_collect[]. Called from one site, on the
+// common collect path inside Machine_OnTouchItem, with the instance kind already
+// clamped to its base kind. Also maintains the Tac aggregate (src_tag 4) and the
+// first-20-seconds aggregate (kind > 2).
+void Ply_IncrementItemCollectNum(int ply, ItemKind kind, int src_tag);   // 8022fbcc
 u8 Ply_GetYakumonoBreakCount(int ply, int desc_id);                      // 8022fccc, PlayerStats.yakumono_break[desc_id]; returns 0 outside desc_id 0x15..0x28
 
 // Top Ride Kirby (player) structs and globals live in topride.h.

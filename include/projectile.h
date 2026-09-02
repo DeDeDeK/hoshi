@@ -3,6 +3,9 @@
 
 #include "datatypes.h"
 #include "obj.h"
+#include "collision.h"
+
+#define PROJECTILE_GOBJ_KIND 23 // gobj->entity_class for every projectile GObj
 
 typedef struct RiderData RiderData;
 
@@ -231,7 +234,11 @@ typedef struct ProjectileData
     int            frame_counter;        // 0x110: monotonic, incremented by prio-0
     void          *effect_handle_a;      // 0x114: particle-effect handle (not an audio voice), freed in the dtor
     void          *effect_handle_b;      // 0x118: second particle-effect handle, freed alongside 0x114
-    u8             pad_11c[0x14c - 0x11c]; // 0x11c..0x14b
+    u8             pad_11c[0x138 - 0x11c]; // 0x11c..0x137
+    CollData      *coll_data;            // 0x138: environment collider, NULL when the kind has no
+                                         //        mpcoll_desc. Its sweep is what runs the yakumono
+                                         //        break dispatch, and its owner GObj is this projectile
+    u8             pad_13c[0x14c - 0x13c]; // 0x13c..0x14b
     float          charge;               // 0x14c: desc.charge copy
     void         (*state_fn0)(void *p);  // 0x150: copied from state entry by Projectile_SetState
     void         (*state_fn1)(void *p);  // 0x154
@@ -303,6 +310,12 @@ void Projectile_InitRuntimeState(void *proj); // 0x8021f2a0
 // Ends a projectile through its kind's despawn slot. The prio-1 proc calls it the
 // frame lifetime reaches zero.
 void Projectile_Despawn(void *proj); // 0x80220364
+
+// Runs one frame of environment collision on proj->coll_data: position update,
+// map sweep and pushback. Every kind whose state_fn2 does env collision calls it
+// first; a mod that replaces state_fn2 has to call it to keep the sweep - and
+// with it any scene-object break - running.
+void Projectile_UpdateEnvColl(void *proj); // 0x80221fd4
 
 // Rider-side spawn helpers used by copy abilities. All assert on the rider
 // having the matching ability hat model loaded. Position/forward/up come from

@@ -165,6 +165,7 @@ SECTIONS
   HSD_GetHeapID = 0x80410338;
   HSD_ImageDescCopyFromEFB = 0x803F7A7C;
   HSD_MemAlloc = 0x8041CEE4;
+  Heap_Alloc = 0x8005884C;
   HSD_MkRotationMtx = 0x80416FFC;
   HSD_MtxGetRotation = 0x80416048;
   HSD_MtxGetScale = 0x80416B24;
@@ -278,6 +279,8 @@ SECTIONS
   DVDClose = 0x803C5304;
   DVDReadAbsAsyncPrio = 0x803c554c;
   File_Read = 0x80446ACC;
+  File_ReadDone = 0x80058E1C;
+  File_Wait = 0x80058E60;
   File_CopyFromARAMToDRAM = 0x80059228;
   File_GetSize = 0x8005915C;
   Pad_GetDown = 0x8000ECF0;
@@ -361,6 +364,7 @@ SECTIONS
   TRK_FlushCache = 0x803BFFD8;
   DCInvalidateRange = 0x803d3ef8;
   DCFlushRange = 0x803d3f24;
+  DCStoreRange = 0x803d3f54;
   VECScale = 0x803D20E0;
   VECAdd = 0x803D2098;
   VECSubtract = 0x803D20BC;
@@ -618,6 +622,13 @@ SECTIONS
   CityItemSpawn_InitItemFallChances = 0x800eb374;
   GrBoxGeneratorDetermine = 0x800ebc04;
   CityItemSpawn_GetRandomItemID = 0x800eb7e4;
+  CityItemSpawn_DetermineBoxPos = 0x800eab7c;
+  CityItemSpawn_DeterminePos = 0x800ec800;
+  CityItemSpawn_IncrementNum = 0x800ec57c;
+  CityItemSpawn_IncrementAreaCount = 0x800ec600;
+  CityBox_DecideSubsequentPatch = 0x800eba70;
+  grLoadItemPosition = 0x800d10dc;
+  PowerUp_SpawnFromSky = 0x800ecdf4;
   Box_Break = 0x802582dc;
   Box_EnterSpawn = 0x80256ec0;
   Box_OnLandCallback = 0x80257020;
@@ -632,6 +643,8 @@ SECTIONS
   Machine_SetStatBlockClamped = 0x80194f64;
   Machine_UpdateAppearance = 0x801d6668;
   Machine_AdjustAttributes = 0x801c7278;
+  Machine_CopyCommonAttributes = 0x801e812c;
+  Machine_AllocAttrStruct = 0x801c71a8;
   Machine_IncrementCharge = 0x801cc480; /* per-frame charge accumulation from holding A (MachineData*): computes the turn-angle-interpolated charge rate, adds it to charge_value (+0x78c), sets the full-charge timer/SFX/glow at 1.0. Four call sites: MachinePhys_Charge @ 0x801ef424 and its sibling @ 0x801ef350 (generic grounded machines), plus the Wheel/wheelie vehicle callbacks @ 0x801fa1d4 and @ 0x801fa29c. */
   Machine_AddCharge = 0x801ca334;   /* explicit-rate charge accumulator (f1=rate, r3=MachineData*): adds rate to charge_value (+0x78c), clamps to max, fires full-charge FX. Reads only md+rate. Used by Star flight physics (glide charge), sole caller Star_Fly_3_HandleFlightPhysics @ 0x801efa6c. */
   Machine_AddChargeEx = 0x801cc378; /* like Machine_AddCharge (f1=rate, r3=MachineData*) but also updates charge-state flags at +0xc32. Used by rail-run / wheelie ready push; call sites @ 0x801eb968 (Star RailRunPush) and @ 0x801f5f30 (Wheel Ready/RailRunPush). */
@@ -829,6 +842,7 @@ SECTIONS
   Ply_GetStatAux = 0x8022d0cc;
   Ply_SetStatAux = 0x8022d128;
   Ply_GetItemCollectArray = 0x8022d248;  
+  Ply_IncrementItemCollectNum = 0x8022fbcc;
   Ply_GetStatRecordBase = 0x8022d260;    
   Ply_GetYakumonoBreakCount = 0x8022FCCC;
   Ply_GetCpuLevel = 0x8022d7b0;
@@ -1317,4 +1331,13 @@ SECTIONS
   HSD_HeapFree = 0x80410214;
   Machine_GetCKind = 0x8000b9f4;
   EventActor_GetParentAnimRate = 0x802049b8;
+  Box_SpawnImpactEffect = 0x80251f64;
+  Machine_Star_UpdateThrust = 0x801eb57c;
+  Machine_Star_ApplyGroundThrust = 0x801ecae4;
+  Machine_Star_ApplyAirThrust = 0x801ed4d8;
+  Machine_Star_ApplyGrip = 0x801ebc90;
+  Machine_ApplyChargeBoost = 0x801da3c0;
+  LerpTable = 0x80062c4c;
+  mpColl_SetSceneObjBreak = 0x80247e58;
+  Projectile_UpdateEnvColl = 0x80221fd4;
 }

@@ -20,7 +20,7 @@ typedef enum TextCmdOpcode
     TEXTCMD_LINEBREAK_REFLOW, // 0x04, 1 byte. LINEBREAK + sets reflow flag for next-frame re-entry.
     TEXTCMD_DELAY,            // 0x05, 3 bytes (u16 frames). Typewriter pause counter.
     TEXTCMD_TIMING,           // 0x06, 5 bytes: sets temp.char_delay then temp.space_delay
-    TEXTCMD_POS,              // 0x07, 5 bytes (s16 x_px, s16 y_lines). Subtext header.
+    TEXTCMD_POS,              // 0x07, 5 bytes (s16 x, s16 y), both pre-viewport_scale pixels. Subtext header.
     TEXTCMD_JUMP,             // 0x08, 5 bytes (s32 abs ptr). Absolute pointer jump (HSD-relocated).
     TEXTCMD_CALL,             // 0x09, 5 bytes (s32 abs ptr). Push return marker, jump absolute.
     TEXTCMD_POSPUSH,          // 0x0a, 5 bytes (s16 x, s16 y). Inline relative cursor push.
@@ -57,7 +57,7 @@ typedef enum TextAlignKind
 
 // Per-SIS-slot glyph bank, used at render time for character codes >= 0x4000.
 // Codes < 0x4000 use the master Latin bank baked into main.dol at 0x8050a040
-// (image, 256 * 0x200) and 0x80509dc0 (kerning, 256 * 2). Most SIS files leave
+// (image, 256 * 0x200) and 0x80509dc0 (kerning, 320 * 2). Most SIS files leave
 // these pointers null and rely entirely on the master bank; only SisSmmenu.dat
 // (Japanese kana) and a few icon-carrying files (SisClrChk*, SisSelply*) have
 // real per-slot glyph data.
@@ -303,6 +303,22 @@ static void Text_SetScale(Text *text, int idx, float x, float y)
     scale_cmd->x = x * 256;
     scale_cmd->y = y * 256;
 }
+// Rewrites a subtext's 0x07 POS header in place, so a subtext can be measured where it was
+// added and then moved. Coordinates are pre-viewport_scale units in the same space
+// Text_GetWidthAndHeight measures, with y increasing downward and one line spanning 32 units
+// at a character scale of 1.
+static void Text_SetSubtextPos(Text *text, int subtext_idx, int x, int y)
+{
+    u8 *pos = Text_GetSubtext(text->text_start, subtext_idx);
+
+    if (!pos || pos[0] != TEXTCMD_POS)
+        return;
+
+    pos[1] = (u8)((x >> 8) & 0xFF);
+    pos[2] = (u8)(x & 0xFF);
+    pos[3] = (u8)((y >> 8) & 0xFF);
+    pos[4] = (u8)(y & 0xFF);
+}
 static void Text_GetWidthAndHeight(Text *t, int subtext_idx, float *width, float *height)
 {
     // text_data must not start at the 0x07 opcode - pass &text->text_start[5].
@@ -468,7 +484,7 @@ static float Text_GetStringWidth(char *s, float scale)
     while (*s != '\0')
     {
         int character_cmd = Text_CharToCommand(*s);
-        int kerning_idx = character_cmd & 0xFF;
+        int kerning_idx = character_cmd - 0x2000;
         width += 32 - ((kerning_data[kerning_idx].x1 - 2) + kerning_data[kerning_idx].x0);
         s++;
     }
@@ -487,7 +503,6 @@ void Text_Destroy(Text *text);
 int Text_AddSubtext(Text *text, float xPos, float yPos, char *string, ...);
 void Text_SetScale(Text *text, int subtext, float x, float y);
 // void Text_SetColor(Text *text, int subtext, GXColor *color);
-void Text_SetPosition(Text *text, int subtext, float x, float y);
 void Text_SetText(Text *text, int subtext, char *string, ...);
 u8 *TextHeap_Alloc(int size);
 void TextHeap_Free(u8 *alloc);
