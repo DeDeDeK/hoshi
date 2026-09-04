@@ -236,6 +236,7 @@ typedef enum GrCollZoneKind
     GrCZK_SuperJumpApproach = 8,
     GrCZK_Jump        = 9,  // grGetJumpZoneParam
     GrCZK_Spin        = 10, // grGetSpinZoneParam, GrSpinZone_Num = 2
+    GrCZK_RandomAbility = 15, // ground copy panel; zz_80246f40_ -> Rider_GiveRandomAbility
     GrCZK_FreeMove    = 16,
     GrCZK_LocalDead   = 25, // grGetLocalDeadZoneParam
     GrCZK_Occlusion   = 26,
