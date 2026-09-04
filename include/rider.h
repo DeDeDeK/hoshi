@@ -601,7 +601,7 @@ typedef struct RiderData
     int patch_drop_count;      // 0x598, queued patch-item count for the per-frame drop consumer; written by Rider_DropPatches
     int patch_drop_mode;       // 0x59c, drop_mode from the last Rider_DropPatches call. Mode 1 negates the
                                //        velocity vector so drops land behind the rider; 0 and 2 land in front.
-    int x5a0;                  // 0x5a0
+    int drop_piece_kind;       // 0x5a0, ItemKind Rider_TickDropAllUp picked for the current throw; written and consumed inside one call
     int allups_dropped;        // 0x5a4, all-ups extracted by Rider_DropPatches, capped at the sum of the
                                //        Hydra and Dragoon collections
     int x5a8;                  // 0x5a8

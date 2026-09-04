@@ -842,6 +842,7 @@ SECTIONS
   Ply_GetStatAux = 0x8022d0cc;
   Ply_SetStatAux = 0x8022d128;
   Ply_GetItemCollectArray = 0x8022d248;  
+  Ply_DecrementItemCollectNum = 0x8022fb58;
   Ply_IncrementItemCollectNum = 0x8022fbcc;
   Ply_GetStatRecordBase = 0x8022d260;    
   Ply_GetYakumonoBreakCount = 0x8022FCCC;
@@ -1235,6 +1236,8 @@ SECTIONS
   AirRideSelect_Cursor1InputThink = 0x80023b68;
   AirRideSelect_LoadSisFile = 0x8013bacc;
   CitySelect_LoadSisFile = 0x8013c4a8;
+  CitySelect_GetColorAnimFrame = 0x80009630;
+  CitySelect_UpdatePlayer = 0x801354d4;
   AirRideSelect_SetMachineText = 0x80153d2c;
   CitySelect_SetMachineText = 0x8015e740;
   AirRideSelect_CreateMachineText = 0x8013bea0;
@@ -1340,4 +1343,7 @@ SECTIONS
   LerpTable = 0x80062c4c;
   mpColl_SetSceneObjBreak = 0x80247e58;
   Projectile_UpdateEnvColl = 0x80221fd4;
+  CitySelect_InitSelectData = 0x80038c40;
+  TopRide_UpdatePanel = 0x80134a0c;
+  TitleScreen_GetAutoDemoKind = 0x8000af94;
 }

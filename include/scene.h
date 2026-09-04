@@ -23,9 +23,9 @@ typedef enum MinorKind
     MNRKIND_4,                     //
     MNRKIND_CITYSETTINGS,          // City Trial Settings
     MNRKIND_AIRRIDEMAPSELECT,      //
-    MNRKIND_7,                     //
+    MNRKIND_TOPRIDECOURSESELECT,   // Top Ride course select
     MNRKIND_AIRRIDEPLYSELECT,      //
-    MNRKIND_9,                     //
+    MNRKIND_TOPRIDEPLYSELECT,      // Top Ride lobby / player select
     MNRKIND_CITYPLYSELECT,         // City Trial CSS
     MNRKIND_11,                    //
     MNRKIND_12,                    //
@@ -874,6 +874,16 @@ void _CitySelect_CreateScMenSelplySiconCt(s8 ckind, s8 index); // 0x8015c100
 void CitySelect_GetIconPos(s8 index, Vec3 *out);           // 0x8015badc
 void CitySelect_GetIconScale(Vec3 *out);                   // 0x8015ba88
 void CitySelect_CreateIPos(void);                          // 0x8015bbb8
+
+// Repainting one select panel after its color changes. Storing the color byte
+// alone does not redraw anything - the engine always pairs the store with the
+// matching update call, passing the panel's kind as the anim kind. City Trial
+// substitutes 5 for that kind when x1d0 is 2, the slot's x1d4 bit is clear and
+// ply_pkind is 4. The frame helper is shared by all three select screens despite
+// its City Trial name.
+s8 CitySelect_GetColorAnimFrame(s8 color);                   // 0x80009630
+void CitySelect_UpdatePlayer(s8 ply, s8 pkind, s8 frame);    // 0x801354d4
+void TopRide_UpdatePanel(s8 panel, s8 pkind, s8 frame);      // 0x80134a0c
 
 // Machine name and description under a select screen's cursor. Both screens load
 // their SIS file into slot 0 and turn a CharacterKind into a pair of text indices

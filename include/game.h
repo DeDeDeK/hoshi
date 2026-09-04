@@ -514,16 +514,27 @@ typedef enum CityClearKind
 // Struct Defintions //
 ///////////////////////
 
+// What the title major is currently showing, TitleScreenData.autodemo_state.
+// TitleScreen_MinorExit advances it: the title screen hands off to an attract round
+// or to a movie, and every one of those hands back to the title screen.
+typedef enum TitleAutoDemoState
+{
+    TITLEDEMO_TITLE,  // the title screen itself
+    TITLEDEMO_ROUND,  // an attract round, running as a minor of MJRKIND_TITLE
+    TITLEDEMO_MOVIE,  // an attract movie
+    TITLEDEMO_MOVIE2, // the second movie of a pair
+} TitleAutoDemoState;
+
 typedef struct TitleScreenData
 {
-    u8 state;      // 0xc
-    u8 xd;         // 0xd
-    u16 timer;     // 0xe
-    int x10;       // 0x10
-    u8 is_skip_op; // 0x14, bool to skip the opening movie when loading the title screen
-    u8 x15;        // 0x15
-    u8 x16;        // 0x16
-    u8 x17;        // 0x17
+    u8 state;          // 0xc
+    u8 xd;             // 0xd
+    u16 timer;         // 0xe
+    int x10;           // 0x10
+    u8 is_skip_op;     // 0x14, bool to skip the opening movie when loading the title screen
+    u8 autodemo_state; // 0x15, TitleAutoDemoState
+    u8 autodemo_prev;  // 0x16, autodemo_state as TitleScreen_MinorExit found it
+    u8 autodemo_slot;  // 0x17, rotating attract slot 0-3: 0 and 2 Air Ride, 1 City Trial, 3 Top Ride
 } TitleScreenData;
 
 typedef struct PlayerDesc
@@ -807,9 +818,10 @@ typedef struct GameData // 805359d8
         int x140;     // 0x140
         int x144;     // 0x144
         int x148;     // 0x148
-        int x14c;     // 0x14c
-        int x150;     // 0x150
-        int x154;     // 0x154
+        u8 x14c[3];   // 0x14c
+        u8 slot_kind[4]; // 0x14f, per-slot CSS state: 0 = active human, 2 = CPU, 3 = inactive.
+                         //        Same encoding as city_select_ply.x215
+        u8 x153[5];   // 0x153
         u8 x158;      // 0x158
         u8 x159;      // 0x159
         u8 x15a;      // 0x15a
@@ -2801,8 +2813,8 @@ typedef struct grBoxGeneInfo // r13 + 0x610
     int timer_minutes;                // 0x290
     int timer_seconds_in_minute;      // 0x294
     int timer_subseconds;             // 0x298, out of 100
-    int match_subseconds_left;        // 0x29c,
-    int match_initial_subseconds;     // 0x2a0, initial time at the beginning of the game
+    int match_frames_left;            // 0x29c, rebuilt each frame in CityItemSpawn_UpdateAndCheckToSpawn as (min * 60 + sec) * 60 + subseconds * 0.6
+    int match_initial_frames;         // 0x2a0, initial time at the beginning of the game, same unit
     float match_progress;             // 0x2a4, goes from 0 -> 1
     // Every engine read is an lbz of this one byte, so the masks are byte masks -
     // declaring the field wider would put them in the wrong byte.
@@ -2901,6 +2913,18 @@ void Gm_ShowHUD();
 
 int Gm_IsInCity();
 int CityTrial_IsInStadium();  // 0x8000ad48, checks if city_kind is a stadium (7-18)
+u8 TitleScreen_GetAutoDemoKind();  // 0x8000af94, TitleScreenData.autodemo_slot
+
+// True while the title screen's attract demo is playing a round. That round is a
+// real 3D game - City Trial, Air Ride or Top Ride, with a CPU in every slot and no
+// human - set up by TitleScreen_MinorExit and run as a minor of MJRKIND_TITLE, so
+// every mode and stage predicate answers exactly as it does for a round the player
+// started.
+static inline int Gm_IsAutoDemo()
+{
+    return Scene_GetCurrentMajor() == MJRKIND_TITLE &&
+           TitleScreen_GetData()->autodemo_state == TITLEDEMO_ROUND;
+}
 
 GmIntroState Gm_GetIntroState();
 CityMode Gm_GetCityMode();
@@ -3090,6 +3114,10 @@ PlayerStats *Ply_GetStatRecordBase(int ply);                             // 8022
 // clamped to its base kind. Also maintains the Tac aggregate (src_tag 4) and the
 // first-20-seconds aggregate (kind > 2).
 void Ply_IncrementItemCollectNum(int ply, ItemKind kind, int src_tag);   // 8022fbcc
+// Drop-side partner of the above, called by Rider_TickDropAllUp and Rider_SpawnDropPatchSeq
+// after a successful throw. Guards ply < 5 and kind != -1 but NOT the upper bound, so a kind
+// past item_collect[0x45] writes off the end of PlayerStats.
+void Ply_DecrementItemCollectNum(int ply, ItemKind kind);                // 8022fb58
 u8 Ply_GetYakumonoBreakCount(int ply, int desc_id);                      // 8022fccc, PlayerStats.yakumono_break[desc_id]; returns 0 outside desc_id 0x15..0x28
 
 // Top Ride Kirby (player) structs and globals live in topride.h.
@@ -3141,8 +3169,8 @@ void Gm_LoadGroundFGMBank(GroundKind gr_kind); //
 void LegendaryPieces_Init();                                               // 800ecfac, initializes piece spawn data for City Trial
 int CityItemSpawn_CheckToSpawnLegendaryPiece(float match_progress);        // 800ed2f0, checks if a piece should spawn based on match progress
 void CityItemSpawn_SpawnLegendaryPiece(int spawner, int param_2, int param_3); // 800ed384, spawns the next legendary piece
-void LegendaryPiece_MarkAsSpawned(int spawner, int item_kind);             // 80252f10, marks the item to spawn as a legendary piece
-void LegendaryPiece_ClearSpawnRequest(int spawner);                        // 80252e74, clears pending spawn flag after piece spawns
+void LegendaryPiece_MarkAsSpawned(int spawner, int item_kind);             // 80252f10, writes item_kind into the carrier box's ItemData.forced_item; no-op unless the GObj is a box (item_category == 0)
+void LegendaryPiece_ClearSpawnRequest(int spawner);                        // 80252e74, sets the carrier box's ItemData.lifetime to -1. CityItem_LifetimeThink only decrements a positive lifetime and expires at exactly 0, so the box never expires
 int Ply_GetDragoonCollection(int ply);                                     // 8022cdc8, returns count of dragoon pieces collected (0-3)
 void Ply_UpdateDragoonCollection(int ply, int piece_bits);                  // 8022cd64, OR's piece_bits into dragoon collection flags
 int Ply_GetHydraCollection(int ply);                                       // 8022cd04, returns count of hydra pieces collected (0-3)
