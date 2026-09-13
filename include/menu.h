@@ -131,9 +131,9 @@ static SoundTestDesc *stc_soundtest_desc = (SoundTestDesc *)0x80496458; // 62 of
 GOBJ *MenuElement_Create(JOBJDesc *jobjdesc);
 MenuElementData *MenuElement_AddData(GOBJ *menu_element_gobj, int element_kind);
 
-CharacterKind SelIcon_GetCKind(int row_idx, int col_idx);
+CharacterKind SelIcon_GetCKind(int row_idx, int col_idx); // 0x8000b9bc, the grid
 CharacterKind SelIcon_GetCKindLinear(int idx); // 0x8000b9a8, the single-row strip
-CharacterDesc *Character_GetDesc(CharacterKind ckind);
+CharacterDesc *Character_GetDesc(CharacterKind ckind); // 0x8000b9dc
 
 // The reverse of CharacterDesc_GetMachineKind, over two byte tables: stars at
 // 0x80495850 (19 entries) and bikes at r13 - 0x7fbc (7). The results screens and

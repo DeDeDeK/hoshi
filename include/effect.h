@@ -17,7 +17,7 @@
 // efModelData symbol.
 struct EffectModelDesc
 {
-    JOBJDesc *jointdesc;    // 0x00 model joint template (-> HSD_JObjLoadJoint)
+    JOBJDesc *jointdesc;    // 0x00 model joint template (-> JObj_LoadJoint)
     void    **anim_set0;    // 0x04 NULL-terminated anim-tree array, or NULL
     void    **anim_set1;    // 0x08 second anim-tree array, or NULL
     void     *anim_set2;    // 0x0c shape-anim set (NULL in EfCommon)

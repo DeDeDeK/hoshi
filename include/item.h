@@ -235,6 +235,46 @@ static const char *const PatchKind_Names[PATCHKIND_NUM] = {
     [PATCHKIND_HP]       = "HP",
 };
 
+// The PatchKind an ItemKind belongs to, counting its up, down and fake variants;
+// -1 for anything that is not a stat patch. HP has no down or fake variant.
+static inline int Item_KindToPatchKind(ItemKind it_kind)
+{
+    switch (it_kind)
+    {
+        case ITKIND_WEIGHT:   case ITKIND_WEIGHTDOWN:   case ITKIND_WEIGHTFAKE:   return PATCHKIND_WEIGHT;
+        case ITKIND_ACCEL:    case ITKIND_ACCELDOWN:    case ITKIND_ACCELFAKE:    return PATCHKIND_ACCEL;
+        case ITKIND_TOPSPEED: case ITKIND_TOPSPEEDDOWN: case ITKIND_TOPSPEEDFAKE: return PATCHKIND_TOPSPEED;
+        case ITKIND_TURN:     case ITKIND_TURNDOWN:     case ITKIND_TURNFAKE:     return PATCHKIND_TURN;
+        case ITKIND_CHARGE:   case ITKIND_CHARGEDOWN:   case ITKIND_CHARGEFAKE:   return PATCHKIND_CHARGE;
+        case ITKIND_GLIDE:    case ITKIND_GLIDEDOWN:    case ITKIND_GLIDEFAKE:    return PATCHKIND_GLIDE;
+        case ITKIND_OFFENSE:  case ITKIND_OFFENSEDOWN:  case ITKIND_OFFENSEFAKE:  return PATCHKIND_OFFENSE;
+        case ITKIND_DEFENSE:  case ITKIND_DEFENSEDOWN:  case ITKIND_DEFENSEFAKE:  return PATCHKIND_DEFENSE;
+        case ITKIND_HP:       return PATCHKIND_HP;
+        default:              return -1;
+    }
+}
+
+// The kinds that raise a machine's stats: the nine up patches plus All-Up.
+static inline int Item_IsStatUpKind(ItemKind it_kind)
+{
+    switch (it_kind)
+    {
+        case ITKIND_WEIGHT:
+        case ITKIND_ACCEL:
+        case ITKIND_TOPSPEED:
+        case ITKIND_TURN:
+        case ITKIND_CHARGE:
+        case ITKIND_GLIDE:
+        case ITKIND_OFFENSE:
+        case ITKIND_DEFENSE:
+        case ITKIND_HP:
+        case ITKIND_ALLUP:
+            return 1;
+        default:
+            return 0;
+    }
+}
+
 // Per-kind static effect-info: list of stat changes a patch grants on pickup.
 // NULL for non-patch items. The `group` field here (BAD/GOOD/FAKE) is the
 // authoritative ItemGroup for the kind - not the dead mirror at ItemCommonAttr.x24.
@@ -309,18 +349,20 @@ typedef struct ItemAnimEntry
     u32 flags;                  // 0x0c, bit 30 loops the AObjs, bit 29 accumulates wrap overflow
 } ItemAnimEntry;
 
+typedef struct ItemModelDesc
+{
+    JOBJ *j;                    // 0x00, model root
+    u32 flag;                   // 0x04, render flag (0x02000000 flat panels; 0x03/0x05/0x0b000000 legendary/skinned pieces)
+    int parts[3];               // 0x08, per-group "item parts" counts; Item_InitPartsModel
+                                //       (0x80252824, reached from CityItem_Create) asserts each <= 11
+                                //       ("item parts model num over!"). Zero for every vanilla kind.
+} ItemModelDesc;
+
 typedef struct itData
 {
     ItemCommonAttr *attr;       // 0x0
     ItemUniqueAttr *unique_attr; // 0x4, per-kind tail data - only the box family is structured
-    struct
-    {
-        JOBJ *j;                // 0x00, model root
-        u32 flag;               // 0x04, render flag (0x02000000 flat panels; 0x03/0x05/0x0b000000 legendary/skinned pieces)
-        int parts[3];           // 0x08, per-group "item parts" counts; Item_InitPartsModel
-                                //       (0x80252824, reached from Item_Create) asserts each <= 11
-                                //       ("item parts model num over!"). Zero for every vanilla kind.
-    } *model;                   // 0x8
+    ItemModelDesc *model;       // 0x8
     ItemAnimEntry *anim_data;   // 0xc, indexed by the state's anim_index
     struct
     {
@@ -370,7 +412,7 @@ typedef struct ItemCommonParam
     float box_spawn_offset_max_h;  // 0x34, horizontal scatter range max
     float box_spawn_offset_min_v;  // 0x38, vertical scatter range min (all-up multi-spawn)
     float box_spawn_offset_max_v;  // 0x3c, vertical scatter range max
-    float box_spawn_yaw_range;     // 0x40, max yaw rotation (passed to fctiwz -> HSD_Randi -> RotateVecAroundAxis)
+    float box_spawn_yaw_range;     // 0x40, max yaw rotation (passed to fctiwz -> HSD_Randi -> Vec3_RotateAboutUnitAxis)
     float gravity;                 // 0x44, downward acceleration applied to falling items
     float terminal_fall_speed;     // 0x48, max fall speed enforced via Item_LimitFallSpeed
     float bounce_tangential_damping;  // 0x4c, friction along surface during bounce
@@ -550,7 +592,7 @@ typedef struct ItemData
     //   1  = airborne (falling, tossed, bouncing) - Item_SetAirborne
     //   0  = resting on a surface - Item_ClearAirborne, written at every land transition
     //   -1 = airborne with the ground raycast suppressed; the envcoll callbacks return early
-    // The only reliable "is this item on the ground" test (x35a bit 4 is not - see below).
+    // The only reliable "is this item on the ground" test (ITEM_X35A_GROUNDED is not).
     int is_airborne;            // 0x1d4
     int x1d8;                   // 0x1d8, collision temp data (cleared as 3-word block)
     int x1dc;                   // 0x1dc
@@ -583,9 +625,9 @@ typedef struct ItemData
     int effect_timer_b;         // 0x23c, effect animation timer
 
     int audio_source;           // 0x240, audio source ID, -1 = not allocated. Set by Item_AllocAudioSource
-    int audio_track;            // 0x244, audio track ID. Set by CityItem_AllocAudioTrack
-    int audio_timer;            // 0x248, per-frame countdown paired with x35a bit 6; at 0 the pickup-lock
-                                //        bit is cleared and the audio freed
+    int audio_track;            // 0x244, audio track ID. Set by AudioTrack_Alloc
+    int audio_timer;            // 0x248, per-frame countdown paired with ITEM_X35A_PICKUP_BUSY; at 0 the
+                                //        pickup-lock bit is cleared and the audio freed
     int bounce_num;             // 0x24c, incremented when bouncing @ 80255a70
 
     TriggerData trigger;        // 0x250, item pickup/touch collision
@@ -644,17 +686,7 @@ typedef struct ItemData
     u8 x359_hi : 3;             // 0x359, 0xE0
     u8 coll_kind : 3;           // 0x359, 0x1C, collision kind from ItemDesc
     u8 x359_lo : 2;             // 0x359, 0x03
-    // x35a bits:
-    //   bit 0 (0x01) = spawned-from-sky (set by CityItem_MarkAsSkySpawned, used by power-up handlers)
-    //   bit 4 (0x10) = ground reference acquired (Item_SetGroundedFlag). Set the first time
-    //                  the envcoll raycast finds ground under the item, which for a sky drop
-    //                  is its first frame while still hundreds of units up, and never cleared
-    //                  afterwards. NOT a "resting on the ground" test - use is_airborne.
-    //   bit 5 (0x20) = persistent pickup-lock - "this is a box, never collectible" (set by box init)
-    //   bit 6 (0x40) = temporary pickup-lock - spawn-anim or audio busy (paired with audio_timer)
-    //   bit 7 (0x80) = cleared on every state change; gates trigger/coll debug overlay in Item_GX
-    // CityItem_CanCollect returns 1 iff bits 5 AND 6 are both clear.
-    u8 x35a;                    // 0x35a
+    u8 flags_x35a;              // 0x35a, see ITEM_X35A_*
     // x35b bits:
     //   bit 5 (0x20) = model_hidden (mirrors JOBJ_HIDDEN on the rendered jobj)
     //   bit 6 (0x40) = caller-supplied init flag from ItemDesc (purpose unclear)
@@ -1189,6 +1221,16 @@ typedef struct ItemData
     int xb60;                   // 0xb60
 } ItemData;
 
+// ItemData.flags_x35a bits.
+#define ITEM_X35A_SKY_SPAWNED  0x01  // set by CityItem_MarkAsSkySpawned, read by the power-up handlers
+// Set the first time the envcoll raycast finds ground under the item, and never cleared.
+// On a sky drop that is its first frame, hundreds of units up, so this is NOT a
+// "resting on the ground" test - use ItemData.is_airborne for that.
+#define ITEM_X35A_GROUNDED     0x10
+#define ITEM_X35A_PICKUP_LOCK  0x20  // persistent: "this is a box, never collectible" (set by box init)
+#define ITEM_X35A_PICKUP_BUSY  0x40  // temporary: spawn-anim or audio busy (paired with audio_timer)
+#define ITEM_X35A_DEBUG_DRAW   0x80  // cleared on every state change; gates the trigger/coll overlay in Item_GX
+
 // City Trial event-mode flag bits (CityItemMgr.flags). Each bit has paired
 // set/clear functions at 0x80254144..0x802542C0; setters are called from the
 // matching event_*_start handler and clearers from the corresponding _end.
@@ -1206,7 +1248,7 @@ typedef enum CityEventSpawnFlag
 // lifetime spawn counter, per-event flag word, and locator/fake-event payloads.
 typedef struct CityItemMgr
 {
-    s32 live_item_count;        // 0x000  ++ in CityItem_Create, -- on destruction (cap = 100)
+    s32 live_item_count;        // 0x000  ++ in CityItem_Create, -- on destruction. Create proceeds while <= 100, so up to 101 live
     s32 lifetime_spawn_count;   // 0x004  ++ only, read by City_GetItemSpawnNumber
     u8 _scaffold[0x1A4];        // 0x008  5 x 84-byte structures, each a doubly-linked chain of four
                                 //         16-byte chunks plus a self-ptr at +0x40 and 16 reserved
@@ -1325,12 +1367,12 @@ void TopRide_KirbyApplyItem(TopRideKirby *kirby, int item_kind); // 0x802d8cb4
 
 // box_kind: -1 sky, 0-2 box color. group: -1 all, 0 bad, 1 good.
 // spawn_flags: 0x2 patch, 0x4 box.
-ItemKind Gm_GetRandomItem(BoxKind box_kind, ItemGroup group, int spawn_flags); // 0x800eb7e4
+ItemKind CityItemSpawn_GetRandomItemID(BoxKind box_kind, ItemGroup group, int spawn_flags); // 0x800eb7e4
 // Creates a City Trial item GObj, allocates ItemData and initializes every
 // subsystem. desc->kind must be -1 or below ITKIND_NUM or it asserts; the bound
 // check is the `cmpwi r4,69` at 0x8024efb4, so custom kinds need that immediate
 // patched higher. Top Ride uses TopRideItem_Create (0x8034ad08) instead.
-GOBJ *Item_Create(ItemDesc *desc);                    // 0x8024eef4
+GOBJ *CityItem_Create(ItemDesc *desc);                // 0x8024eef4
 // spawn_type defaults to 0, up/forward may be NULL, and x40/x44/x38/x3c are
 // usually -1. is_airborne -1 skips the ground raycast. coll_kind: 3 = point
 // collision (most items), 1 = alloc CollData, 0 = requires one (dangerous).
@@ -1345,31 +1387,38 @@ int CityItem_IsGoodPatch(ItemKind kind);              // 0x802540a8. Returns 1 i
 // Fills hurt_params when CTEVF_FAKEITEMS is active; returns whether it was.
 int CityItem_ProcessFakeItem(GOBJ *item_gobj, void *hurt_params); // 0x802542dc
 void CityItem_CopyCommonAttr(GOBJ *item_gobj);        // 0x80251294. Copies ItemCommonAttr fields to ItemData (0x118-0x140), then calls per-kind init
-void CityItem_BindStateAnim(GOBJ *item_gobj);         // 0x80251894. HSD_JObjAddAnimAll of ItemData.current_anim's joint/mat animation onto the model
+void CityItem_BindStateAnim(GOBJ *item_gobj);         // 0x80251894. JObj_AddAnimAll of ItemData.current_anim's joint/mat animation onto the model
 
 // Two distinct per-kind lookups, often conflated:
 //
 // 1. Threshold "category" (0..24, stored to ItemData+0x24). CityItem_InitData
-//    (0x8024eaf4) and CityItem_GetUnkKindFromItemKind map a kind to the index of
-//    the first threshold >= kind in a 25-entry ascending table at 0x804b5f18:
-//      thresholds = {2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,26,27,38,50,54,57,60,68}
-//    kind > 68 yields -1. Callers of the helper only test this for nonzero (a
-//    "real placeable kind" guard); it does NOT index the state table below.
+//    (0x8024eaf4) and CityItem_GetUnkKindFromItemKind scan stc_item_threshold
+//    for the first entry >= the kind and store that entry's index. The scan is a
+//    linear value search, not an index, so an out-of-range kind falls off the
+//    end and yields -1 rather than reading past the table. Callers of the helper
+//    only test this for nonzero (a "real placeable kind" guard).
 //
-// 2. State-handler pointer table at 0x804b6088 - a 69-entry array indexed by the
-//    raw ItemKind (ItemData+0x1c), terminated by the "ItCommon.dat" string at
-//    entry 69. CityItem_InitData (0x8024ec74) and CityItem_Create (0x8024f12c,
-//    0x8024f330) read tbl[kind] for the per-kind state fn pointers. A kind >= 69
-//    indexes past the table (the bound at CityItem_Create 0x8024efb4 stops kinds
-//    >= 69 first). To give a synthetic kind valid state behavior, rewrite the
-//    instance's ItemData+0x1c to an in-range base kind after InitData writes it.
+// 2. Per-kind state descriptors, stc_item_state_tbl, indexed by the raw ItemKind
+//    at ItemData+0x1c. CityItem_InitData (0x8024ec74) and CityItem_Create
+//    (0x8024f12c, 0x8024f330) read tbl[kind] for the state fn pointers. A kind
+//    >= ITKIND_NUM indexes past the table (the bound at CityItem_Create
+//    0x8024efb4 stops those first). To give a synthetic kind valid state
+//    behavior, rewrite the instance's ItemData+0x1c to an in-range base kind
+//    after InitData writes it.
+// Ascending, 25 entries: {2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,26,27,38,
+// 50,54,57,60,68}.
+static s32 *stc_item_threshold = (s32 *)0x804b5f18;
+#define ITEM_THRESHOLD_NUM 25
+// ITKIND_NUM entries of 0x58 bytes each, terminated by the "ItCommon.dat"
+// string at entry ITKIND_NUM.
+static void **stc_item_state_tbl = (void **)0x804b6088;
 // Threshold category for a kind, -1 out of range; callers only test for nonzero.
 ItemKind CityItem_GetUnkKindFromItemKind(ItemKind kind); // 0x8024ea54
-int CityItem_CanCollect(GOBJ *item_gobj);             // 0x80252df0. Returns 1 iff bits 5 and 6 of ItemData.x35a are both clear
+int CityItem_CanCollect(GOBJ *item_gobj);             // 0x80252df0. Returns 1 iff ITEM_X35A_PICKUP_LOCK and ITEM_X35A_PICKUP_BUSY are both clear
 void CityItem_ResetQueuedVelocity(ItemData *id);      // 0x80250340. Zeros both accel and vel vectors
 void Item_ClearAirborne(ItemData *id);                // 0x80254ccc. is_airborne = 0 (landed)
 void Item_SetAirborne(ItemData *id);                  // 0x80254cd8. is_airborne = 1 (falling/tossed)
-void Item_SetGroundedFlag(ItemData *id);              // 0x802557a8. Sets x35a bit 4 (ground reference acquired)
+void Item_SetGroundedFlag(ItemData *id);              // 0x802557a8. Sets ITEM_X35A_GROUNDED
 void CityItem_EnterExpire(GOBJ *gobj);                // 0x8025611c. Transitions item to expire/flicker state
 void CityItem_EnterFall(GOBJ *gobj);                  // 0x802578c8. Transitions item to falling state
 // Ejects a patch from a box on machine touch, picking the good or bad toss
@@ -1397,9 +1446,7 @@ void Box_OnLandCallback(GOBJ *gobj);                   // 0x80257020. Called whe
 int Patch_GetEffectData(ItemData *id, void *out_entries); // 0x80252e90
 int Patch_GetMaxValue();                               // 0x8000aaf0. Returns max patch stat value from gmGameParams
 int Patch_GetMinValue();                               // 0x8000ab1c. Returns min patch stat value from gmGameParams
-int Patch_GetPlySavedValue();                          // 0x8000ab48
 
-void *CityEvent_GetFakeItemData(void *event_struct);   // 0x800ee73c, fake item data for the current event
 // Picks a random entry from fake_data ({entries_ptr, count}, 0x14 bytes each) and
 // fills the 0x34-byte hurt_params with its damage/knockback values.
 void Event_FakeItems_FillHurtParams(void *fake_data, void *hurt_params); // 0x80111a60

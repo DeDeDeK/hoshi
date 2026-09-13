@@ -493,6 +493,27 @@ typedef enum GXAttnFn
 
 } GXAttnFn;
 
+// Angular falloff of a POINT/SPOT LOBJ (_HSD_LightPointDesc.point_func).
+typedef enum GXSpotFn
+{
+    GX_SP_OFF = 0,  // omnidirectional
+    GX_SP_FLAT,
+    GX_SP_COS,
+    GX_SP_COS2,
+    GX_SP_SHARP,
+    GX_SP_RING1,
+    GX_SP_RING2,
+} GXSpotFn;
+
+// Distance falloff of a POINT/SPOT LOBJ (_HSD_LightPointDesc.dist_func).
+typedef enum GXDistAttnFn
+{
+    GX_DA_OFF = 0,
+    GX_DA_GENTLE,
+    GX_DA_MEDIUM,
+    GX_DA_STEEP,
+} GXDistAttnFn;
+
 typedef enum GXAlphaReadMode
 {
     GX_READ_00,
@@ -589,7 +610,6 @@ struct VIUnknown
 static volatile GXPipe *gx_pipe = (GXPipe *)0xCC008000;
 static VIUnknown *_p = (VIUnknown *)0x804c0980;
 
-void GXSetColor(GXColor *color);
 void GXSetZMode(GXBool compare_enable, GXCompare func, GXBool update_enable);
 void GXSetLineWidth(u8 width, int tex_offsets);
 void GXBegin(GXPrimitive type, GXVtxFmt vtxfmt, u16 nverts);
@@ -637,10 +657,10 @@ u32 GXGetTexBufferSize(u16 width, u16 height, u32 format, GXBool mipmap, u8 max_
 void GXSetTexCoordGen2(GXTexCoordID dst_coord, GXTexGenType func, GXTexGenSrc src_param, u32 mtx, GXBool normalize, u32 postmtx);
 void GXSetViewport(f32 xOrig, f32 yOrig, f32 wd, f32 ht, f32 nearZ, f32 farZ);
 void GXSetDispCopyGamma(GXGamma gamma);
-void GXSetCopyClear(GXColor clear_clr, u32 clear_z);               // 8033d8a0
-void GXCopyTex(void *dest, GXBool clear);                          // 8033dcbc
-void GXSetTexCopySrc(u16 left, u16 top, u16 wd, u16 ht);           // 8033d4c8
-void GXSetTexCopyDst(u16 wd, u16 ht, GXTexFmt fmt, GXBool mipmap); // 8033d5cc
+void GXSetCopyClear(GXColor clear_clr, u32 clear_z);             // 0x803cc9cc
+void GXCopyTex(void *dest, GXBool clear);                        // 0x803ccdd4
+void GXSetTexCopySrc(u16 left, u16 top, u16 wd, u16 ht);         // 0x803cc654
+void GXSetTexCopyDst(u16 wd, u16 ht, GXTexFmt fmt, GXBool mipmap); // 0x803cc720
 void GXSetDither(GXBool dither);
 void GXSetScissor(u32 xOrig, u32 yOrig, u32 wd, u32 ht);
 void VIWaitForRetrace();

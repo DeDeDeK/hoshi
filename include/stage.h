@@ -323,7 +323,7 @@ typedef struct GrObj
                                 //         walks these windows while queries read `coll`.
     u8 xe4[0xF4 - 0xE4];
     JOBJ *backdrop_jobj;        // 0x0F4 - distant skybox/horizon mesh attached
-                                //         by 3D_CreateStageModel. NULL if the
+                                //         by CreateStageModel_3D. NULL if the
                                 //         stage's ModelSection.backdrop is NULL.
     u8 x0f8[0x104 - 0xF8];
     GrJoint *joint_table;       // 0x104 - per-joint {JOBJ*, JOBJDesc*} array built from
@@ -462,8 +462,19 @@ void Sky_BeginFade(GrObj *grobj, u32 *color, int frames); // 0x800eef50 - fire s
 void Sky_FreeFade(GrObj *grobj);                          // 0x800eefb0 - free lbfade slot at scene teardown
 int Gm_Roll(int *weights, int count);                     // 0x800db2b8 - weighted random selection
 
+// Think proc of the stage GObj: steps stage anims, animates GrObj.backdrop_jobj,
+// runs Sky_Update, then dispatches the per-GroundKind think through the vtable
+// table at 0x804a322c. Takes the stage GObj, not the GrObj.
+void Gr_Think(GOBJ *stage_gobj);                          // 0x800ce618
+
+// Instantiates grdata->model_section: terrain onto the stage GObj, backdrop into
+// GrObj.backdrop_jobj (+0xF4) with no GObj of its own. Stamps grGetStageScale()
+// over all three scale components of each instantiated root joint, discarding
+// whatever scale the loaded JOBJDesc carried.
+void CreateStageModel_3D(GrObj *grobj);                   // 0x800dcbf0
+
 // Global EFB/erase color (RGBA8888, in BSS), written each frame by Sky_Update
-// and read by World_CObj+0x144 to drive HSD_SetEraseColor for the next CopyDisp.
+// and read by World_CObj+0x144 to drive CObj_SetEraseColor for the next CopyDisp.
 static u32 *stc_global_fog_color = (u32 *)0x80557484;
 
 // First INFINITE non-HIDDEN LOBJ in the primary stage-light chain, cached at

@@ -574,6 +574,10 @@ Returns:        cardResult.
 *---------------------------------------------------------------------*/
 int KARPlusSave_Write()
 {
+    // Menu option values live in each mod's own RAM until something copies them into
+    // the save block. Doing it here means every Hoshi_WriteSave caller persists the
+    // option changes it made, not just the settings menu on exit.
+    Mod_CopyAllToSave();
 
     // check if save contents were modified
     int cur_hash = _hash_32(stc_hoshi_save, SAVE_SIZE);
