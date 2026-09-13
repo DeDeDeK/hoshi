@@ -78,7 +78,7 @@ typedef enum StadiumGroup
 //
 // The loop runs p = 0..3 unconditionally - CPU racers are latched too, and
 // Stadium_ComputeRank* rank them alongside humans. It is skipped entirely when
-// 3D_CheckIfReplay() (GameData.is_replay) or 3DHud_GetUnkFromPKind()
+// Gm_IsReplay() (GameData.is_replay) or 3DHud_GetUnkFromPKind()
 // (major_cur == MJRKIND_TITLE) holds, leaving the previous round's values in
 // place - check is_replay before reading.
 //
@@ -102,13 +102,13 @@ typedef struct StadiumResults
 StadiumGroup Gm_GetStadiumGroupFromKind(StadiumKind st_kind);
 StadiumKind Gm_GetCurrentStadiumKind();
 StadiumGroup Gm_GetCurrentStadiumGroup();
-int Gm_StadiumIsDefaultUnlocked(StadiumKind kind);  // 8000C148
-int Gm_StadiumIsUnlocked(StadiumKind kind);          // 8000C17C
-int Gm_StadiumIsAvailable(StadiumKind kind);          // 8000C228 - composite check (default + checklist + bitfield)
-int Gm_StadiumCheckUnlocked(StadiumKind kind);       // 80007EE4 - reads unlock bitfield (handles cache)
-void Gm_StadiumWriteUnlocked(StadiumKind kind, int unlock); // 80007F6C - writes unlock bitfield (handles cache)
-int Gm_StadiumCheckNewLabel(StadiumKind kind);        // 80008038 - reads new-label bitfield (handles cache)
-void Gm_StadiumWriteNewLabel(StadiumKind kind, int set);    // 800080C0 - writes new-label bitfield (handles cache)
+int Gm_StadiumIsDefaultUnlocked(StadiumKind kind);  // 0x8000C148
+int Gm_StadiumIsUnlocked(StadiumKind kind);        // 0x8000C17C, maps StadiumKind 3-22 -> reward indices 37-42
+int Gm_StadiumIsAvailable(StadiumKind kind);        // 0x8000C228 - composite check (default + checklist + bitfield)
+int Gm_StadiumCheckUnlocked(StadiumKind kind);     // 0x80007EE4 - reads unlock bitfield (handles cache)
+void Gm_StadiumWriteUnlocked(StadiumKind kind, int unlock); // 0x80007F6C - writes unlock bitfield (handles cache)
+int Gm_StadiumCheckNewLabel(StadiumKind kind);      // 0x80008038 - reads new-label bitfield (handles cache)
+void Gm_StadiumWriteNewLabel(StadiumKind kind, int set);  // 0x800080C0 - writes new-label bitfield (handles cache)
 // StadiumResults accessors. All take the player index and index the results
 // block directly, so they carry CPU entries and stay valid until the next
 // stadium overwrites them.

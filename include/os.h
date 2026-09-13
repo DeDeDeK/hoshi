@@ -665,7 +665,7 @@ static OSReportData *osreport_data = (OSReportData *)0x8058d198;
 int OSGetTick();
 u64 OSGetTime();
 void OSTicksToCalendarTime(u64 time, OSCalendarTime *td);
-u64 cvt_dbl_usll(float num);
+u64 __cvt_dbl_usll(double num);
 void OSCancelThread(OSThread* thread);
 long OSCheckActiveThreads(void);
 int OSCreateThread(OSThread* thread, void* (*func)(void*), void* param, void* stackBase, u32 stackSize, s32 priority, u16 attribute);
@@ -727,7 +727,7 @@ int File_LoadSync(char *file_name, void *buffer, int *out_size);
 // per-scene heap and is overwritten once another scene loads its archives (the cached
 // descriptors then dangle). Reload per scene-context, or for a persistent asset read
 // the file into your own buffer (File_LoadSync) and Archive_Init it in place.
-int Gm_LoadGameFile(HSD_Archive **out, char *file_name);
+int Gm_LoadGameFile(HSD_Archive **out, char *file_name); // 0x80059818
 // 0x80059798 - the matching free. Asserts the archive is non-NULL and carries
 // HSD_ARCHIVE_DONT_FREE, then releases the file blob and the archive struct.
 void Gm_FreeGameFile(HSD_Archive *archive);
@@ -740,11 +740,11 @@ s32 CARDMount(s32 chan, void *workArea, void *detachCallback);
 s32 CARDMountAsync(s32 chan, void *workArea, void *detachCallback, void *attachCallback);
 s32 CARDUnmount(s32 chan);
 s32 CARDOpen(s32 chan, char *fileName, CARDFileInfo *fileInfo);
-s32 CARDSync(s32 chan);
+s32 __CARDSync(s32 chan);
 s32 CARDFastOpen(s32 chan, s32 fileNo, CARDFileInfo *fileInfo);
 s32 CARDClose(CARDFileInfo *fileInfo);
 s32 CARDProbeEx(s32 chan, s32 *memSize, s32 *sectorSize);
-s32 CARDCheckAsync(s32 chan, void *callback);
+s32 CARDCheckExAsync(s32 chan, s32 *xferBytes, void *callback);
 s32 CARDFreeBlocks(s32 chan, s32 *byteNotUsed, s32 *filesNotUsed);
 s32 CARDDeleteAsync(s32 chan, char *fileName, void *callback);
 s32 CARDDelete(s32 chan, char *fileName); // sync wrapper around CARDDeleteAsync + __CARDSync (0x803e8000)
@@ -777,7 +777,7 @@ void blr2();
 /*** THP Functions ***/
 void MTH_Init(char *filename, void *playback_param, void *buffer, int buffer_size, void *unk);
 void MTH_Terminate();
-void MTH_Render(GOBJ *gobj, int pass); // 8001f67c
+void MTH_Render(GOBJ *gobj, int pass);
 void MTH_Advance();
 int MTH_CheckEnd();
 
@@ -791,7 +791,6 @@ int MTH_CheckEnd();
 // int strncmp(char *str1, char *str2, int size);
 // char *strcpy(char *dest, char *src);            // copies the string pointed to, by src to dest.
 // char *strncpy(char *dest, char *src, int size); // copies the string pointed to, by src to dest.
-// unsigned long int strtoul(const char *str, char **endptr, int base);
 // int tolower(char in);
 
 /** Math **/
@@ -799,7 +798,6 @@ int MTH_CheckEnd();
 // float fmod(float a, float b);
 // float atan(float in);
 // float atan2(float y, float x);
-// float sin(float x);
 // float cos(float x);
 void MTXOrtho(Mtx44 m, f32 t, f32 b, f32 l, f32 r, f32 n, f32 f); //
 void MTXLookAt(Mtx *dest, Vec3 *eye, Vec3 *up, Vec3 *target);
@@ -813,7 +811,6 @@ void VECSubtract(Vec3 *a, Vec3 *b, Vec3 *a_b);
 void PSMTXIdentity(Mtx *dest);
 void PSMTXCopy(Mtx *src, Mtx *dest);
 void PSMTXConcat(Mtx *a, Mtx *b, Mtx *ab);
-void PSMTXMultVec(Mtx m, Vec3 *src, Vec3 *dst);
 void VECMultAndAdd(Vec3 *a, Vec3 *b);
 float VECDotProduct(Vec3 *a, Vec3 *b);
 void VECCrossProduct(Vec3 *a, Vec3 *b, Vec3 *axb);

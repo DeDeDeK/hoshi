@@ -7,10 +7,16 @@
 #include "obj.h"
 #include "gx.h"
 
+// Text_GX (0x804516e4) renders every text canvas under a fixed ortho projection:
+// x spans 0..640 rightward from the canvas left edge, y spans 0..-480 and each vertex's
+// y is negated, so a Text.trans.y counts pixels down from the canvas top.
+#define TEXT_CANVAS_W 640.0f
+#define TEXT_CANVAS_H 480.0f
+
 /*** Structs ***/
 
 // SIS text-stream opcode IDs. Sizes (incl. opcode byte) are noted per-entry; data
-// follows the opcode byte big-endian. Rendered by Text_GXLink (0x804516e4).
+// follows the opcode byte big-endian. Rendered by Text_GX (0x804516e4).
 typedef enum TextCmdOpcode
 {
     TEXTCMD_TERMINATE,        // 0x00, 1 byte. Pops a CALL return marker if present, else ends rendering.
@@ -88,7 +94,7 @@ struct TextCanvas
 
 struct Text
 {
-    Vec3 trans;             // 0x00, per-vertex anchor in canvas-ortho pixel space. (x: pixels right of canvas left, y: pixels above canvas bottom, z: depth)
+    Vec3 trans;             // 0x00, per-vertex anchor in canvas-ortho pixel space. (x: pixels right of canvas left, y: pixels below canvas top, z: depth)
     Vec2 aspect;            // 0x0C, bbox width/height in pixels. Used by use_aspect auto-shrink, viewport_color background size, and scissor reference frame.
     float scissor_top;      // 0x14, per-quad clip top    (gated by is_scissor - NOT GXSetScissor)
     float scissor_bot;      // 0x18, per-quad clip bottom (gated by is_scissor)
@@ -112,7 +118,7 @@ struct Text
     u8 align;               // 0x4A, TextAlignKind.
     u8 reflow_flag;         // 0x4B, internal - set by TEXTCMD_LINEBREAK_REFLOW to re-enter renderer next frame. Leave at 0 from external code.
     u8 is_depth_compare;    // 0x4C, if 1, GX_LEQUAL Z mode (text z-tests). If 0, always on top.
-    u8 hidden;              // 0x4D, non-zero -> Text_GXLink early-returns.
+    u8 hidden;              // 0x4D, non-zero -> Text_GX early-returns.
     u8 is_scissor;          // 0x4E, enables the per-quad scissor_* clip rect.
     u8 sis_id;              // 0x4F, index into stc_sis_data[5] for per-SIS image/kerning bank (codes >= 0x4000).
 
@@ -177,44 +183,42 @@ typedef struct TextCmdScale
     u16 y;
 } TextCmdScale;
 
+// Advances past one opcode, matching how Text_GX (0x804516e4) consumes the stream.
+// TEXTCMD_JUMP and TEXTCMD_CALL are counted at their encoded width; the renderer instead
+// follows their absolute pointer, so a linear walk cannot cross one.
+static u8 *Text_NextOpcode(u8 *text_data)
+{
+    static const u8 operand_bytes[TEXTCMD_NUM] = {
+        [TEXTCMD_DELAY]   = 2,
+        [TEXTCMD_TIMING]  = 4,
+        [TEXTCMD_POS]     = 4,
+        [TEXTCMD_JUMP]    = 4,
+        [TEXTCMD_CALL]    = 4,
+        [TEXTCMD_POSPUSH] = 4,
+        [TEXTCMD_COLOR]   = 3,
+        [TEXTCMD_SCALE]   = 4,
+    };
+
+    u8 opcode = text_data[0];
+
+    // Codes at or past TEXTCMD_NUM are 2-byte glyphs.
+    if (opcode >= TEXTCMD_NUM)
+        return text_data + 2;
+
+    return text_data + 1 + operand_bytes[opcode];
+}
 static u8 *Text_GetSubtext(u8 *text_data, int idx)
 {
     int cur_idx = 0;
-
-    static u8 opcode_sizes[] = {
-        -1,
-        1,
-        1,
-        1,
-        1,
-        1,
-        1,
-        4,
-        1,
-        1,
-        4,
-        0,
-        3,
-        0,
-        4,
-        0,
-        0,
-        0,
-        0,
-        0,
-        0,
-        0,
-        0,
-    };
 
     while (1)
     {
         u8 opcode = text_data[0];
 
-        if (opcode == 0)
+        if (opcode == TEXTCMD_TERMINATE)
             return 0;
 
-        else if (opcode == 7)
+        else if (opcode == TEXTCMD_POS)
         {
             if (cur_idx == idx)
                 return text_data;
@@ -222,12 +226,7 @@ static u8 *Text_GetSubtext(u8 *text_data, int idx)
             cur_idx++;
         }
 
-        if (opcode >= GetElementsIn(opcode_sizes))
-            text_data++;
-        else
-            text_data += opcode_sizes[opcode];
-
-        text_data++;
+        text_data = Text_NextOpcode(text_data);
     }
 }
 static u8 *Text_GetCommand(Text *text, int idx, TextCmdOpcode cmd)
@@ -237,49 +236,16 @@ static u8 *Text_GetCommand(Text *text, int idx, TextCmdOpcode cmd)
     if (!subtext)
         return 0;
 
-    int cur_idx = 0;
-
-    static u8 opcode_sizes[] = {
-        -1,
-        1,
-        1,
-        1,
-        1,
-        1,
-        1,
-        4,
-        1,
-        1,
-        4,
-        0,
-        3,
-        0,
-        4,
-        0,
-        0,
-        0,
-        0,
-        0,
-        0,
-        0,
-        0,
-    };
-
     while (1)
     {
         u8 opcode = subtext[0];
 
-        if (opcode == 0)
+        if (opcode == TEXTCMD_TERMINATE)
             return 0;
         else if (opcode == cmd)
             return &subtext[1];
 
-        if (opcode >= GetElementsIn(opcode_sizes))
-            subtext++;
-        else
-            subtext += opcode_sizes[opcode];
-
-        subtext++;
+        subtext = Text_NextOpcode(subtext);
     }
 }
 static void Text_SetColor(Text *text, int idx, GXColor *col)
@@ -532,6 +498,7 @@ static Text **stc_text_first = (Text **)0x805de568;
 
 // Text canvas
 static TextCanvas **stc_textcanvas_first = (TextCanvas **)0x805de56c;
+static COBJDesc *stc_text_cobjdesc = (COBJDesc *)0x805096a0; // ortho 640x480 camera Text_CreateCanvas loads
 
 // Sis Library
 static HSD_Archive **stc_sis_archives = (HSD_Archive **)0x8059a848; // array of 5 sis file archive pointers

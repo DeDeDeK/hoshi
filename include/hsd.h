@@ -186,7 +186,7 @@ struct HSD_Update
     int (*isRequestPause)();        // 0x7f4,
     int (*isRequestFrameAdvance)(); // 0x7f8,
     int x7fc;                       // 0x7fc
-    u64 plink_blacklist;            // 0x800, code @ 801a4eac determines which gobj plinks to allow when changing the pause state.
+    u64 plink_blacklist;            // 0x800, p_links GObj_UpdateAll skips (bit = 1 << p_link); updateFunction ORs in stc_pause_plink_blacklists per set pause kind
     u64 plink_blacklist_prev;       // 0x808
     void *funcs;                    // 0x814
     int x818;                       // 0x818
@@ -333,7 +333,7 @@ static HSD_VI *stc_HSD_VI = (HSD_VI *)0x8046b0f0;
 static HSD_Update *stc_hsd_update = (HSD_Update *)0x80479d58;
 static int **stc_rng_seed = (int **)0x805dcd38;
 static HSD_Pad *stc_engine_pads = (HSD_Pad *)0x8058b634;
-static u64 *stc_pause_plink_blacklists = (u64 *)0x80494f68; // array of u64 bitfields defining which gobj p_links should run for the corresponding PauseKind
+static u64 *stc_pause_plink_blacklists = (u64 *)0x80494f68; // per PauseKind, the p_links frozen while that kind is set (bit = 1 << p_link)
 static HSD_PadQueueInfo *stc_hsd_padqueue = (HSD_PadQueueInfo *)0x8058b080;
 static GXPixelFmt *stc_hsd_pixelfmt = (GXPixelFmt *)0x804d76c8;
 static DebugLevel *stc_dblevel = (DebugLevel *)0x805DD630;
@@ -355,11 +355,10 @@ void Archive_Init(HSD_Archive *archive, void *file_data, int size); // sets HSD_
 void Archive_Free(int heap_id, HSD_Archive *archive);               // heap_id matches the Heap_Alloc heap (0 for Archive_LoadFile)
 char *Archive_GetExtern(HSD_Archive *archive, int index);                   // gets name of the nth symbol in the dat file
 void Archive_LocateExtern(HSD_Archive *archive, char *symbols, void *addr); // relocates pointers to symbols
-HSD_Archive *File_GetPreloadedFile(char *filename);
 void Archive_LoadSync(char *filename, void *alloc, int *out_size);
 int lbLoadArchive(HSD_Archive **out, char *file_name, ...); // r3 is usually 0, va args are symbol_ptr followed by symbol_name, terminate with 0
 char *Archive_AppendExtension(char *filename);
-int HSD_Randi(int max);
+int HSD_Randi(int max); // 0x8041e668, [0, max); returns 0 for max <= 0
 float HSD_Randf();
 void *HSD_MemAlloc(int size);
 void HSD_Free(void *ptr);
@@ -378,6 +377,19 @@ void HSD_HeapFree(void *ptr);  // 0x80410214
 // pointer; rewinding it before the call is how that storage is given back.
 static u8 **stc_hsd_heap_start = (u8 **)0x805de290;
 static u8 **stc_hsd_heap_end = (u8 **)0x805de294;
+
+// Through OnBoot, HSD_MemAlloc is redirected to a bump allocator over that
+// region, so a mark is its next address and a release rewinds to it. Only
+// correct while nothing allocated since the mark is still held.
+static inline void *HSD_ArenaMark(void)
+{
+    return *stc_hsd_heap_start;
+}
+
+static inline void HSD_ArenaRelease(void *mark)
+{
+    *stc_hsd_heap_start = (u8 *)mark;
+}
 void HSD_ObjAllocInit(HSD_ObjAllocData *data, size_t size, u32 align);
 void *HSD_ObjAlloc(HSD_ObjAllocData *obj_def);
 void HSD_ObjFree(HSD_ObjAllocData *obj_def, void *obj);
@@ -410,7 +422,7 @@ void HSD_StateSetPointSize();
 void HSD_StateSetZCompLoc(GXBool enable);
 void HSD_StateSetZMode(GXBool compare_enable, GXCompare func, GXBool update_enable);
 void HSD_ClearVtxDesc();
-void HSD_VICopyXFBASync(int unk);
+void HSD_VICopyXFBAsync(int unk);
 int HSD_VIGetDrawDoneWaitingFlag();
 int HSD_VIGetXFBDrawEnable();
 void HSD_VICopyEFB2XFBPtr(void *, int, int);
@@ -433,9 +445,9 @@ u64 Pad_GetRapidHeld(int pad);
 u64 Pad_GetHeld(int pad);
 void Pad_Rumble(int pad, int unk, int strength, int duration); // make unk = 0
 void Pad_RumbleStopAll();
-void HSD_DumpHeapStat();                        // 80015df8
-void HSD_DumpClassStat(int r3, int r4, int r5); // 80382854
-void HSD_ObjDumpStat();                         // 803755f8
+void HSD_DumpHeapStat();
+void HSD_DumpClassStat(int r3, int r4, int r5);
+void HSD_ObjDumpStat();                       // 0x804106a0
 HSD_ObjAllocData *HSD_IDGetAllocData();
 HSD_ObjAllocData *HSD_AObjGetAllocData();
 HSD_ObjAllocData *HSD_FObjGetAllocData();

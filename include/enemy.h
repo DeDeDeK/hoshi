@@ -132,7 +132,7 @@ typedef struct EventActorDesc
 // EnemyStateChange resolves ed->anim_data = &table[anim_idx] (anim_idx is the
 // state-table entry's word0). 0x10 bytes per entry.
 // EventActor_AnimDataInit (0x80200c04) feeds anim_joint/mat_anim_joint to
-// HSD_JObjAddAnimAll to bind the joint and material animation to the model tree.
+// JObj_AddAnimAll to bind the joint and material animation to the model tree.
 typedef struct EnemyAnimSeqEntry
 {
     void *anim_joint;       // 0x00, HSD AnimJoint (joint/skeletal animation)
@@ -878,6 +878,10 @@ GOBJ *EventActor_Create(void *desc); // 0x801fbb50
 // Proper actor destruction - recursively destroys children, clears inter-actor
 // references and runs cleanup before GObj_Destroy. Use instead of raw GObj_Destroy.
 void EventActor_Destroy(GOBJ *gobj); // 0x801fbf2c
+// Tail of EventActor_ProcHitColl: resolves the frame's hit log into the attacking
+// machine / rider / projectile, credits it through Ply_RecordEnemyDefeat, and leaves
+// the attacker and the knockback direction in the actor's hit-reaction fields.
+void EventActor_ResolveHit(EnemyData *ed); // 0x802021fc
 void EventActor_CleanupCollisionSphere(EnemyData *ed); // 0x8021f1bc, destroys xB74 collision sphere if non-null and nulls it.
 void EventActor_CleanupVfxA3C(EnemyData *ed); // 0x8020c6e0, destroys VFX handle at xa3c if != -1.
 void EventActor_CleanupVfxA40(EnemyData *ed); // 0x8020c70c, destroys VFX handle at xa40 if != -1.
@@ -893,6 +897,14 @@ double EventActor_GetParentAnimRate(GOBJ *parent_gobj); // 0x802049b8, reads par
 int Gm_CheckEnemyEnabled(void); // 0x8000a348, returns 1 if enemy spawning is enabled
 
 // State machine
+// Common states 0x00-0x0D are shared by every actor type; 0x0E and up index the type's own table.
+#define ENEMYSTATE_DEATH     0x09 // EnemyState_DeathEnter (0x80203e60)
+#define ENEMYSTATE_INHALED   0x0A // EnemyState_InhaledExit (0x80203b28) destroys after 120 frames
+#define ENEMYSTATE_KNOCKBACK 0x0B
+#define ENEMYSTATE_LAUNCHED  0x0C
+#define ENEMYSTATE_SLIDING   0x0D
+#define ENEMYSTATE_PERTYPE   0x0E // first per-type state, entered on spawn
+
 // Transitions to a new behavioral state. flags: 0x01 skip anim setup, 0x02 skip
 // anim reset if same, 0x04 skip cleanup, 0x08 save/restore pos, 0x10 keep
 // per-type cb, 0x20 skip HurtData reset, 0x40 skip SFX cleanup.
@@ -1124,28 +1136,35 @@ typedef struct EnemySpawnData
 
 static EnemySpawnData **stc_enemy_spawn_data = (EnemySpawnData **)(0x805dd0e0 + 0x630);
 
-// Enemy global parameter table (from Enemy.dat emDataAll). 0x805dd878 holds a
-// POINTER to the table (loaded by Enemy_LoadCommonParams; NULL until a stage with
-// enemies loads). Dereference to reach the table. Known field layout (no C struct
-// is defined for it - the table lives only as this pointer + offsets):
-//   +0x04 float  damage scale (Enemy_ScaleDamage multiplier)
-//   +0x08 float  tier threshold 0 (Enemy_ClassifyDamageTier)
-//   +0x0C float  tier threshold 1
-//   +0x10 float  tier threshold 2
-//   +0x14 int[4] {10, 30, 50, 70} (consumer unidentified)
-//   +0x30 float[4] kb_mag    (per-tier knockback magnitude)
-//   +0x40 float[4] kb_scale  (per-tier knockback scale)
-//   +0x50 float[4] launch    (per-tier launch speed; -> ed->kb_launch_speed 0x9D8)
-//   +0x60 float[4] stun      (per-tier stun frames, e.g. {2,4,6,8})
-//   +0x70 float[4] mode_scale (per-mode scale)
-//   +0x80 float  detect_range (50.0) - player acquisition radius (EnemyActor_FindNearestPlayer)
-//   +0x84 float  close_range  (30.0)
-//   +0x88 float  (30.0)
-//   +0x8C float  mid_range    (300.0)
-//   +0x90 float  max_range / leash (500.0)
-//   +0x94 int    retarget bound lo (cooldown 20) - HSD_Randi arg in FindNearestPlayer
-//   +0x98 int    retarget bound hi (cooldown 40)
-#define stc_enemy_param_table (*(void **)0x805dd878) // *(0x805dd878)
+// Enemy global parameter table: Enemy.dat public emDataAll, shared by every enemy
+// type and tier. Tier arrays are indexed by the damage tier Enemy_ClassifyDamageTier
+// picks.
+typedef struct EnemyParamTable
+{
+    float x00;                  // 0x00, 1.0
+    float damage_scale;         // 0x04, 0.4, Enemy_ScaleDamage
+    float tier_threshold[3];    // 0x08, {10,21,32}, Enemy_ClassifyDamageTier
+    int x14[4];                 // 0x14, {10,30,50,70}
+    float x24;                  // 0x24, 4.0
+    float x28;                  // 0x28, 5.0
+    int x2c;                    // 0x2c, 50
+    int hit_iframes[4];         // 0x30, per tier {20,30,40,50}; post-hit intangibility (Enemy_ApplyKnockback)
+    float hit_iframes_scale[4]; // 0x40, {1,.8,.6,.5}, indexed by GameData+0xa95, not by tier
+    float kb_launch[4];         // 0x50, per tier {2,3,4,5} -> EnemyData 0x9d8
+    float stun_frames[4];       // 0x60, per tier {2,4,6,8} -> EnemyData 0xa18
+    float x70[3];               // 0x70, {1,1.1,1.2}
+    float x7c;                  // 0x7c, 15, EventActor_OnCapture
+    float detect_range;         // 0x80, 50, EnemyActor_FindNearestPlayer acquisition radius
+    float x84;                  // 0x84, 30
+    float x88;                  // 0x88, 30, EnemyState_AnimTick
+    float x8c;                  // 0x8c, 300, EnemyState_AnimTick attraction
+    float leash_range;          // 0x90, 500, read by most per-type AI states
+    int retarget_min;           // 0x94, 20
+    int retarget_max;           // 0x98, 40; cooldown = min + HSD_Randi(max - min)
+} EnemyParamTable;
+
+// Loaded by Enemy_LoadCommonParams on every 3D scene load; NULL until then.
+static EnemyParamTable **stc_enemy_param_table = (EnemyParamTable **)0x805dd878;
 
 // HSD spline functions - used by actor movement/path-following systems
 float splArcLengthGetParameter(void *spline); // 0x80415758, returns arc-length parameter in f1

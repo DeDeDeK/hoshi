@@ -136,8 +136,13 @@ void _CodePatch_HookApply(int *dol_addr, void *hook_func)
     if (hook_kind == HOOKKIND_CONDITIONAL)                                                                              // copy duplicate original instruction to asm hook for alt return branch
         (*instr_alt_return_ptr = 0x48000000 | (((*instr_alt_return_ptr - (int)instr_alt_return_ptr))) & ~(0xfc000000)); // create an instruction to branch to alt return site
 
-    TRK_FlushCache(dol_addr, 4);   // flush cache
-    TRK_FlushCache(hook_func, 32); // flush cache
+    TRK_FlushCache(dol_addr, 4); // flush cache
+
+    // Flush to the last word this function rewrote, not a fixed 32 bytes: a hook with a
+    // long prologue or epilogue pushes the relocated instruction and the return branches
+    // past byte 32, and an unflushed return branch leaves the hook falling through.
+    int *hook_end = (hook_kind == HOOKKIND_CONDITIONAL) ? &instr_alt_return_ptr[1] : &instr_return_ptr[1];
+    TRK_FlushCache(hook_func, (u32)((int)hook_end - (int)hook_func));
 }
 
 void _CodePatch_OverwriteApply(int *dol_addr, int instr)
