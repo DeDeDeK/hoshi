@@ -1144,7 +1144,6 @@ SECTIONS
   Raycast_Wall = 0x800d1b34;
   Raycast_AnyTagged = 0x800d1ba4;
   Raycast_Do = 0x800d9958;
-  Debug_DrawCapsule = 0x8007d988;
   Debug_DrawQuad = 0x8007e61c;
   Machine_GetWallContactNum = 0x801cde84;
   Machine_GetWallContactTriID = 0x801cde9c;

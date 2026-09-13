@@ -2936,7 +2936,7 @@ void CityTrial_DecideStadium();
 
 void Gm_HidePauseHUD();
 void Gm_ShowHUD();
-void Gm_HideHUD();
+void Gm_HideHUD(); // 0x801126f4
 
 int Gm_IsInCity();
 int CityTrial_IsInStadium();  // 0x8000ad48, checks if city_kind is a stadium (7-18)

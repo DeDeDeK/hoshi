@@ -298,8 +298,6 @@ int PointCollision_EnsureIDValid(int triangle_id); // 0x800d1838. Returns 0 if v
 void PointCollision_GetNormalByID(int triangle_id, Vec3 *out_normal); // 0x800d1860. Looks up triangle normal (stride 0x40)
 int grGetGroundTypeFromTriangleID(int triangle_id); // 0x800cec28. Returns ground type from triangle ID
 
-// Two hemisphere caps and a cylinder spanning p0..p1; a bare sphere if p0 == p1.
-void Debug_DrawCapsule(Vec3 *p0, Vec3 *p1, float radius, void *mat_color, void *amb_color); // 0x8007d988
 // One lit GX_QUADS quad from 4 corners and a shared normal.
 void Debug_DrawQuad(Vec3 corners[4], Vec3 *normal, void *mat_color, void *amb_color);       // 0x8007e61c
 // Higher-level callers (all debug): Trigger_DrawCollision (0x800826a4), Hit_DrawCollision
