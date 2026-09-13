@@ -57,7 +57,7 @@ typedef struct EventConfigData
         int occur_chance;                  // 0x8
         int skip_chance;                   // 0xc
         u8 x10[0x4];                             // 0x10, unknown (not read by CityEvent_StateIdle)
-        int min_time;                            // 0x14, match frames that must elapse before events start
+        int min_time;                            // 0x14, events only start while at least this many round frames remain
         int prev_kind_max;                       // 0x18, max history entries
         int music_fadeout_frames;                // 0x1c, number of frames to fade out the music
         int starting_delay;                      // 0x20, frames in state 1 before transitioning to state 2
@@ -119,13 +119,21 @@ static int *stc_event_machineformation_loadnum = (int *)(0x805dd0e0 + 0x750); //
 // note: 0x80538088 is the Audio3D global (audio_3d_data, audio.h), not an event global
 static EventFunction (*stc_event_function)[EVKIND_NUM] = (void *)0x804a5410;
 
-// Event SIS ID lookup table. Indices 0-15 = vanilla event names, 16-39 = stadium name lookups
-// for prediction event (kind 10). Custom entries placed after stadium range.
+// Event SIS ID lookup table, EVKIND_NUM + STKIND_NUM (40) entries. Indices 0-15 = vanilla event
+// names, 16-39 = stadium name lookups for the prediction event (kind 10). A vanilla CObjDesc's eye
+// WObjDesc follows at 0x804a7c38, so the table cannot grow in place. Read (sign-extended to a byte)
+// by CityEvent_HudPredictionShow, CityEvent_HudPredictionThink and stadiumPrediction.
 static int *stc_event_sis_id_table = (int *)0x804a7b98;
+
+#define EVENT_SIREN_SFX 0x130002 // siren CityEvent_Decide (0x800edcf8) plays when an event is picked
 
 // Event state handler dispatch table. 4 entries: [state0, state1, state2, state3].
 // Each is a function pointer: void (*)(EventCheckData *).
 static void (**stc_event_state_table)(EventCheckData *) = (void (**)(EventCheckData *))0x804a5604;
+void CityEvent_StateIdle(EventCheckData *ev_chk);     // 0x800ee270
+void CityEvent_StateStarting(EventCheckData *ev_chk); // 0x800ee328
+void CityEvent_StateActive(EventCheckData *ev_chk);   // 0x800ee4c0
+void CityEvent_StateCleanup(EventCheckData *ev_chk);  // 0x800ee50c
 
 // Meteor event globals (r13-relative). Used by BehaviorInit helpers to read zone/speed data.
 // stc_meteor_data is checked non-null as guard; stc_meteor_event_data holds zone table (+0x0C) and speed table (+0x04).
@@ -139,8 +147,14 @@ void CityEvent_ShowHudText(int event_kind, int hud_display_frames); // 0x80113fb
 // Creates or replaces the event HUD text object from a SIS entry, storing it at
 // Gm_Get3dData()+0x48. Pass -1 to destroy only.
 void CityEvent_SetSisText(int sis_text_index);                     // 0x801169fc
-void *Event_GetInstanceData(EventCheckData *ev_chk); // table lookup: data[0x04][cur_kind * 20 + 16]. returns event instance data pointer
-void event_fakeItems_applyEffect(void *event_data); // applies fake item effect using the event data pointer
+void CityEvent_Decide(EventCheckData *ev_chk);     // 0x800edcf8, reserve queue first, then Gm_Roll over the weights
+void CityEvent_AddThinkProc(void);                 // 0x800edcc0, SceneLoad_3D adds CityEvent_Think once the spawners exist
+void CityEvent_Destructor(EventCheckData *ev_chk); // 0x800edb68, bare HSD_Free
+int CityEvent_PlayStartSound(int kind);            // 0x8027a5d8, state 1's per-kind sound from the index table at 0x804b9190
+int CityEvent_GetActiveKind(void);                 // 0x800ee8c4, cur_kind while in state 2, else -1
+int CityEvent_GetCurrentKind(void);                // 0x800ee8f0, cur_kind in any state, -1 with events off
+int CityEvent_GetActiveTimer(void);                // 0x800ee910, timer while in state 2, else 0
+void *Event_GetInstanceData(EventCheckData *ev_chk); // 0x800ee73c, table lookup: data[0x04][cur_kind * 20 + 16]. returns event instance data pointer
 // Returns 1 while a legendary-machine (Dragoon/Hydra) assembly cinematic is
 // running. Reads GameData+0xA8C, the active assembly cinematic GObj pointer:
 // set by LegendaryMachine_StartAssembly and cleared to 0 when the cinematic

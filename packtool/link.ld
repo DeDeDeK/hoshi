@@ -22,7 +22,7 @@ SECTIONS
   AudioTrack_Free = 0x8005d64c;
   Audio_GetFGMNumUsingSoundGenerator = 0x80443d8c;
   bp = 0x802D4BB0;
-  CARDCheckAsync = 0x803E55D8;
+  CARDCheckExAsync = 0x803E55D8;
   CARDClose = 0x803E7264;
   CARDCreate = 0x803E7610;
   CARDCreateAsync = 0x803E73F0;
@@ -32,7 +32,7 @@ SECTIONS
   CARDMount = 0x803E64EC;
   CARDMountAsync = 0x803E634C;
   CARDOpen = 0x803E70EC;
-  CARDSync = 0x803E3024;
+  __CARDSync = 0x803E3024;
   CARDProbeEx = 0x803E5C88;
   CARDRead = 0x803E7A88;
   CARDReadAsync = 0x803E7940;
@@ -114,7 +114,6 @@ SECTIONS
   Archive_GetPublicAddress = 0x8041E390;
   Archive_AppendExtension = 0x80058e84;
   lbLoadArchive = 0x80059a20;
-  File_GetPreloadedFile = 0x80073BA0;
   File_LoadSync = 0x80059364;
   Gm_LoadGameFile = 0x80059818;
   Fog_LoadDesc = 0x8041B3C0;
@@ -134,7 +133,7 @@ SECTIONS
   GXPixModeSync = 0x803CBE9C;
   GXSetDrawDone = 0x803cbdb8;
   GXWaitDrawDone = 0x803CBE50;
-  GXSetColor = 0x803CF874;
+  GXSetColorUpdate = 0x803CF874;
   GXSetBlendMode = 0x803cf820;
   GXSetZMode = 0x803CF8CC;
   GXSetLineWidth = 0x803CC42C;
@@ -181,7 +180,7 @@ SECTIONS
   HSD_StateInitDirect = 0x8040E390;
   HSD_StateSetZMode = 0x803f85c8;
   HSD_UpdateAllCObjs = 0x8042a1a8;
-  HSD_VICopyXFBASync = 0x804112b4;
+  HSD_VICopyXFBAsync = 0x804112b4;
   JObj_Alloc = 0x8040C774;
   JObj_AddAnim = 0x80409340;
   JObj_AddAnimAll = 0x80409480;
@@ -193,7 +192,6 @@ SECTIONS
   JObj_SetAllAOBJRateByFlags = 0x800550BC;
   JObj_SetAllAOBJLoopByFlags = 0x800550F4;
   JObj_SetFrameAndRate = 0x80138BA4;
-  JObj_SetAllTObjFrame = 0x80115114;
   JObj_ClearFlags = 0x8040C0D8;
   JObj_ClearFlagsAll = 0x8040C174;
   JObj_DispAll = 0x8040A7B8;
@@ -231,7 +229,7 @@ SECTIONS
   MenuElement_Create = 0x801388a8;
   MenuElement_AddData = 0x80138a00;
   Memcard_GetState = 0x80452790;
-  Memcard_RequestCheckExist = 0x80452790;
+  Memcard_RequestCheckExist = 0x80459c40;
   memcmp = 0x803B4670;
   memcpy = 0x800031E8;
   memset = 0x80003100;
@@ -247,8 +245,8 @@ SECTIONS
   BGM_RaiseVolume = 0x80061BA0;
   BGM_PlaySecondaryFile = 0x80061e7c;
   BGM_StopSecondary = 0x800620e8;
-  cvt_sll_flt = 0x803ae03c;
-  cvt_dbl_usll = 0x803ae0f0;
+  __cvt_sll_flt = 0x803ae03c;
+  __cvt_dbl_usll = 0x803ae0f0;
   OSCreateThread = 0x803da0d0;
   OSCancelThread = 0x803da39c;
   OSSleepThread = 0x803daa90;
@@ -280,7 +278,7 @@ SECTIONS
   DVDConvertPathToEntrynum = 0x803C4ED4;
   DVDFastOpen = 0x803C51C8;
   DVDClose = 0x803C5304;
-  DVDReadAbsAsyncPrio = 0x803c554c;
+  DVDReadAbsAsyncPrio = 0x803c7364;
   File_Read = 0x80446ACC;
   File_ReadDone = 0x80058E1C;
   File_Wait = 0x80058E60;
@@ -301,7 +299,6 @@ SECTIONS
   PSMTXCopy = 0x803D1428;
   PSMTXIdentity = 0x803D13FC;
   PSMTXConcat = 0x803D145C;
-  PSMTXMultVec = 0x803d1dec;
   Scene_GetCurrentMajor = 0x8000AEA8;
   Scene_GetCurrentMinor = 0x8000AECC;
   Scene_SetNextMajor = 0x800082A0;
@@ -330,7 +327,6 @@ SECTIONS
   Gm_LoadGroundFGMBank = 0x8005a474;
   ceil = 0x803bcb64;
   fmod = 0x803BD408;
-  sin = 0x803BD53C;
   log = 0x803BD428;
   sprintf = 0x803B4AC0;
   strchr = 0x803B7E40;
@@ -341,10 +337,9 @@ SECTIONS
   strlen = 0x803B8100;
   strncmp = 0x803B7E70;
   strncpy = 0x803B8004;
-  strtoul = 0x803B9534;
+  __strtoul = 0x803B9534;
   strcat = 0x803B7FD8;
   tolower = 0x803B3870;
-  tan = 0x803BD518;
   Text_AddSubtext = 0x8044FEC4;
   TextHeap_Alloc = 0x8044EDEC;
   TextHeap_Free = 0x8044EFA8;
@@ -417,7 +412,7 @@ SECTIONS
   SOSocket = 0x8047b888;
   SOClose = 0x8047c3b8;
   SOBind = 0x8047cbbc;
-  SOShutdown = 0x8047cce0;
+  SOConnect = 0x8047cce0;
   SORead = 0x8047cde4;
   SORecvFrom = 0x8047ce0c;
   SOWrite = 0x8047d044;
@@ -432,7 +427,6 @@ SECTIONS
   SelIcon_GetCKind = 0x8000b9bc;
   Gm_GetMenuData = 0x801311E0;
   Gm_GetGameData = 0x80006C14;
-  Gm_GetRandomItem = 0x800EB7E4;
   Gm_GetCurrentStadiumKind = 0x8000ae50;
   Gm_GetCurrentStadiumGroup = 0x8000ae74;
   Gm_GetStadiumRound = 0x8000AE08;
@@ -470,6 +464,8 @@ SECTIONS
   TopRide_GetMode = 0x8003ea9c;
   TopRide_GetTimeAttackPlayerSlot = 0x8003eaf0;
   TopRide_GetStats = 0x80287040;
+  TopRide_PostRenderCallback = 0x80009074;
+  TopRide_CustomRenderer = 0x80286d7c;
   TopRideItem_SpawnAtPosition = 0x8034bf50;
   TopRideItem_GetDataByIndex = 0x8034d204;
   TopRide_KirbyApplyItem = 0x802d8cb4;
@@ -566,7 +562,7 @@ SECTIONS
   Gm_IsLegendaryAssembling = 0x8000c934;
   Gm_IsDamageEnabled = 0x8000a188;
   Gm_IsReplay = 0x8000aac4;
-  Item_Create = 0x8024EEF4;
+  CityItem_Create = 0x8024EEF4;
   Item_GetCommonAttr = 0x802500B0;
   Item_GetEffectInfo = 0x80250114;
   Item_AllocAudioEmitter = 0x8005de3c;
@@ -619,7 +615,6 @@ SECTIONS
   GrYaku_Create = 0x800f446c;
   GrYakuCannon_Create = 0x800fed20;
   GrYakuCannon_TailInit = 0x800fed48;
-  CityEvent_GetFakeItemData = 0x800ee73c;
   Event_FakeItems_FillHurtParams = 0x80111a60;
   CityItemSpawn_Create = 0x800ec4cc;
   CityItemSpawn_Init = 0x800ebf70;
@@ -641,7 +636,6 @@ SECTIONS
   Patch_GetEffectData = 0x80252e90;
   Patch_GetMaxValue = 0x8000aaf0;
   Patch_GetMinValue = 0x8000ab1c;
-  Patch_GetPlySavedValue = 0x8000ab48;
   Machine_ApplyStatClamped = 0x801e094c;
   Machine_ApplyAllStatsClamped = 0x801e096c;
   Machine_SetStatBlockClamped = 0x80194f64;
@@ -667,7 +661,6 @@ SECTIONS
   Machine_ApplyModelMatrix = 0x801c9074;
   RiderGObj_GetPly = 0x8019203c;
   Event_GetInstanceData = 0x800ee73c;
-  event_fakeItems_applyEffect = 0x80111a60;
   CityEvent_ModifyItemFallDesc = 0x800ed784;
   HUD_PauseCreate = 0x801285DC;
   HUD_PauseDestroy = 0x80128A68;
@@ -690,6 +683,7 @@ SECTIONS
   Machine_IsDead = 0x801c856c;
   Machine_SetFallDead = 0x801e6520;
   Machine_GetGroundHandle = 0x80247fac;
+  Machine_CheckFallDeath = 0x801e6464;
   Machine_AllocAudioEmitter = 0x8005dc5c;
   Machine_OnTouchItem = 0x801db34c;
   Rider_DropPatches = 0x8019d330;
@@ -718,7 +712,6 @@ SECTIONS
   Rider_ApplyColAnim = 0x8019bfb4; /* request a baked color-overlay anim into the body ColAnim at rd+0x5c (index 3 = invincibility flash) */
   ColAnim_Apply = 0x8006a3f0; /* generic priority-gated ColAnim applier (rd+0x5c body / rd+0x108 glow) */
   ColAnim_Reset = 0x8006a250; /* clear a ColAnim overlay state back to neutral (no tint) */
-  Machine_AllocAudioSource = 0x8005dc5c;
   Machine_SetStatCap = 0x801caee4;
   Machine_ModifyStatByKind = 0x801cb3d8;
   Machine_GiveFood = 0x801e2140;
@@ -738,6 +731,7 @@ SECTIONS
   Machine_InitHurtData = 0x801d6e84;
   MachineGObj_GetHurtData = 0x801c8660;
   Ply_GetRiderGObj = 0x8022CB74;
+  Ply_GetPosition = 0x8022c568;
   Ply_GetMachineGObj = 0x8022d230;
   Ply_GetColor = 0x800095C0;
   Ply_CheckIfCPU = 0x8000948C;
@@ -840,7 +834,6 @@ SECTIONS
   Rider_GetCPUStickX = 0x80275c90;
   Rider_GetCPUStickY = 0x80275ca0;
   Rider_InputThink = 0x8018ee28;
-  plGetPlayerKind = 0x8022c858;
   Ply_GetAllStats = 0x8022cf6c;
   Ply_SetAllStats = 0x8022cfc8;
   Ply_GetStatAux = 0x8022d0cc;
@@ -1039,6 +1032,11 @@ SECTIONS
   Checklist_Init = 0x801822F4;
   Checklist_MinorThink = 0x8004A648;
   Checklist_PrepMenuData = 0x80138D74;
+  Checklist_Update = 0x8018161C;
+  Checklist_UpdateCellInfo = 0x80181D70;
+  Checklist_InitGridMapping = 0x8004A2BC;
+  Checklist_LoadModels = 0x801821AC;
+  Checklist_DestroyElements = 0x80182CAC;
   loadMainMenuMusic = 0x8000BBA0;
   MainMenu_ClearSoundTestSongThunk = 0x8000BC10;
   Memcard_GetSaveStatus = 0x80078E30;
@@ -1088,7 +1086,7 @@ SECTIONS
   Light_GX_Secondary = 0x800d60b8;
   Light_CreateForStageSecondary = 0x800d60d8;
   Light_AnimProcSimple = 0x800d6094;
-  Light_CreateForMenu = 0x800d6188;
+  Light_CreateAreaLightDefaults = 0x800d6188;
   LObj_CreateAll = 0x80057468;
 
   LObjLoad = 0x803ffe24;
@@ -1102,7 +1100,6 @@ SECTIONS
   HSD_LObjAddCurrent = 0x803ff080;
   HSD_LObjSetCurrentAll = 0x803ff570;
   HSD_LObjSetupInit = 0x803fe4b8;
-  HSD_LObjLoadDesc = 0x80400238;
 
   AreaLight_Lerp = 0x800797a8;
   AreaLight_Create = 0x80079428;
@@ -1118,7 +1115,6 @@ SECTIONS
 
   Fog_GX = 0x800dbf84;
   World_CObj = 0x800b04a8;
-  HSD_SetEraseColor = 0x8040f884;
   HSD_FogSet = 0x8041b0fc;
 
   ScreenFade_Alloc = 0x80065a80;
@@ -1162,15 +1158,14 @@ SECTIONS
 
   AirRide_CheckCharacterUnlocked = 0x8000c488;
   AirRide_CheckBonusUnlocked = 0x8000c584;
-  CityTrial_CheckStadiumIsUnlocked = 0x8000c17c;
   Pause_CheckStatsUnlocked = 0x8000c768;
   Gm_GetDownVector = 0x800ceb18;
   CityItem_Throw = 0x80253ce4;
   EventActor_Hide = 0x801fed40;
-  GXSetCopyClear = 0x8033d8a0;
-  GXCopyTex = 0x8033dcbc;
-  GXSetTexCopySrc = 0x8033d4c8;
-  GXSetTexCopyDst = 0x8033d5cc;
+  GXSetCopyClear = 0x803CC9CC;
+  GXCopyTex = 0x803CCDD4;
+  GXSetTexCopySrc = 0x803CC654;
+  GXSetTexCopyDst = 0x803CC720;
   GrYaku_InitData = 0x800f4d50;
   GrYaku_GetHurtData = 0x800f8248;
   GrYakumono_GetState = 0x800f7ab8;
@@ -1197,13 +1192,9 @@ SECTIONS
   grInitYakumono = 0x800f425c;
   grLoadYakumono = 0x800f440c;
   whispyLogic = 0x8010db64;
-  HSD_DumpHeapStat = 0x80015df8;
-  HSD_DumpClassStat = 0x80382854;
-  HSD_ObjDumpStat = 0x803755f8;
+  HSD_ObjDumpStat = 0x804106A0;
   HurtData_UpdateVulnState = 0x8018cb28;
-  JObj_LoadSet = 0x8019035c;
-  MTH_Render = 0x8001f67c;
-  Preload_FreeEntry = 0x800174e8;
+  Preload_FreeEntry = 0x800727E8;
   Rider_GetHandBonePos = 0x80191ffc;
   Rider_GetForward = 0x80191ef8;
   Rider_GetUp = 0x80191f18;
@@ -1350,4 +1341,82 @@ SECTIONS
   CitySelect_InitSelectData = 0x80038c40;
   TopRide_UpdatePanel = 0x80134a0c;
   TitleScreen_GetAutoDemoKind = 0x8000af94;
+  Machine_GetInstanceId = 0x801c878c;
+  Rider_CacheRespawnMachineId = 0x80193cb0;
+  CityBlip_GXCallback = 0x80122380;
+  Rider_IASACheck_ChargeRelease = 0x801abc2c;
+  AS_StarChargeFullThink = 0x801abea0;
+  Projectile_CollectWeaponParts = 0x80221914;
+  PlasmaSpread_Init = 0x8022691c;
+  PlasmaSpread_State0_Fn0 = 0x802269f4;
+  PlasmaSpread_State0_Fn1 = 0x802269f8;
+  PlasmaSpread_State0_EnvCollide = 0x802269fc;
+  PlasmaSpread_State0_Fn3 = 0x80226abc;
+  PlasmaSpread_Despawn = 0x80226b1c;
+  CityItemSpawn_UpdateAndCheckToSpawn = 0x800ea6e0;
+  CityItemSpawn_Think = 0x800eb108;
+  Rider_TickDropAllUp = 0x8019d55c;
+  AirRideSelect_StartRandomCourse = 0x8003b4e8;
+  TitleScreen_CreateForegroundElements = 0x8017b4c0;
+  EventActor_ResolveHit = 0x802021fc;
+  Checklist_RewardIconProc = 0x801820b4;
+  TopRideSandPit_Update = 0x80331564;
+  Machine_Star_PushChargeUpdate = 0x801ef338;
+  Machine_Wheel_PushChargeUpdate = 0x801fa1c8;
+  Machine_Star_RailPushAddCharge = 0x801eb95c;
+  Machine_Wheel_PushAddCharge = 0x801f5f24;
+  SceneLoad_TitleScreen = 0x8000d26c;
+  SceneLoad_3D = 0x8001442c;
+  CSS_airRide_colorChanger = 0x80021654;
+  loadCPU = 0x80023600;
+  CSS_airRide_RaceUpdate = 0x80028888;
+  CSS_airRide_FreeTimeUpdate = 0x80029bd8;
+  CSS_topRide_colorChanger = 0x8002a400;
+  CitySelect_InitPlayerMachines = 0x8002ddd8;
+  CitySelect_ChangeColor = 0x8002f238;
+  CitySelect_InputUpdate = 0x80032d34;
+  CityEvent_Decide = 0x800edcf8;
+  Rider_ResetStartingMachine = 0x80195288;
+  Rider_CheckToDieOnMachine = 0x801a06a8;
+  airControl = 0x801ac128;
+  randomAbility_aPress = 0x801ae7f4;
+  randomAbility_autoSelect = 0x801ae890;
+  Rider_TryQuickSpinNeutral = 0x801b7e0c;
+  MachinePhys_Charge = 0x801ef364;
+  fn_VehicleStatTableFuncCallbacks_Star_Fly_3_HandleFlightPhysics = 0x801ef9a0;
+  fn_VehicleStatTableFuncCallbacks_Wheel_RunPush_3 = 0x801fa1e8;
+  TopRide_KirbyPhysUpdate = 0x802d5ec0;
+  TopRide_KirbyMgrInit = 0x802dafb4;
+  TopRide_ChargeUpdate = 0x802df900;
+  TopRideItem_SpawnTimed = 0x8034b8c8;
+  TopRideItem_Update = 0x8034c130;
+  TopRideItem_PartyBallUpdate = 0x80356dac;
+  Gr_Think = 0x800ce618;
+  Gm_FadeInMusic = 0x80062004;
+  CityEvent_HudPredictionShow = 0x80127624;
+  stadiumPrediction = 0x80127864;
+  CityEvent_HudPredictionThink = 0x801276c0;
+  CityEvent_StateStarting = 0x800ee328;
+  CityEvent_StateActive = 0x800ee4c0;
+  Gm_GetRemainingFrames = 0x8000a0f8;
+  CityEvent_PlayStartSound = 0x8027a5d8;
+  CityEvent_GetActiveKind = 0x800ee8c4;
+  CityEvent_GetCurrentKind = 0x800ee8f0;
+  CityEvent_GetActiveTimer = 0x800ee910;
+  CityEvent_AddThinkProc = 0x800edcc0;
+  CityEvent_Destructor = 0x800edb68;
+  CityEvent_StateIdle = 0x800ee270;
+  CityEvent_StateCleanup = 0x800ee50c;
+  BGM_Pause = 0x80445810;
+  BGM_Resume = 0x804458d0;
+  Rider_CPUDecideCruise = 0x80271790;
+  Rider_CPUDecideCruisePlus = 0x80271b24;
+  Rider_CPUDecideNavigate = 0x80271eb4;
+  Rider_CPUDecideRouteFollow = 0x802726fc;
+  Rider_CPUDecideRouteFollowCity = 0x80272888;
+  Rider_CPUDecideCharge = 0x80272dd0;
+  Rider_CPUDecideAttack = 0x802735dc;
+  Rider_CPUDecideReposition = 0x80273228;
+  Rider_CPUDecidePatrol = 0x80273b48;
+  Rider_CPUGetItemScore = 0x802768a8;
 }

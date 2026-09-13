@@ -34,8 +34,8 @@ typedef enum MinorKind
     MNRKIND_15,                    //
     MNRKIND_16,                    //
     MNRKIND_STADIUMSPLASH,         //
-    MNRKIND_3D,                    //
-    MNRKIND_19,                    //
+    MNRKIND_3D,                    // Air Ride / City Trial gameplay (stadiums included)
+    MNRKIND_19,                    // Top Ride gameplay - its own 2D engine, not the 3D path
     MNRKIND_20,                    //
     MNRKIND_STADIUMSELECT,         //
     MNRKIND_MOVIE = 25,            //
@@ -847,8 +847,9 @@ SceneDecide: run either Scene_SetNextMinor to enter another minor, OR Scene_SetN
 */
 
 void Gm_Minor();
-MajorKind Scene_GetCurrentMajor();
+MajorKind Scene_GetCurrentMajor(); // 0x8000aea8
 MinorKind Scene_GetCurrentMinor();
+void SceneLoad_3D(void); // 0x8001442c, builds a 3D round: stage, players, enemies, City Trial CPU stat pools
 void Scene_SetNextMajor(int major_id);  // run this in scene decide!
 void Scene_ExitMajor();                 // run this to cause a major scene change, usually ran in scene decide!
 void Scene_SetNextMinor(int minor_id);  // run this in scene decide!

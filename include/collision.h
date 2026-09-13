@@ -93,6 +93,8 @@ typedef struct GrCollTri
 
 #define GRCOLL_KIND_GROUNDTYPE_SHIFT 4
 #define GRCOLL_KIND_GROUNDTYPE_MASK  0xFF0
+// Ground type 25 is what Machine_GetGroundHandle searches for; in City Trial 29 is
+// the sea and 30 the two invisible barriers that ring the city.
 // Bits 0..2 are the baked surface category. Every query ANDs its own mask
 // against them first, so these decide whether a triangle can be stood on,
 // walled off, or hit at all - not a runtime normal test. A runtime-built

@@ -8,6 +8,7 @@
 #include "machine.h"
 #include "camera.h"
 #include "trigger.h"
+#include "color.h"
 
 typedef enum RiderKind
 {
@@ -151,6 +152,21 @@ typedef struct rdDataKirby
 //                        the next is chosen.
 // The command VM (Rider_CPUProcessCmd) then plays cmd_buffer back into the pad
 // fields (buttons/stick_x/stick_y). Gaps are padding.
+
+// CpuData.ai_state profiles; 4 and values above 10 share the CRUISE_PLUS handler.
+typedef enum CpuAIState
+{
+    CPUSTATE_CRUISE = 1,            // racing line, combat muted
+    CPUSTATE_CRUISE_PLUS = 2,       // racing line with item/attack desires
+    CPUSTATE_NAVIGATE = 3,          // City Trial city path-finding
+    CPUSTATE_ROUTE_FOLLOW = 5,      // steer at Rider_CPUScanRouteGoal's pick (inhalable enemies), no look-ahead
+    CPUSTATE_ROUTE_FOLLOW_CITY = 6, // ROUTE_FOLLOW plus city objects
+    CPUSTATE_CHARGE = 7,            // drive to a charge anchor and charge
+    CPUSTATE_ATTACK = 8,            // chase and spin-attack the nearest rival, no look-ahead
+    CPUSTATE_REPOSITION = 9,        // stage-specific position nudges
+    CPUSTATE_PATROL = 10,           // timed toggle between nav target and rival
+} CpuAIState;
+
 typedef struct CpuData
 {
     int buttons;           // 0x00, synthesized button mask -> RiderData.held (0x3d8)
@@ -158,7 +174,7 @@ typedef struct CpuData
     u8  x05;               // 0x05
     s8  stick_y;           // 0x06, synthesized stick Y -> RiderData.stickY (0x3ed)
     u8  x07;               // 0x07
-    int ai_state;          // 0x08, AI profile (1..10; 0 asserts) set once at init, dispatched by Rider_CPUDecideState
+    int ai_state;          // 0x08, CpuAIState profile (0 asserts) set once at init, dispatched by Rider_CPUDecideState
     u8  machine_kind_a;    // 0x0c, cached machine id from RiderData.machine_gobj (refreshed each perceive)
     u8  machine_kind_b;    // 0x0d, second cached machine id
     u8  city_kind;         // 0x0e, Gm_GetCityKind() captured at init (selects the AI profile)
@@ -171,8 +187,7 @@ typedef struct CpuData
                            //       0x400 no-dodge/attack-scan, 0x1000000 no-charge/intercept
     u8  suppress_timer;    // 0x20, countdown; while > 0 the perceive stage forces target_secondary = -1
     u8  x21;               // 0x21
-    u8  difficulty_level;  // 0x22, AI skill level 0..8; Rider_CPUDifficultyScale scales every personality roll by it
-    u8  x23;               // 0x23
+    s16 difficulty_level;  // 0x22, AI skill level 0..8 (asserts above 8); Rider_CPUDifficultyScale scales every personality roll by it
     float random_seed;     // 0x24, per-CPU jitter seed = HSD_Randf() at Rider_CPUInit; read by route/targeting helpers
     int frame_counter;     // 0x28, ++ every perceive pass
     u8  behavior_flags;    // 0x2c, ENABLE bits rewritten per strategic state. 0x01 opportunistic-action,
@@ -212,8 +227,8 @@ typedef struct CpuData
     int  charge_anchor_id; // 0xb4, state 7 resolved anchor node id
     Vec3 nav_target_pos;   // 0xb8, resolved navigation target, copied from *nav_target_ptr (the raw target)
     Vec3 steer_target_pos; // 0xc4, what maneuvers steer toward: nav_target_pos after the city-object override
-    Vec3 ramcharge_target_pos; // 0xd0, chosen rival's position copied here by the arbiter for RamCharge/PursueLOS (maneuvers 3/4)
-    u8  xdc[4];            // 0xdc
+    int  xd0;              // 0xd0, x00 of the CpuForwardTarget the arbiter picked for RamCharge/PursueLOS
+    Vec3 ramcharge_target_pos; // 0xd4, that target's position, steered at by maneuvers 3/4
     void *xe0;             // 0xe0, current path/spline object pointer
     u8  route_header;      // 0xe4, packed route cache header (bit7 = valid, bits 2..5 = entry count)
     u8  xe5[3];            // 0xe5
@@ -224,9 +239,79 @@ typedef struct CpuData
     u8  cmd_buffer[0x80];  // 0x11c, command opcode stream (ends at 0x19c)
 } CpuData;
 
+// CpuData.maneuver, committed by Rider_CPUArbitrateManeuver.
+typedef enum CpuManeuver
+{
+    CPUMAN_COAST = 0x00,
+    CPUMAN_RECOVER_FORWARD = 0x01,
+    CPUMAN_STEER_TO_NAV = 0x02,
+    CPUMAN_RAM_CHARGE = 0x03,
+    CPUMAN_PURSUE_LOS = 0x04,
+    CPUMAN_APPROACH_WAYPOINT = 0x05, // 5 and 6 share a handler
+    CPUMAN_APPROACH_WAYPOINT_CITY = 0x06,
+    CPUMAN_CHARGE_HOLD = 0x07,
+    CPUMAN_AVOID_OBSTACLE = 0x08,
+    CPUMAN_DODGE_PROJECTILE = 0x09,
+    CPUMAN_CHARGE_RELEASE = 0x0a,
+    CPUMAN_STEER_TARGET_WIGGLE = 0x0b,
+    CPUMAN_STEER_TARGET_ADVANCE = 0x0c,
+    CPUMAN_CHARGE_CENTERED = 0x0d,
+    CPUMAN_NAV_STEER = 0x0e,
+    CPUMAN_NAV_STEER_TAP = 0x0f,
+    CPUMAN_CHARGED_NAV_STEER = 0x10,
+    CPUMAN_TAP_ONCE = 0x12,
+    CPUMAN_WIGGLE = 0x13,
+    CPUMAN_BRAKE = 0x14,
+    CPUMAN_CHARGE_STILL = 0x15,
+} CpuManeuver;
+
+// CpuData.desire_flags inhibitors.
+typedef enum CpuDesireFlag
+{
+    CPUDESIRE_NO_RAM = 0x100,        // RamCharge's press
+    CPUDESIRE_NO_DODGE = 0x400,      // the hazard Wiggle and Attack's spin burst
+    CPUDESIRE_NO_CHARGE = 0x1000000, // ChargeCentered
+} CpuDesireFlag;
+
+// Per-frame scratch for the rider being updated, zeroed by Rider_ProcessCPUDistance.
+typedef struct CpuHazard
+{
+    int x00;              // 0x00
+    int x04;              // 0x04
+    int x08;              // 0x08
+    int x0c;              // 0x0c, x04..x0c all zero marks an empty entry
+    u8 x10[0x28];         // 0x10
+    float time_to_impact; // 0x38
+    u8 imminent : 1;      // 0x3c, 0x80
+    u8 x3c : 7;           // 0x3c
+    u8 x3d[3];            // 0x3d
+} CpuHazard;
+
+typedef struct CpuHazardList
+{
+    CpuHazard entries[8]; // 0x000
+    int num;              // 0x200
+} CpuHazardList;
+
+typedef struct CpuForwardTarget
+{
+    int x00;  // 0x00
+    Vec3 pos; // 0x04
+    int side; // 0x10, 1 = RamCharge candidate, 0 = PursueLOS candidate
+} CpuForwardTarget;
+
+typedef struct CpuForwardList
+{
+    CpuForwardTarget entries[8]; // 0x00
+    int num;                     // 0xa0
+} CpuForwardList;
+
+static CpuHazardList *stc_cpu_hazards = (CpuHazardList *)0x8055e698;      // Rider_CPUCollectHazards
+static CpuForwardList *stc_cpu_forward = (CpuForwardList *)0x8055e8b4;    // Rider_CPUForwardLookahead
+
 typedef struct RiderData
 {
-    int x0;                               // 0x0
+    GOBJ *gobj;                           // 0x0, the rider's own GObj; Rider_InitData (0x8018ddc4) writes it back
     RiderKind kind;                       // 0x4
     u8 ply;                               // 0x8
     u8 x9;                                // 0x9
@@ -252,154 +337,11 @@ typedef struct RiderData
     int x50;                              // 0x50
     int x54;                              // 0x54
     int x58;                              // 0x58
-    int x5c;                              // 0x5c, body ColAnim overlay state (~0xac bytes, to 0x108) - the
-                                          //       animated color overlay that recolors the whole body.
-                                          //       index 2 = hurt flash, index 3 = invincibility flash.
-                                          //       A rider has three such states (0x5c, 0x108, 0x1b4), each with
-                                          //       a priority byte at state+0xa9; ColAnim_GetActiveSlot renders
-                                          //       the highest, and ColAnim_Apply rejects a lower-priority anim.
-    int x60;                              // 0x60
-    int x64;                              // 0x64
-    int x68;                              // 0x68
-    int x6c;                              // 0x6c
-    int x70;                              // 0x70
-    int x74;                              // 0x74
-    int x78;                              // 0x78
-    int x7c;                              // 0x7c
-    int x80;                              // 0x80
-    int x84;                              // 0x84
-    int x88;                              // 0x88
-    int x8c;                              // 0x8c
-    int x90;                              // 0x90
-    int x94;                              // 0x94
-    int x98;                              // 0x98
-    int x9c;                              // 0x9c
-    int xa0;                              // 0xa0
-    int xa4;                              // 0xa4
-    int xa8;                              // 0xa8
-    int xac;                              // 0xac
-    int xb0;                              // 0xb0
-    int xb4;                              // 0xb4
-    int xb8;                              // 0xb8
-    int xbc;                              // 0xbc
-    int xc0;                              // 0xc0
-    int xc4;                              // 0xc4
-    int xc8;                              // 0xc8
-    int xcc;                              // 0xcc
-    int xd0;                              // 0xd0
-    int xd4;                              // 0xd4
-    int xd8;                              // 0xd8
-    int xdc;                              // 0xdc
-    int xe0;                              // 0xe0
-    int xe4;                              // 0xe4
-    int xe8;                              // 0xe8
-    int xec;                              // 0xec
-    int xf0;                              // 0xf0
-    int xf4;                              // 0xf4
-    int xf8;                              // 0xf8
-    int xfc;                              // 0xfc
-    int x100;                             // 0x100
-    int x104;                             // 0x104
-    int x108;                             // 0x108, second ColAnim overlay state - the additive glow aura driven
-                                          //        from copy-ability state code, independent of the body overlay
-    int x10c;                             // 0x10c
-    int x110;                             // 0x110
-    int x114;                             // 0x114
-    int x118;                             // 0x118
-    int x11c;                             // 0x11c
-    int x120;                             // 0x120
-    int x124;                             // 0x124
-    int x128;                             // 0x128
-    int x12c;                             // 0x12c
-    int x130;                             // 0x130
-    int x134;                             // 0x134
-    int x138;                             // 0x138
-    int x13c;                             // 0x13c
-    int x140;                             // 0x140
-    int x144;                             // 0x144
-    int x148;                             // 0x148
-    int x14c;                             // 0x14c
-    int x150;                             // 0x150
-    int x154;                             // 0x154
-    int x158;                             // 0x158
-    int x15c;                             // 0x15c
-    int x160;                             // 0x160
-    int x164;                             // 0x164
-    int x168;                             // 0x168
-    int x16c;                             // 0x16c
-    int x170;                             // 0x170
-    int x174;                             // 0x174
-    int x178;                             // 0x178
-    int x17c;                             // 0x17c
-    int x180;                             // 0x180
-    int x184;                             // 0x184
-    int x188;                             // 0x188
-    int x18c;                             // 0x18c
-    int x190;                             // 0x190
-    int x194;                             // 0x194
-    int x198;                             // 0x198
-    int x19c;                             // 0x19c
-    int x1a0;                             // 0x1a0
-    int x1a4;                             // 0x1a4
-    int x1a8;                             // 0x1a8
-    int x1ac;                             // 0x1ac
-    int x1b0;                             // 0x1b0
-    int x1b4;                             // 0x1b4, third ColAnim overlay state, same layout as 0x5c
-    int x1b8;                             // 0x1b8
-    int x1bc;                             // 0x1bc
-    int x1c0;                             // 0x1c0
-    int x1c4;                             // 0x1c4
-    int x1c8;                             // 0x1c8
-    int x1cc;                             // 0x1cc
-    int x1d0;                             // 0x1d0
-    int x1d4;                             // 0x1d4
-    int x1d8;                             // 0x1d8
-    int x1dc;                             // 0x1dc
-    int x1e0;                             // 0x1e0
-    int x1e4;                             // 0x1e4
-    int x1e8;                             // 0x1e8
-    int x1ec;                             // 0x1ec
-    int x1f0;                             // 0x1f0
-    int x1f4;                             // 0x1f4
-    int x1f8;                             // 0x1f8
-    int x1fc;                             // 0x1fc
-    int x200;                             // 0x200
-    int x204;                             // 0x204
-    int x208;                             // 0x208
-    int x20c;                             // 0x20c
-    int x210;                             // 0x210
-    int x214;                             // 0x214
-    int x218;                             // 0x218
-    int x21c;                             // 0x21c
-    int x220;                             // 0x220
-    int x224;                             // 0x224
-    int x228;                             // 0x228
-    int x22c;                             // 0x22c
-    int x230;                             // 0x230
-    int x234;                             // 0x234
-    int x238;                             // 0x238
-    int x23c;                             // 0x23c
-    int x240;                             // 0x240
-    int x244;                             // 0x244
-    int x248;                             // 0x248
-    int x24c;                             // 0x24c
-    int x250;                             // 0x250
-    int x254;                             // 0x254
-    int x258;                             // 0x258
-    int x25c;                             // 0x25c
-    int x260;                             // 0x260
-    int x264;                             // 0x264
-    int x268;                             // 0x268
-    int x26c;                             // 0x26c
-    int x270;                             // 0x270
-    int x274;                             // 0x274
-    int x278;                             // 0x278
-    int x27c;                             // 0x27c
-    int x280;                             // 0x280
-    int x284;                             // 0x284
-    int x288;                             // 0x288
-    int x28c;                             // 0x28c
-    int x290;                             // 0x290
+    // 0x5c, the rider's three color-overlay slots and the render state they resolve into.
+    // Slot 0 (0x5c) is the body tint every Rider_ApplyColAnim request lands in; slot 1 (0x108)
+    // is the additive glow aura driven from copy-ability state code; slot 2 (0x1b4) is unused
+    // by the rider code. Index 2 = intangibility flash, index 3 = invincibility flash.
+    ColAnimState col_anim;                // 0x5c
     int x294;                             // 0x294
     int x298;                             // 0x298
     int x29c;                             // 0x29c
@@ -484,7 +426,7 @@ typedef struct RiderData
     } input;
     GOBJ *machine_gobj;        // 0x3f4
     GOBJ *x3f8;                // 0x3f8
-    int x3fc;                  // 0x3fc
+    int respawn_machine_id;    // 0x3fc, MachineData.instance_id cached at the last respawn; a different id on boarding is a machine change
     int x400;                  // 0x400
     int x404;                  // 0x404
     int x408;                  // 0x408
@@ -553,7 +495,7 @@ typedef struct RiderData
     int x4e4;                  // 0x4e4
     int x4e8;                  // 0x4e8
     int x4ec;                  // 0x4ec
-    int x4f0;                  // 0x4f0
+    float oob_clearance;       // 0x4f0 - calcDistanceFromOOB(&pos), refreshed by Rider_UpdateOOBDistance
     int x4f4;                  // 0x4f4
     int x4f8;                  // 0x4f8
     int x4fc;                  // 0x4fc
@@ -757,9 +699,9 @@ typedef struct RiderData
     int x80c;                           // 0x80c
     int x810;                           // 0x810
     int x814;                           // 0x814
-    int x818;                           // 0x818, bit 2 (0x04) = attack/charge input active; read by Rider_CanStartInhale
+    int x818;                           // 0x818
     int x81c;                           // 0x81c
-    u8 x820;                            // 0x820
+    u8 x820;                            // 0x820, bit 0x04 = attack/charge input active; read by Rider_CanStartInhale
     u8 x821;                            // 0x821
     u8 x822;                            // 0x822
     u8 x823;                            // 0x823
@@ -855,8 +797,8 @@ typedef struct RiderData
         GOBJ *saved_plink_neighbour;    // reused during a legendary assembly
     };
     int x940;                           // 0x940, saved gx_link neighbour GOBJ during a legendary assembly
-    int x944;                           // 0x944, staged is_bike for Rider_RespawnFullRecreate
-    int x948;                           // 0x948, staged class slot for Rider_RespawnFullRecreate
+    int respawn_is_bike;                // 0x944, staged is_bike for Rider_RespawnFullRecreate
+    int respawn_class_slot;             // 0x948, staged class slot for Rider_RespawnFullRecreate
     int x94c;                           // 0x94c
     int x950;                           // 0x950
     int x954;                           // 0x954
@@ -981,8 +923,21 @@ static CopyWheelTable *stc_copy_wheel_melee = (CopyWheelTable *)0x804af738;  // 
 
 // CPU rider AI ("virtual pad") pipeline.
 void Rider_CPUThink(GOBJ *gobj);          // 0x8018fc58, rider proc: if CPU, runs the AI update
+// Allocates rd->cpu. ai_state 0 picks the profile with Rider_CPUSelectProfile.
+void Rider_CPUInit(RiderData *rd, int ai_state, int difficulty); // 0x80262d6c
 void Rider_UpdateCPU(RiderData *rd);      // 0x8026beec, orchestrates perceive -> decide -> process -> emit
 void Rider_CPUDecideState(RiderData *rd); // 0x802716e8, AI state-machine dispatch (11 states, table 0x804b7a28)
+// Per-ai_state handlers: rewrite behavior_flags, pick targets, then tail-call
+// Rider_CPUArbitrateManeuver.
+void Rider_CPUDecideCruise(RiderData *rd);          // 0x80271790, state 1
+void Rider_CPUDecideCruisePlus(RiderData *rd);      // 0x80271b24, states 2, 4 and above 10
+void Rider_CPUDecideNavigate(RiderData *rd);        // 0x80271eb4, state 3
+void Rider_CPUDecideRouteFollow(RiderData *rd);     // 0x802726fc, state 5
+void Rider_CPUDecideRouteFollowCity(RiderData *rd); // 0x80272888, state 6
+void Rider_CPUDecideCharge(RiderData *rd);          // 0x80272dd0, state 7
+void Rider_CPUDecideAttack(RiderData *rd);          // 0x802735dc, state 8
+void Rider_CPUDecideReposition(RiderData *rd);      // 0x80273228, state 9
+void Rider_CPUDecidePatrol(RiderData *rd);          // 0x80273b48, state 10
 void Rider_CPUProcessCmd(RiderData *rd);  // 0x80275cbc, plays the command stream into the virtual pad (CpuData stick/buttons)
 // The maneuver chooser: a priority cascade gated by behavior/desire flags,
 // committing CpuData.maneuver.
@@ -995,8 +950,11 @@ void Rider_CPUUpdateNavTarget(RiderData *rd); // 0x8026b6d0, nearest-node spatia
 void Rider_CPUSeedDesire(RiderData *rd);  // 0x802762dc
 // Target-selection scans (populate CpuData target fields each frame; signatures approximate).
 void  Rider_CPURivalSelect(RiderData *rd);        // 0x80264210, scores 5 slots -> rival_player_idx (+0x70); shared by states 1/2/4/8/10
-void  Rider_CPUScanItems(RiderData *rd);          // 0x80263c4c, top-5 ranked item scan -> item_target (+0x74) (states 3/8)
-void  Rider_CPUScanCityObjects(RiderData *rd);    // 0x802638a4, top-5 ranked city-object scan -> city_object (+0x84) (state 3)
+// Ranks the top 5 items within radius of center by Rider_CPUGetItemScore plus
+// distance bands and returns the path_retry_counter'th; the caller stores it to
+// item_target (+0x74) (states 3/8). A non-NULL facing adds 5 to items off its axis.
+GOBJ *Rider_CPUScanItems(RiderData *rd, Vec3 *center, Vec3 *facing, float radius); // 0x80263c4c
+GOBJ *Rider_CPUScanCityObjects(RiderData *rd, Vec3 *center, float radius); // 0x802638a4, top-5 ranked city-object scan -> city_object (+0x84) (state 3)
 void  Rider_CPUScanRouteGoal(RiderData *rd);      // 0x80263fd0, single-best route-goal scan -> route_goal (+0x94) (states 5/6)
 void  Rider_CPUSelectChargeAnchor(RiderData *rd); // 0x80263610, resolves charge anchor -> charge_anchor (+0xb0/+0xb4) (state 7)
 void  Rider_CPUBlendRoutePoints(RiderData *rd);   // 0x80267238, blends item/interaction/path-point positions into the steering route
@@ -1017,6 +975,10 @@ void  Rider_CPUTerminateCmdStream(RiderData *rd); // 0x80276228, caps the per-ma
 int   Rider_CPUEmitChargeStutter(RiderData *rd);  // 0x8026da40, velocity-stuck charge-pump (press -> hold-20 -> hold-40); returns 1 if it emitted
 void  Rider_CPUTrackStuckProgress(RiderData *rd); // 0x8026ccec, ticks the stuck counter (+0x5c) vs the machine's max-turn tolerance
 // Difficulty / envelope getters.
+float Rider_CPUDifficultyScale(RiderData *rd);    // 0x80276f00, difficulty_level / 8, clamped to [0, 1]
+// ItemKind desirability from the table at 0x804b862c; below 1 means ignore. Food
+// is multiplied by 20 or 10 while the machine is low on HP.
+int   Rider_CPUGetItemScore(RiderData *rd, int kind); // 0x802768a8
 int   Rider_CPUGetAbilityPressHold(CpuData *cpu); // 0x802765d4, per-difficulty ability press-hold frames (table 0x804b7f30)
 void  Rider_CPUGetSteerEnvelope(CpuData *cpu, int *step_out, int *cap_out); // 0x80276650, per-difficulty (step,cap) steer envelope (table 0x804b7f54)
 float Rider_CPUGetMachineTurnTolerance(RiderData *rd); // 0x802776c4, per-machine max-turn angle (table 0x804b8f30)
@@ -1205,8 +1167,9 @@ void Rider_MetaKnight_AirControl(RiderData *rd); // 0x801c2b08
 //      RiderKirby_SetMaterialColorAndUpdate drives the model's MatAnim AObj to that
 //      baked color keyframe (walks dobj_lookup_arr at RiderData+0x2c0).
 //   2. ColAnim overlay (animated, time-based color flash/glow): Rider_ApplyColAnim
-//      selects a baked color-anim from the global table into RiderData+0x5c (body)
-//      via the generic ColAnim_Apply. Used by hurt (index 2) / invincibility (index 3).
+//      selects a baked color-anim from the global table into col_anim.slot[0] via the
+//      generic ColAnim_Apply. Used by Rider_GiveIntangibility (index 2, 0x80195f68)
+//      and Rider_GiveInvincibility (index 3, 0x80195f28 - the candy flash).
 //   3. Direct material color: walk dobj_lookup_arr[i] -> MObj -> HSD_Material and write
 //      ambient/diffuse (GXColor) each frame for an arbitrary smooth hue (no baked limit).
 // Stages model_part[part].cur_mat_index and sets the recolor-dirty bit.
@@ -1214,12 +1177,10 @@ void RiderKirby_SetMaterialColor(RiderData *rd, int part_idx, u8 mat_index);    
 // Stages it and immediately drives the body MatAnim to the new baked color.
 void RiderKirby_SetMaterialColorAndUpdate(RiderData *rd, int part_idx, u8 mat_index); // 0x80198d3c
 u8   Rider_GetColor(RiderData *rd);                                                   // 0x80192758, PlayerData.color_idx
-// Requests a baked color-overlay anim into the body overlay at rd+0x5c;
-// anim_index selects from the global table (3 = invincibility).
+// Requests a baked color-overlay anim into col_anim.slot[0]; anim_index selects from
+// the global table. Priority-gated, so it returns 0 when a higher-priority anim holds
+// the slot.
 int  Rider_ApplyColAnim(RiderData *rd, int anim_index, int param); // 0x8019bfb4
-// Generic priority-gated ColAnim applier; colanim_state is rd+0x5c or rd+0x108.
-int  ColAnim_Apply(void *colanim_state, void *table, int index, int param);          // 0x8006a3f0
-void ColAnim_Reset(void *colanim_state);                                             // 0x8006a250, clears the tint
 
 // Reads the machine's projectile inherit velocity via the rider's
 // machine_gobj, into *out. Thin wrapper around

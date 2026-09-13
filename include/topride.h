@@ -216,6 +216,12 @@ TopRidePlayerKind TopRide_GetPlayerKind(int slot);                   // 0x8000bd
 void TopRide_SetPlayerKind(int slot, TopRidePlayerKind kind);        // 0x8000bda8, writes byte +0
 u8   TopRide_GetColor(int slot);                                     // 0x8000bdf0, reads byte +1
 void TopRide_SetColor(int slot, u8 color);                           // 0x8000be2c, writes byte +1
+
+// Top Ride scene post-render callback. Its TopRide_CustomRenderer call issues a second
+// HSD_StartRender pass that overdraws the EFB, wiping any screen-canvas overlay.
+void TopRide_PostRenderCallback(void); // 0x80009074
+void TopRide_CustomRenderer(void);     // 0x80286d7c
+
 // Inert despite the name: stays 0 and is never read by the CPU AI. The CSS "CPU
 // Level" control is the +3 handicap byte below.
 void TopRide_SetCpuLevel(int slot, u8 level);                        // 0x8000be74, writes byte +2 (0..4)
@@ -356,5 +362,10 @@ static inline void TopRide_KirbyConfuse(TopRideKirby *kirby)
     typedef void (*Method)(TopRideKirby *, u32);
     ((Method)(((void **)kirby->vtable)[66]))(kirby, 0);
 }
+
+// Per-frame update of the SAND course's sand-pit actor, the one that swallows a kirby
+// and ejects it through the KirbyDoodlebugOut vtable wrapper. Third of three actor
+// updates the SAND course driver at 0x8032a5b4 runs.
+void TopRideSandPit_Update(void *pit); // 0x80331564
 
 #endif // KAR_H_TOPRIDE

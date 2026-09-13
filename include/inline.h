@@ -677,7 +677,7 @@ static void C_MTXRotAxisRad(Mtx *m, Vec3 *axis, f32 rad)
     f32 x, y, z;       // x, y, z components of normalized axis
     f32 xSq, ySq, zSq; // x, y, z squared
 
-    s = sin(rad);
+    s = sinf(rad);
     c = cos(rad);
     t = 1.0f - c;
 
@@ -956,7 +956,7 @@ static inline void SpawnItemPlayer(int ply, ItemKind kind)
     ItemDesc desc;
     Item_InitDesc(&desc, kind, 1.0f, 0, &md->pos, &md->up, &md->forward,
                   -1, -1, 1, 3, -1, -1);
-    GOBJ *item_gobj = Item_Create(&desc);
+    GOBJ *item_gobj = CityItem_Create(&desc);
     if (!item_gobj) return;
 
     if (kind < ITKIND_ACCELFAKE || kind > ITKIND_WEIGHTFAKE)

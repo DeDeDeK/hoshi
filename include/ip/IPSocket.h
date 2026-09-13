@@ -281,7 +281,6 @@ int SOGetHostID();
 
 int SOSocket(int af, int type, int protocol);
 int SOClose(int s);
-int SOShutdown(int s, int how);
 
 int SOBind(int s, void *sockAddr);
 int SOConnect(int s, void *sockAddr);

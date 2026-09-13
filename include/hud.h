@@ -16,8 +16,9 @@ typedef enum HUDKind
     HUDKIND_HUDCAM = 19,
     HUDKIND_ITEMINDICATOR = 25,
     HUDKIND_PLYHUDPOS = 35,
-    HUDKIND_CITYSTATBG = 66,  // 0x42, attached by City_CreateStatChart at 0x80128c70 (li r4,66)
-    HUDKIND_CITYSTATBAR = 67, // 0x43, attached by City_CreateStatChartBar at 0x801291e0 (li r4,67; bl 3DHud_AddData)
+    HUDKIND_LEGENDARYPIECE = 59, // 0x3b, attached by the piece-icon creators at 0x8012ac44 / 0x8012af14 (li r4,59)
+    HUDKIND_CITYSTATBG = 66,  // 0x42, attached by CityHUD_CreateStatChart at 0x80128c70 (li r4,66)
+    HUDKIND_CITYSTATBAR = 67, // 0x43, attached by CityHUD_CreateStatBar at 0x801291e0 (li r4,67; bl HUD_AddElementData)
 } HUDKind;
 
 typedef struct HudMapIconData
@@ -132,13 +133,13 @@ void HUD_PauseDestroy();
 GOBJ *HUD_CreateElement(int ply, JOBJDesc *j);
 
 void HUD_GXLink(GOBJ *g, int pass);
-void HUD_AddElementData(GOBJ *g, int size, int ply, int ply2);
+void HUD_AddElementData(GOBJ *g, HUDKind kind, int ply, int ply2);
 void HUD_UpdateElement(JOBJ *j, int frame);
 
 HSD_Archive **Gm_GetIfAllCityArchive();   // IfAll1c, contains common city trial specific graphics (timer, ready, pause, etc)
 HSD_Archive **Gm_GetIfAllScreenArchive(); // IfAll1Xs, contains player related HUD that needs to be scaled down based on screen number
 
-// The pair Gm_SetCinematicFreezeStage toggles: removeHUD / drawHUD plus, when the
+// The pair Gm_SetCinematicFreezeStage toggles: removeHUD / Gm_ShowHUD plus, when the
 // view count allows, the player dots, the minimap and three more elements.
 void HUD_HideForCinematic(void);   // 0x801129f8
 void HUD_ShowAfterCinematic(void); // 0x80112a78

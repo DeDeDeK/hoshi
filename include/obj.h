@@ -381,7 +381,7 @@ struct MatAnimJointDesc
     MatAnimDesc *matanim;
 };
 
-// Binds by tree position: HSD_JObjAddAnimAll (0x80409480) walks this tree in
+// Binds by tree position: JObj_AddAnimAll (0x80409480) walks this tree in
 // lockstep with a JObj tree, so a node drives whichever joint sits where it does.
 struct AnimJointDesc
 {
@@ -921,9 +921,8 @@ void JObj_CompileTEVAllMOBJ(JOBJ *joint);
 void JObj_DispAll(JOBJ *joint, Mtx *vmtx, int rendermode, int mobj_flags);
 void JObj_AttachPosition(JOBJ *to_attach, JOBJ *attach_to);
 void JObj_AttachPositionRotation(JOBJ *to_attach, JOBJ *attach_to);
-GOBJ *JObj_LoadSet(int is_hidden, JOBJSet *set, int anim_id, float frame, int p_link, int gx_link, int is_add_anim, void *cb); // 8019035c
-void JObj_AddSetAnim(JOBJ *jobj, int anim_id, JOBJSet *set, float frame, float rate);                                          // 8016895c
-void JObj_SetAllTObjFrame(JOBJ *j, int frame);
+GOBJ *JObj_LoadSet(int is_hidden, JOBJSet *set, int anim_id, float frame, int p_link, int gx_link, int is_add_anim, void *cb);
+void JObj_AddSetAnim(JOBJ *jobj, int anim_id, JOBJSet *set, float frame, float rate);                                        // 0x80138b10
 void JObj_Detach(JOBJ *to_attach);
 void JObj_ResetFromDesc(JOBJ *, JOBJDesc *);
 void JObj_RemoveAnimByFlags(JOBJ *, int);
@@ -956,9 +955,9 @@ void CObj_EndCurrent();
 void CObj_SetOrtho(COBJ *cobj, float top, float bottom, float left, float right);
 void CObj_SetViewport(COBJ *cobj, float left, float right, float top, float bottom);
 void CObj_SetScissor(COBJ *cobj, u16 left, u16 right, u16 top, u16 bottom);
-void CObj_SetEyePosition(COBJ *cobj, Vec3 *eye_pos);
+void CObj_SetEyePosition(COBJ *cobj, Vec3 *eye_pos); // 0x804018ac, writes the eye WObj (+0x24) position
 void COBJ_GetEyePosition(COBJ *cobj, Vec3 *eye_pos);
-void CObj_SetInterest(COBJ *cobj, Vec3 *pos);
+void CObj_SetInterest(COBJ *cobj, Vec3 *pos);        // 0x804017d4, writes the interest WObj (+0x28) position
 void CObj_SetUp(COBJ *cobj, Vec3 *up);
 void CObj_SetRoll(COBJ *cobj, float roll);
 void CObj_SetAspect(COBJ *cobj, float aspect);
@@ -988,8 +987,6 @@ void GObj_AddObject(GOBJ *gobj, u8 obj_kind, void *object);
 void GObj_FreeObject(GOBJ *gobj);
 void GObj_AddUserData(GOBJ *gobj, int userDataKind, void *destructor, void *userData);
 void GOBJ_InitCamera(GOBJ *gobj, void *cb, int gx_pri);
-void CObj_SetInterest(COBJ *cobj, Vec3 *pos);    // 0x804017d4 - writes cobj->interest (+0x28) WObj pos
-void CObj_SetEyePosition(COBJ *cobj, Vec3 *pos); // 0x804018ac - writes cobj->eye (+0x24) WObj pos
 void GObj_Anim(GOBJ *gobj);
 void *GObj_AddRenderObject(GOBJ *gobj, int width, int height);
 void GObj_DestroyByPLink(int p_link);                           // destroys all gobjs with p_link X

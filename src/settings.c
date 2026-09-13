@@ -296,7 +296,6 @@ void Settings_Think()
 
             SFX_Play(FGMMENU_CS_KETTEI);
 
-            Mod_CopyAllToSave();
             KARPlusSave_Write();
         }
         else if (opt_desc->kind == OPTKIND_ACTION && opt_desc->on_action)
@@ -325,7 +324,6 @@ void Settings_Think()
         else
         {
             Settings_ReqDestroy();
-            Mod_CopyAllToSave();
             KARPlusSave_Write();
         }
 
@@ -907,6 +905,12 @@ void Option_CopyFromSave(GlobalMod *mod, char *menu_name, OptionDesc *desc)
         // copy save value
         if (save[i].hash == opt_hash)
         {
+            // a hash collision or a shortened value list keeps the default
+            if (save[i].val >= desc->value_num)
+            {
+                LOG_DEBUG("%s save val %d out of range.\n", desc->name, save[i].val);
+                return;
+            }
             LOG_DEBUG("copying val %d from save for option %s.\n", save[i].val, desc->name);
             *desc->val = save[i].val;
             return;

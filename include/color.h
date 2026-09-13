@@ -11,52 +11,67 @@ struct ColAnimDesc // in PlCo
 {
     u8 *cmd_data; // 0x0
     u8 priority;  // 0x4
-    u8 x5;        // 0x5, forget what this does
-};
-struct ColorOverlay
-{
-    int timer;                      // 0x0
-    int pri;                        // 0x4  this colanims priority, lower = will persist
-    void *ptr1;                     // 0x8
-    int loop;                       // 0xc
-    void *ptr2;                     // 0x10
-    int x14;                        // 0x14
-    void *alloc;                    // 0x18
-    int x1c;                        // 0x1c
-    int x20;                        // 0x20
-    int x24;                        // 0x24
-    int colanim;                    // 0x28, id for the color animation in effect
-    GXColor hex;                    // 0x2C
-    float color_red;                // 0x30
-    float color_green;              // 0x34
-    float color_blue;               // 0x38
-    float color_alpha;              // 0x3C
-    float colorblend_red;           // 0x40
-    float colorblend_green;         // 0x44
-    float colorblend_blue;          // 0x48
-    float colorblend_alpha;         // 0x4C
-    GXColor light_color;            // 0x50
-    float light_red;                // 0x54
-    float light_green;              // 0x58
-    float light_blue;               // 0x5C
-    float light_alpha;              // 0x60
-    float lightblend_red;           // 0x64
-    float lightblend_green;         // 0x68
-    float lightblend_blue;          // 0x6c
-    float lightblend_alpha;         // 0x70
-    float light_angle;              // 0x74
-    float light_unk;                // 0x78
-    unsigned char color_enable : 1; // 0x7c, 0x80
-    unsigned char flag2 : 1;        // 0x7c, 0x40
-    unsigned char light_enable : 1; // 0x7c, 0x20
-    unsigned char flag4 : 1;        // 0x7c, 0x10
-    unsigned char flag5 : 1;        // 0x7c, 0x08
-    unsigned char flag6 : 1;        // 0x7c, 0x04
-    unsigned char flag7 : 1;        // 0x7c, 0x02
-    unsigned char flag8 : 1;        // 0x7c, 0x01
+    u8 x5;        // 0x5
 };
 
-void ColAnim_Apply(ColorOverlay *col, void *colanim_data, int colanim_index, int r6);
-void ColAnim_Disable(ColorOverlay *col);
+// One color-overlay slot. ColAnim_Apply (0x8006a3f0) latches a ColAnimDesc here and the
+// per-frame evaluation of cmd_data drives color and light; NULLing cmd_data freezes the
+// slot on whatever it last wrote.
+struct ColAnimSlot
+{
+    int     x00;            // 0x00, zeroed by ColAnim_Apply
+    int     param;          // 0x04, the param ColAnim_Apply was called with
+    u8     *cmd_data;       // 0x08, ColAnimDesc.cmd_data of the running anim
+    int     x0c;            // 0x0c, zeroed by ColAnim_Apply
+    int     x10[6];         // 0x10
+    int     anim_index;     // 0x28, running ColAnimDesc index; 0 = slot inactive
+    GXColor color;          // 0x2c, body tint the resolver copies out
+    float   color_f[4];     // 0x30, the same tint as 0..255 floats
+    int     x40[4];         // 0x40
+    float   color_blend[4]; // 0x50, per-channel weight; 1.0 unless ColAnim_ApplyEx (0x8006a2d8) set it
+    GXColor light_color;    // 0x60
+    float   light_f[4];     // 0x64
+    int     x74[4];         // 0x74
+    float   light_blend[4]; // 0x84, as color_blend
+    Vec3    light_pos;      // 0x94
+    int     xa0[2];         // 0xa0
+    u8      ratio;          // 0xa8, overlay blend ratio; 0xff = full strength
+    u8      pri;            // 0xa9, ColAnim_Apply rejects a ColAnimDesc of lower priority
+    u8      flags;          // 0xaa, 0x80 = tint live, 0x40 = light live, 0x20/0x10 select light submodes
+    u8      xab;            // 0xab
+};
+_Static_assert(sizeof(ColAnimSlot) == 0xac, "ColAnimSlot must be 0xac bytes");
+
+// Three overlay slots plus the state the renderer reads. ColAnim_Resolve (0x8006ae7c) picks
+// the active slot of highest priority and copies its tint, light and ratio down here;
+// ColAnim_SetupTev (0x8006aaa4) then uploads `color` to a free TEV color register, and does
+// nothing at all when flags bit 0x80 is clear and ratio is 0xff.
+struct ColAnimState
+{
+    ColAnimSlot slot[3];     // 0x000, 0x0ac, 0x158
+    LOBJ       *lobj;        // 0x204, the overlay's own light, built by LObj_CreateAll
+    LOBJ       *lobj_prev;   // 0x208, the light set restored while no slot drives the light
+    void       *x20c;        // 0x20c
+    GXColor     light_color; // 0x210
+    float       light_f[3];  // 0x214
+    float       light_scale; // 0x220, divides light_color before HSD_LObjSetColor
+    GXColor     color;       // 0x224, the resolved tint
+    Vec3        light_pos;   // 0x228
+    u8          ratio;       // 0x234, 0xff = no ratio blend
+    u8          flags;       // 0x235, 0x80 = tint live, 0x40 = light live, 0x08 = light_pos is model-local
+    u8          x236[2];     // 0x236
+};
+_Static_assert(sizeof(ColAnimState) == 0x238, "ColAnimState must be 0x238 bytes");
+
+#define COLANIM_FLAG_TINT  0x80 // tint override is live
+#define COLANIM_FLAG_LIGHT 0x40 // light override is live
+#define COLANIM_PRI_MAX    0xff
+#define COLANIM_RATIO_NONE 0xff // ColAnimState.ratio value meaning "no ratio blend"
+
+// Requests `index` from `table` into one slot. Refuses, returning 0, when the slot already
+// holds an anim of higher priority.
+int  ColAnim_Apply(ColAnimSlot *slot, ColAnimDesc *table, int index, int param); // 0x8006a3f0
+// Clears the slot: no anim, priority 0, tint and light overrides off.
+void ColAnim_Reset(ColAnimSlot *slot);                                           // 0x8006a250
 
 #endif

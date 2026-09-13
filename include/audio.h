@@ -765,8 +765,8 @@ int BGM_GetMenuBGM();
 void BGM_PlayFile(char *filename, int volume, int pan, int stream_index);
 void BGM_Play(int hpsID);
 void BGM_Stop();
-void BGM_Pause();
-void BGM_Resume();
+int BGM_Pause(int slot);  // 0x80445810, pauses one music slot (1 main, 2 secondary); returns 0 for an out-of-range slot
+int BGM_Resume(int slot); // 0x804458d0
 void BGM_LowerVolume();
 void BGM_RaiseVolume();
 void BGM_PlaySecondaryFile(int bgm_file_index); // 0x80061e7c - plays event BGM on stream 2, pauses main BGM

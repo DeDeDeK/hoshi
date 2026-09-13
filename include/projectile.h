@@ -152,16 +152,20 @@ typedef struct ProjectileStateEntry
 // is live. Projectile_ClearKindDataTable zeroes it at system init and
 // Projectile_Create dereferences the slot unchecked, so code spawning outside
 // the normal rider lifetime must guard on the slot being non-NULL.
+// What ProjKindData.model_desc points at. Projectile_CollectWeaponParts (0x80221914)
+// walks the tree and asserts if it holds a different number of joints, or more than 10.
+typedef struct ProjModelBlock
+{
+    JOBJDesc *tree;    // +0x00
+    u32       flags;   // +0x04: top byte is the tree's joint count
+} ProjModelBlock;
+
 typedef struct ProjKindData
 {
     const void                 *params;              // +0x00: 4 words; params[3] = default lifetime in frames
     const void                 *render_state_tmpl;   // +0x04: copied into proj+0x104. word0 is the muzzle
                                                      //        speed plasma / sword-star post_inits apply.
-    void                       *model_desc;          // +0x08: two words - the model's JOBJDesc, then a word
-                                                     //        whose top byte is that tree's joint count.
-                                                     //        NULL falls back to a global default model.
-                                                     //        The walker at 0x80221914 asserts if the tree
-                                                     //        holds a different number, or more than 10
+    ProjModelBlock             *model_desc;          // +0x08: NULL falls back to a global default model
     const void                 *state_anim_spec_array; // +0x0c: 16-byte stride by state_id
     const void                 *vuln_region_spec;    // +0x10: vulnerable-region list (0x44 stride). NULL for
                                                      //        every kind but FIRE_BULLET and SENSORBOMB; the
@@ -185,6 +189,9 @@ typedef struct ProjKindVTable
     void                      (*despawn)(void *proj);       // 0x20: Projectile_Despawn's exit; NULL falls back to
                                                             //       GObj_Destroy. Most kinds install a bare one
 } ProjKindVTable;
+
+// Indexed by ProjectileKind. Slots are NULL until a rider registers the list.
+static ProjKindData **proj_kind_data = (ProjKindData **)0x8055a9a8;
 
 // Inner projectile data - 0x220 bytes, reached via *(handle + 0x2c). Known
 // fields only; unknown regions are padding.
@@ -316,6 +323,20 @@ void Projectile_Despawn(void *proj); // 0x80220364
 // first; a mod that replaces state_fn2 has to call it to keep the sweep - and
 // with it any scene-object break - running.
 void Projectile_UpdateEnvColl(void *proj); // 0x80221fd4
+
+// Flattens the projectile's JObj tree into its part array, asserting on more than 10
+// joints or a count disagreeing with the joint count in the kind's ProjModelBlock.
+void Projectile_CollectWeaponParts(void *proj); // 0x80221914
+
+// PROJKIND_PLASMA_SPREAD_MID and _SIDE share one vtable and one state. Only the
+// prio-5 tick does anything: it runs the environment sweep, then bursts the shot on a
+// steep contact. The rest are bare returns, and despawn is a plain GObj_Destroy.
+void PlasmaSpread_Init(void *proj);                 // 0x8022691c
+void PlasmaSpread_State0_Fn0(void *proj);           // 0x802269f4
+void PlasmaSpread_State0_Fn1(void *proj);           // 0x802269f8
+void PlasmaSpread_State0_EnvCollide(void *proj);    // 0x802269fc
+void PlasmaSpread_State0_Fn3(void *proj);           // 0x80226abc
+void PlasmaSpread_Despawn(void *proj);              // 0x80226b1c
 
 // Rider-side spawn helpers used by copy abilities. All assert on the rider
 // having the matching ability hat model loaded. Position/forward/up come from

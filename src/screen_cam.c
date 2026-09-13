@@ -14,12 +14,15 @@
 #include "hoshi/screen_cam.h"
 #include <string.h>
 
-int canvas_idx;
+// Text_CreateCanvas returns the new canvas's ordinal among the canvases already bound to the
+// same SIS slot, and Text_CreateTextManual (0x8044f128) selects by that same ordinal. Scenes create
+// their own slot-1 canvases before Hook_SceneChange runs, so this is not always 0.
+static int stc_screen_canvas_idx;
 
 void ScreenCam_Create()
 {
     // create ortho text canvas
-    int canvas_idx = Text_CreateCanvas(1, 0, 0, 0, 0, HOSHI_SCREENCAM_GXLINK, 0, 63);
+    stc_screen_canvas_idx = Text_CreateCanvas(1, 0, 0, 0, 0, HOSHI_SCREENCAM_GXLINK, 0, 63);
 
     // // create ortho screen cam
     // GOBJ *g = GOBJ_EZCreator(0, 0, 0,
@@ -32,7 +35,7 @@ void ScreenCam_Create()
 }
 Text *ScreenCam_CreateText()
 {
-    return Text_CreateText(1, canvas_idx);
+    return Text_CreateText(1, stc_screen_canvas_idx);
 }
 void ScreenCam_Init()
 {
