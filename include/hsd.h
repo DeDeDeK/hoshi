@@ -347,25 +347,23 @@ static HSD_VIInfo *hsd_vi_info = (HSD_VIInfo *)0x80589a80;
 // the struct in place). Don't cache returned archives across scene transitions -
 // reload as needed instead. The matching free path is Archive_Free(0, archive),
 // but it's optional: scene teardown reclaims the storage automatically.
-HSD_Archive *Archive_LoadFile(char *filename);
-HSD_Archive *Archive_LoadInitReturnSymbol(char *filename, void *ptr, ...);                // input each symbol name pointer sequentially and terminate with 0;
-void Archive_GetSections(HSD_Archive *archive, void *symbol_out, char *symbol_name, ...); // input each symbol name sequentially and terminate with 0;
-void *Archive_GetPublicAddress(HSD_Archive *archive, char *symbol);
-void Archive_Init(HSD_Archive *archive, void *file_data, int size); // sets HSD_ARCHIVE_DONT_FREE in archive->flags
-void Archive_Free(int heap_id, HSD_Archive *archive);               // heap_id matches the Heap_Alloc heap (0 for Archive_LoadFile)
-char *Archive_GetExtern(HSD_Archive *archive, int index);                   // gets name of the nth symbol in the dat file
-void Archive_LocateExtern(HSD_Archive *archive, char *symbols, void *addr); // relocates pointers to symbols
-void Archive_LoadSync(char *filename, void *alloc, int *out_size);
-int lbLoadArchive(HSD_Archive **out, char *file_name, ...); // r3 is usually 0, va args are symbol_ptr followed by symbol_name, terminate with 0
-char *Archive_AppendExtension(char *filename);
+HSD_Archive *Archive_LoadFile(char *filename);                                            // 0x800596b4
+void Archive_GetSymbols(HSD_Archive *archive, void *symbol_out, char *symbol_name, ...);  // 0x80059520, symbol_out/symbol_name pairs terminated with 0, a missing symbol stores 0
+void *Archive_GetPublicAddress(HSD_Archive *archive, char *symbol);                       // 0x8041e390
+void Archive_Init(HSD_Archive *archive, void *file_data, int size); // 0x8041e224, sets HSD_ARCHIVE_DONT_FREE in archive->flags
+void Archive_Free(int heap_id, HSD_Archive *archive);               // 0x80059628, heap_id matches the Heap_Alloc heap (0 for Archive_LoadFile)
+char *Archive_GetExtern(HSD_Archive *archive, int index);                   // 0x8041e434, name of the nth extern symbol, 0 when out of range
+void Archive_LocateExtern(HSD_Archive *archive, char *symbols, void *addr); // 0x8041e46c, points every reference to the extern named symbols at addr
+int lbLoadArchive(HSD_Archive **out, char *file_name, ...); // 0x80059a20, r3 is usually 0, va args are symbol_ptr followed by symbol_name, terminate with 0
+char *Archive_AppendExtension(char *filename); // 0x80058e84
 int HSD_Randi(int max); // 0x8041e668, [0, max); returns 0 for max <= 0
-float HSD_Randf();
-void *HSD_MemAlloc(int size);
-void HSD_Free(void *ptr);
-// 0x8005884c - the allocator Archive_LoadFile goes through. Heap 0 selects the HSD
+float HSD_Randf(); // 0x8041e610
+void *HSD_MemAlloc(int size); // 0x8041cee4
+void HSD_Free(void *ptr); // 0x8041ceb4
+// The allocator Archive_LoadFile goes through. Heap 0 selects the HSD
 // heap and forwards to HSD_MemAlloc with that heap id made current, so it allocates
 // from the same per-scene storage a loaded archive does and is reclaimed with it.
-void *Heap_Alloc(int heap_id, int size);
+void *Heap_Alloc(int heap_id, int size); // 0x8005884c
 // What HSD_MemAlloc/HSD_Free dispatch to: OSAllocFromHeap / OSFreeToHeap against
 // HSD_GetHeapID(). Unusable before HSD_OSInit has made that heap - the id is -1
 // and the alloc asserts.
@@ -390,71 +388,58 @@ static inline void HSD_ArenaRelease(void *mark)
 {
     *stc_hsd_heap_start = (u8 *)mark;
 }
-void HSD_ObjAllocInit(HSD_ObjAllocData *data, size_t size, u32 align);
-void *HSD_ObjAlloc(HSD_ObjAllocData *obj_def);
-void HSD_ObjFree(HSD_ObjAllocData *obj_def, void *obj);
-void HSD_ClassDestroy(void *hsd_class);
-void HSD_ImageDescCopyFromEFB(_HSD_ImageDesc *image_desc, int left, int top, int clear_efb); // must be called from a cobj callback!
-void HSD_StartRender(int unk);
-void HSD_SetSpeed(u64 speed);
-void HSD_SetSpeedEasy(float mult);
-void HSD_StateInvalidate(int flags);
-void HSD_StateInitTev();
-void HSD_StateInitDirect(GXVtxFmt vtxfmt, int render_flags);
-void HSD_StateSetZMode(GXBool compare_enable, GXCompare func, GXBool update_enable);
-void HSD_StateSetNumChans(u8 nChans);
-void HSD_SetupChannel(void *unk);
-void HSD_StateSetColorUpdate(GXBool update_enable); // This function enables or disables color-buffer updates when rendering into the Embedded Frame Buffer (EFB)
-void HSD_StateSetAlphaUpdate(GXBool update_enable); // This function enables or disables alpha-buffer updates when rendering into the Embedded Frame Buffer (EFB)
-void HSD_StateSetDstAlpha(GXBool enable, u8 alpha);
+void HSD_ObjAllocInit(HSD_ObjAllocData *data, size_t size, u32 align); // 0x8041825c
+void *HSD_ObjAlloc(HSD_ObjAllocData *obj_def); // 0x804180e4
+void HSD_ObjFree(HSD_ObjAllocData *obj_def, void *obj); // 0x80418234
+void _hsdClassDestroy(void *hsd_class); // 0x80420b60, base class destroy, returns the object to its class memory pool
+void HSD_ImageDescCopyFromEFB(_HSD_ImageDesc *image_desc, int left, int top, int clear_efb); // 0x803f7a7c, must be called from a cobj callback!
+void HSD_StartRender(int unk); // 0x80410544
+void EngineSpeed_Update(u64 ticks); // 0x80062874, engine frame duration in OS ticks, normal speed is bus_clock / 240
+void HSD_StateInvalidate(int flags); // 0x803f898c
+void HSD_StateInitTev(); // 0x803f9028
+void HSD_StateInitDirect(GXVtxFmt vtxfmt, int render_flags); // 0x8040e390
+void HSD_SetupChannel(void *unk); // 0x803f8a6c
+void HSD_StateSetColorUpdate(GXBool update_enable); // 0x803f876c, enables or disables EFB color-buffer updates
+void HSD_StateSetAlphaUpdate(GXBool update_enable); // 0x803f87b4, enables or disables EFB alpha-buffer updates
+void HSD_StateSetDstAlpha(GXBool enable, u8 alpha); // 0x803f87fc
 void HSD_StateSetAlphaCompare(GXCompare func0, u8 reference0,
                               GXAlphaOperation operation,
-                              GXCompare func1, u8 reference1);
+                              GXCompare func1, u8 reference1); // 0x803f86bc
 void HSD_StateSetBlendMode(GXBlendMode type, GXBlendFactor src_factor,
-                           GXBlendFactor dst_factor, GXLogicOp op);
-void HSD_StateSetCullMode(GXCullMode cull_mode);
-void HSD_StateSetDither();
-void HSD_StateSetLineWidth(u8 width, int tex_offsets);
-void HSD_StateSetNumChans(u8 nChans);
-void HSD_StateSetNumTevStages(u8 stages);
-void HSD_StateSetNumTexGens(u8 nTexGens);
-void HSD_StateSetPointSize();
-void HSD_StateSetZCompLoc(GXBool enable);
-void HSD_StateSetZMode(GXBool compare_enable, GXCompare func, GXBool update_enable);
-void HSD_ClearVtxDesc();
-void HSD_VICopyXFBAsync(int unk);
-int HSD_VIGetDrawDoneWaitingFlag();
-int HSD_VIGetXFBDrawEnable();
-void HSD_VICopyEFB2XFBPtr(void *, int, int);
-int HSD_GXProject(COBJ *cobj, Vec3 *in, Vec3 *out, int unk);
-void HSD_UpdateDiscAndCardStatus();
-void HSD_PadFlushQueue(int);
-void HSD_PadRenewStatus();
-void HSD_PadRenewMasterStatus();
-void HSD_PadRenewCopyStatus();
-void HSD_PadRenewUpdateStruct();
-void HSD_PadRumbleInterpret();
-void HSD_VIPostRetraceCallback(int unk);
-void HSD_UpdateAllCObjs();
-void GX_AllocImageData(_HSD_ImageDesc *image_desc, int width, int height, int fmt, int size); // image data buffer is stored to the image_desc
-void GXTexModeSync();
-void GXPixModeSync();
-void GXInvalidateTexAll();
-u64 Pad_GetDown(int pad);
-u64 Pad_GetRapidHeld(int pad);
-u64 Pad_GetHeld(int pad);
-void Pad_Rumble(int pad, int unk, int strength, int duration); // make unk = 0
-void Pad_RumbleStopAll();
-void HSD_DumpHeapStat();
-void HSD_DumpClassStat(int r3, int r4, int r5);
+                           GXBlendFactor dst_factor, GXLogicOp op); // 0x803f8528
+void HSD_StateSetCullMode(GXCullMode cull_mode); // 0x803f84ec
+void HSD_StateSetColorDither(GXBool dither); // 0x803f88b0
+void HSD_StateSetLineWidth(u8 width, int tex_offsets); // 0x803f8488
+void HSD_StateSetNumChans(int num); // 0x803f8f08
+void HSD_StateSetNumTevStages(); // 0x803f905c, commits the accumulated TEV stage count to GX and resets it
+void HSD_StateSetNumTexGens(); // 0x803f8ff8, commits the accumulated texgen count to GX and resets it
+void HSD_StateSetPointSize(u8 size, int tex_offsets); // 0x803f8658
+void HSD_StateSetZCompLoc(GXBool enable); // 0x803f8868
+void HSD_StateSetZMode(GXBool compare_enable, GXCompare func, GXBool update_enable); // 0x803f85c8
+void HSD_ClearVtxDesc(); // 0x80405b3c
+void HSD_VICopyXFBAsync(int unk); // 0x804112b4
+int HSD_VIGetDrawDoneWaitingFlag(); // 0x8041104c
+void HSD_VICopyEFB2XFBPtr(HSD_VIStatus *vi, void *buffer, int rpass); // 0x8041105c
+void HSD_PadFlushQueue(int type); // 0x804125f8, 0 = merge into newest, 1 = drop all, 2 = keep newest
+void HSD_PadRenewMasterStatus(); // 0x80413a6c, consumes one queued PAD read into the master status
+void HSD_PadRenewCopyStatus(); // 0x80413d84, derives stc_engine_pads (edges, repeat) from the master status
+void HSD_PadRumbleInterpret(); // 0x80414b88
+void HSD_VIPostRetraceCB(int retrace_count); // 0x80410dfc
+void HSD_UpdateAllCObjs(); // 0x8042a1a8
+_HSD_ImageDesc *GX_AllocImageData(_HSD_ImageDesc *image_desc, int width, int height, int fmt); // 0x8028b050, allocates the image buffer from the HSD heap into image_desc
+u64 Pad_GetDown(int pad); // 0x8000ecf0
+u64 Pad_GetRapidHeld(int pad); // 0x8000ed30
+u64 Pad_GetHeld(int pad); // 0x8000ecd0
+void Pad_StartRumble(int pad, int unk, int kind, int duration); // 0x80071d00, make unk = 0
+void HSD_DumpClassStat(void *class_info, int recursive, int level); // 0x804213a4, OSReports class object counts, class_info 0 dumps from the root class
 void HSD_ObjDumpStat();                       // 0x804106a0
-HSD_ObjAllocData *HSD_IDGetAllocData();
-HSD_ObjAllocData *HSD_AObjGetAllocData();
-HSD_ObjAllocData *HSD_FObjGetAllocData();
-void HSD_IDInsertToTable(HSD_IDTable *id_table, u32 id, void *data);
-void HSD_IDRemoveByIDFromTable(HSD_IDTable *id_table, u32 id);
-void *HSD_IDGetDataFromTable(HSD_IDTable *id_table, u32 id, u8 *success);
-int HSD_GetHeapID();
-void HSD_SetHeapID(int heap);
+HSD_ObjAllocData *HSD_IDGetAllocData(); // 0x8041a53c
+HSD_ObjAllocData *HSD_AObjGetAllocData(); // 0x803fb16c
+HSD_ObjAllocData *HSD_FObjGetAllocData(); // 0x80403594
+void HSD_IDInsertToTable(HSD_IDTable *id_table, u32 id, void *data); // 0x8041a5a8
+void HSD_IDRemoveByIDFromTable(HSD_IDTable *id_table, u32 id); // 0x8041a694
+void *HSD_IDGetDataFromTable(HSD_IDTable *id_table, u32 id, int *success); // 0x8041a740
+int HSD_GetHeapID(); // 0x80410338
+void HSD_SetHeapID(int heap); // 0x8041037c
 
 #endif

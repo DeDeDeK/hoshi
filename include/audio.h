@@ -416,6 +416,9 @@ typedef struct SSMHeader
     u32 sound_base;  // 0x0c, global sound index of this bank's sound 0
 } SSMHeader;
 
+// The vanilla banks tile global sound indices 0..614 with no gap.
+#define SSM_VANILLA_SOUND_NUM 615
+
 // One loaded sound, in the audio heap. Audio_AllocPID (0x80448f08) finds it by
 // hashing `index` into stc_ssm_sound_hash; an index no bank claims is never
 // found and the sound drops.
@@ -425,8 +428,10 @@ typedef struct SSMSound
     int index;              // 0x04, global sound index
     int channel_num;        // 0x08
     int sample_rate;        // 0x0c
-    // 0x10, channel_num * 0x40 bytes of AXPBADDR / AXPBADPCM / AXPBADPCMLOOP
+    // 0x10, channel_num * SSM_CHANNEL_SIZE bytes of AXPBADDR / AXPBADPCM / AXPBADPCMLOOP
 } SSMSound;
+
+#define SSM_CHANNEL_SIZE 0x40
 
 // One loaded .ssm, at the head of its audio-heap block with its SSMSounds packed
 // behind it. Banks sharing an SSM slot chain here.
@@ -733,15 +738,12 @@ int SFX_Play(int sfxID);                                                        
 int SFX_PlayMenuSFX(int sfxID);                                                 // 0x80061620
 int SFX_PlayRaw(int sfx, int volume, int pan, int audio_track, int sg);         // 0x80442a10, sg is 0x42 of AudioEmitterData. any audio_track other than 0 will remember the current instance and destroy it if another is requested to play with that slot
 int SFX_PlayFullVolume(int sfxID);                                              // 0x8006176c, plays a sound effect at full volume
-int SFX_PlayCommon(int sfxID);
-int SFX_PlayCrowd(int sfxID);
-void SFX_StopCrowd();
 
 // Menu SFX wrappers - each plays one fixed menu sound (no args; the sfx id,
 // volume, pan, and track are hardcoded internally). Names from GKYE01.map.
 int playSoundFX_errorNoise(void);   // 0x80061734, "denied/error" buzzer for rejected menu actions
 
-void AudioHeap_SetAllocAndFree(void *alloc_func, void *free_func);
+void AudioHeap_SetAllocAndFree(void *alloc_func, void *free_func); // 0x804479d4
 
 // Carves the next SSM slot out of the ARAM sample arena, returning its index or
 // -1 when the arena or the 32 slots are exhausted. Prefer it over
@@ -759,28 +761,32 @@ typedef void (*FGMTaskFunc)(void);
 void FGM_QueueLoad(char *path, int slot, FGMLoadCallback cb, void *arg);      // 0x8044809c
 void FGM_SychronousLoad(FGMTaskFunc do_tasks);                                // 0x80448220, spins until the queue drains
 int FGM_InitSEM(void *sem_file);                                              // 0x80444208, relocates the image in place and installs it
+// Reads audio/<file_name> into the audio heap and hands it to FGM_InitSEM. Returns the
+// image, or NULL on failure.
+void *FGM_LoadAirrideSem(char *file_name);                                    // 0x8005c584
+// File_Read callbacks of the bank queue: LoadBankCallback reads a .ssm's tables into
+// DRAM and its sample data into ARAM, finishing in FGM_UnkCallback.
+void FGM_LoadBankCallback(int r3, void *arg);                                 // 0x80447ea4
+void FGM_UnkCallback(int r3, void *arg);                                      // 0x80447a74
 void DoTasks(void);                                                           // 0x80059cfc
-void BGM_DecideMenuBGM();
-int BGM_GetMenuBGM();
-void BGM_PlayFile(char *filename, int volume, int pan, int stream_index);
-void BGM_Play(int hpsID);
-void BGM_Stop();
+void BGM_PlayFile(char *filename, int volume, int pan, int stream_index); // 0x804456c0
+void BGM_Play(int hpsID); // 0x8005e1a8
+void BGM_Stop();          // 0x8005e5d0
 int BGM_Pause(int slot);  // 0x80445810, pauses one music slot (1 main, 2 secondary); returns 0 for an out-of-range slot
 int BGM_Resume(int slot); // 0x804458d0
-void BGM_LowerVolume();
-void BGM_RaiseVolume();
+void BGM_LowerVolume();   // 0x80061b44
+void BGM_RaiseVolume();                         // 0x80061ba0
 void BGM_PlaySecondaryFile(int bgm_file_index); // 0x80061e7c - plays event BGM on stream 2, pauses main BGM
 void BGM_StopSecondary(void);                   // 0x800620e8 - stops secondary BGM stream
-int BGM_GetPreferredVolume();            // 0 - > 127, derived from sound options in main menu
-void BGM_SetVolume(int volume, int unk); // 0 - > 127, unk is 1
-int FGM_CheckActive(u32 fgm_id);
-void FGM_Stop(u32 fgm_id);
-void FGM_StopAll();
-int FGM_CheckEnded(FGMInstance instance);
-int FGM_SetVolume(u32 sfxid, u8 volume);
-int FGM_SetPanning(u32 sfxid, u8 panning);
-void FGM_ResumeKind(int kind); //
-void FGM_PauseKind(int kind);  // pausing in-game pauses kinds 5,6,7,8
+int BGM_AdjustVolume(u8 volume, int unk);       // 0x804457e0 - unk is 1
+int FGM_CheckIfVPBActive(FGMInstance instance); // 0x80443cdc - 1 while the instance has a live voice
+void FGM_Stop(u32 fgm_id); // 0x8005e7d8
+void FGM_StopAll(); // 0x8005e788
+int FGM_CheckEnded(FGMInstance instance); // 0x8005e108
+int FGM_SetVolume(FGMInstance instance, int volume); // 0x8005f5bc, clamps volume to 0-255; 0 for a dead instance
+int FGM_SetPanning(FGMInstance instance, u8 pan);    // 0x80442a54, clamps pan to 254; 0 for a dead instance
+void FGM_ResumeKind(int kind); // 0x80444fe0
+void FGM_PauseKind(int kind);  // 0x80444cc4, pausing in-game pauses kinds 5,6,7,8
 // BGM slots 1 and 2 out and back, and every FGM kind in 4..62 out and back. The
 // legendary assembly cinematic brackets itself with all four.
 int BGM_PauseAll(void);        // 0x8005e6c8
@@ -789,18 +795,18 @@ void FGM_PauseAllKinds(void);  // 0x80061acc
 void FGM_ResumeAllKinds(void); // 0x80061b08
 // Ends both BGM slots and starts BGM_LEGENDARYAIRRIDEMACHINE with a fade.
 void BGM_PlayLegendaryTheme(void); // 0x8006215c
-void FGM_LoadInGameBanks();
+void FGM_LoadInGameBanks(); // 0x8005a348
 
-AudioEmitter AudioEmitter_Alloc(AudioEmitterKind kind, int idx); // 
-void AudioEmitter_Free(AudioEmitter source); //
-void AudioEmitter_SetPosition(AudioEmitter source, Vec3 *pos, float unk); // 
-void AudioEmitter_Init(AudioEmitter source); // is called before playing. inits distance value
+AudioEmitter AudioEmitter_Alloc(AudioEmitterKind kind, int idx); // 0x8005d864
+void AudioEmitter_Free(AudioEmitter source); // 0x8005e08c
+void AudioEmitter_SetPosition(AudioEmitter source, Vec3 *pos, float unk); // 0x8005db44
+void AudioEmitter_Init(AudioEmitter source); // 0x80061168, is called before playing. inits distance value
 // Sums the active-voice counts of the emitter's two sound-group IDs; 0 if idle.
 int AudioEmitter_CheckIfSGIsBeingUsed(AudioEmitter source); // 0x800623ec
-void AudioEmitter_Play(int sfx, int audio_track, AudioEmitter source); // you can play multiple sounds per track and prox?
-int AudioTrack_Alloc(); // 
-void AudioTrack_Free(int audio_track); // 
-int Audio_GetFGMNumUsingSoundGenerator(int sg);
-AXVPB *AXAcquireVoice(u32 priority, void *callback, u32 userContext);
+void AudioEmitter_Play(int sfx, int audio_track, AudioEmitter source); // 0x8005f528, you can play multiple sounds per track and prox?
+int AudioTrack_Alloc(); // 0x8005d2b4
+void AudioTrack_Free(int audio_track); // 0x8005d64c
+int Audio_GetFGMNumUsingSoundGenerator(int sg); // 0x80443d8c
+AXVPB *AXAcquireVoice(u32 priority, void *callback, u32 userContext); // 0x803ec308
 
 #endif

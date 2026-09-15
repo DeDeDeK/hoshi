@@ -462,25 +462,23 @@ static float Text_GetStringWidth(char *s, float scale)
 }
 
 /*** Functions ***/
-int Text_CreateCanvas(int sis_idx, int no_create_cam_gobj, int gobj_entityclass, int gobj_plink, int gobj_ppriority, int gxlink, int gxpri, int cobj_gxpri); // the optional gobj and cobj_gxlink are used to create a cobj as well. set gobj
-Text *Text_CreateText(int sis_idx, int canvas_idx);
-Text *Text_CreateTextManual(int sis_idx, int canvas_idx, float pos_x, float pos_y, float pos_z, float limit_x, float limit_y);
-void Text_Destroy(Text *text);
-int Text_AddSubtext(Text *text, float xPos, float yPos, char *string, ...);
-void Text_SetScale(Text *text, int subtext, float x, float y);
+int Text_CreateCanvas(int sis_idx, int no_create_cam_gobj, int gobj_entityclass, int gobj_plink, int gobj_ppriority, int gxlink, int gxpri, int cobj_gxpri); // 0x8044f674 - the optional gobj and cobj_gxlink are used to create a cobj as well. set gobj
+Text *Text_CreateText(int sis_idx, int canvas_idx); // 0x8044fa70
+Text *Text_CreateTextManual(int sis_idx, int canvas_idx, float pos_x, float pos_y, float pos_z, float limit_x, float limit_y); // 0x8044f128
+void Text_Destroy(Text *text); // 0x8044f350
+int Text_AddSubtext(Text *text, float xPos, float yPos, char *string, ...); // 0x8044fec4
+void Text_SetScale(Text *text, int subtext, float x, float y); // 0x80450774
 // void Text_SetColor(Text *text, int subtext, GXColor *color);
-void Text_SetText(Text *text, int subtext, char *string, ...);
-u8 *TextHeap_Alloc(int size);
-void TextHeap_Free(u8 *alloc);
-int Text_ConvertASCIIToShiftJIS(char *out, char *in);
+void Text_SetText(Text *text, int subtext, char *string, ...); // 0x8045031c
+u8 *TextHeap_Alloc(int size); // 0x8044edec
+void TextHeap_Free(u8 *alloc); // 0x8044efa8
+int Text_ConvertASCIIToShiftJIS(char *out, char *in); // 0x8044fb0c
 void Text_GX(GOBJ *gobj, int pass); // 0x804516e4 - pass 0 = camera setup, pass 2 = draw + opcode walk.
-void Text_LoadSisFile(int index, char *filename, char *symbol);
+void Text_LoadSisFile(int index, char *filename, char *symbol); // 0x8044f800
 int Text_StorePremadeText(Text *text, int text_index); // 0x8044f9d4 - parse/count subtexts in SIS data.
 void Text_InitPremadeText(Text *text, int text_index); // 0x8044f8c8 - set text from SIS slot entry by index.
-void Text_DestroyAllSisCanvas(int sis_id);
-void Text_DestroyCanvas(TextCanvas *);
-void Text_InitSisHeap(int size);
-void Text_DestroySisHeap();
+void Text_DestroyAllSisCanvas(int sis_id); // 0x8044f438 - destroys every text and canvas on sis_id and frees its sis archive
+void Text_CreateHeap(int size); // 0x8044f5b4 - allocates the text heap and clears the sis, text and canvas lists
 // State-history stack helpers used by the renderer/composers when nesting
 // COLOR/SCALE/POS/ALIGN opcodes. kind: 1=POS, 2=COLOR, 3=SCALE, 4=ALIGN, 5=int.
 // High bit (0x80) on Pop = "pop without write" (sizer pass).

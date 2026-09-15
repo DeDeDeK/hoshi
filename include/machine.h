@@ -103,55 +103,55 @@ static const char *const MachineKind_Names[VCKIND_NUM] = {
 // a field named for one class means nothing under the other.
 typedef struct vcHandlingAttr
 {
-    float x000;             // 0x000
-    float lift_ceiling;     // 0x004, ceiling MachineData.lift_accum is clamped to; seeds lift_max
-    float accel_floor;      // 0x008, floor under the grounded per-frame accel, itself capped at
-                            //        top_speed_ground. 0 on Slick, 4.0 on Hydra
-    float accel_turn_keep;  // 0x00c, fraction of that accel still applied at full slip
-    float turn_rate_rest;   // 0x010, grounded yaw per stick unit at a standstill, radians/frame
-    float turn_rate_top;    // 0x014, ...and at top speed; Machine_RotateDuringCharge lerps the two
+    float lift_ceiling;     // 0x000, ceiling MachineData.lift_accum is clamped to; seeds lift_max
+    float accel_floor;      // 0x004, floor under the grounded per-frame accel, itself capped at
+                            //        top_speed_ground. 0.025 on Slick, 0 on Hydra
+    float accel_turn_keep;  // 0x008, fraction of that accel still applied at full slip
+    float turn_rate_rest;   // 0x00c, grounded yaw per stick unit at a standstill, radians/frame
+    float turn_rate_top;    // 0x010, ...and at top speed; Machine_RotateDuringCharge lerps the two
                             //        on |velocity| / top_speed_current
+    float x014;             // 0x014
     float x018;             // 0x018
-    float x01c;             // 0x01c
-    float slip_penalty_deg; // 0x020, slip angle past which a turn is damped
-    float slip_penalty;     // 0x024, the damping factor, 0.2 on every machine
-    float x028[7];          // 0x028
-    float x044[5];          // 0x044, scaled together by five of the nine stats; no direct reader
-    float x058[5];          // 0x058
-    float x06c[10];         // 0x06c
-    float x094;             // 0x094, model pitch per unit of the machine's fore/aft measure
-    float lean_approach;    // 0x098, fraction of the way to the target lean taken per frame
-    float lean_step_max;    // 0x09c, per-frame lean step cap toward a nonzero target, degrees
-    float lean_step_max_0;  // 0x0a0, ...and toward a zero target
-    float pitch_max_down;   // 0x0a4, model pitch clamp, degrees
-    float pitch_max_up;     // 0x0a8, 36 on most stars, 1 on Formula, -20 on Dragoon
-    float roll_max;         // 0x0ac, model roll per unit of stick, degrees
-    float roll_scale;       // 0x0b0, extra roll multiplier on the second lean path
+    float slip_penalty_deg; // 0x01c, slip angle past which a turn is damped
+    float slip_penalty;     // 0x020, the damping factor, 0.55 on most stars
+    float x024[7];          // 0x024
+    float x040[5];          // 0x040, scaled together by five of the nine stats; no star-class reader
+    float x054[5];          // 0x054
+    float x068[10];         // 0x068
+    float x090;             // 0x090, model pitch per unit of the machine's fore/aft measure
+    float lean_approach;    // 0x094, fraction of the way to the target lean taken per frame
+    float lean_step_max;    // 0x098, per-frame lean step cap toward a nonzero target, degrees
+    float lean_step_max_0;  // 0x09c, ...and toward a zero target
+    float pitch_max_down;   // 0x0a0, model pitch clamp, degrees
+    float pitch_max_up;     // 0x0a4, 36 on most stars, 5 on Formula, 35 on Dragoon
+    float roll_max;         // 0x0a8, model roll per unit of stick, degrees
+    float roll_scale;       // 0x0ac, extra roll multiplier on the second lean path
+    float x0b0;             // 0x0b0
     int x0b4;               // 0x0b4
-    float x0b8;             // 0x0b8
-    float air_accel;        // 0x0bc, airborne counterpart of accel_floor, capped at top_speed_air
-    float air_accel_fwd;    // 0x0c0, multiplier while the stick agrees with the heading
-    float air_accel_back;   // 0x0c4, ...and while it opposes it
-    float air_impulse;      // 0x0c8, scales the impulse a steep surface contact returns; 600 on
-                            //        Slick, 1800 on Flight Warp Star, 20 on Formula
-    float air_recover_len;  // 0x0cc, frames the post-airborne velocity blend runs over
-    float x0d0[4];          // 0x0d0
-    float x0e0[6];          // 0x0e0
+    float air_accel;        // 0x0b8, airborne counterpart of accel_floor, capped at top_speed_air
+    float air_accel_fwd;    // 0x0bc, multiplier while the stick agrees with the heading
+    float air_accel_back;   // 0x0c0, ...and while it opposes it
+    float air_impulse;      // 0x0c4, scales the kick Machine_Star_ApplyAirImpulse adds in flight;
+                            //        0.01 on Slick, 0.19 on Bulk, 0 on Formula
+    float air_recover_len;  // 0x0c8, frames over which ApplyAirThrust blends thrust toward its surface
+                            //        reflection; 600 on Slick, 1800 on Flight Warp Star, 20 on Formula
+    float x0cc[4];          // 0x0cc
+    float x0dc[6];          // 0x0dc
+    float x0f4;             // 0x0f4, only zz_801e97a8_ reads it
 } vcHandlingAttr;           // 0x0f8
 
 _Static_assert(sizeof(vcHandlingAttr) == 0xf8, "vcHandlingAttr must be 0xf8 bytes");
 
 // The live attribute block, allocated per machine by Machine_AllocAttrStruct and
-// reached through MachineData.attr. Machine_CopyCommonAttributes refills the two
-// copied halves - `common` from a per-class table indexed by MachineData.kind,
-// `handling` from the machine's own vcData->handling_attr - and
-// Machine_ApplyStarStatScaling then scales fields in place from the patch stats.
+// reached through MachineData.attr. Machine_CopyCommonAttributes refills both
+// halves - `common` from the class archive's vcDataKindStar.attr, `handling` from
+// the machine's own vcData->handling_attr - and Machine_ApplyStarStatScaling then
+// scales fields in place from the patch stats.
 typedef struct MachineAttrWork
 {
-    u8 common[0xa8];         // 0x000, per-class, shared by every machine of the class.
+    u8 common[0xac];         // 0x000, per-class, shared by every machine of the class.
                              //        +0x1c is the class-wide speed cap accelerateStar clamps to
-    vcHandlingAttr handling; // 0x0a8
-    int x1a0;                // 0x1a0, past both copies; only zz_801e97a8_ reads it
+    vcHandlingAttr handling; // 0x0ac
 } MachineAttrWork;           // 0x1a4
 
 _Static_assert(sizeof(MachineAttrWork) == 0x1a4, "MachineAttrWork must be 0x1a4 bytes");
@@ -167,8 +167,17 @@ typedef struct vcDataKindStar
         int x0;
     } *x4;
     void *attr; // 0x8
-
+    // 0xc, the class's sound table, handed to every machine as MachineData.x654 by the
+    // class's attribute copy (0x801e81b0 star, 0x801f3d24 bike) and read nowhere else.
+    // The star's holds one air-noise FGM id per class slot from +0x30; the bike's one
+    // {loop, one-shot} FGM id pair per class slot from +0x1c. Both are indexed with no bound.
+    void *sound;
 } vcDataKindStar;
+
+#define VCSTAR_SOUND_TABLE_HEAD    0x30
+#define VCSTAR_SOUND_TABLE_STRIDE  4
+#define VCWHEEL_SOUND_TABLE_HEAD   0x1c
+#define VCWHEEL_SOUND_TABLE_STRIDE 8
 
 // Per-machine-kind audio parameters, 0x94 bytes, authored in VcCommon.dat and indexed by class
 // slot. The thirteen FGM ids are the whole of a machine's voice; everything after them is the
@@ -395,6 +404,18 @@ typedef struct vcAnimationStar
     int after_boost_sfx;        // 0x78
 } vcAnimationStar;              // 0x7c
 
+// Bike-class animation bank. Each pair is a joint animation and its material
+// animation; the generator ids name bank 0 generators, -1 for none, read live on every
+// spawn by Machine_Wheel_Think (0x801f5390) and the class's boost-emit proc (0x801f516c).
+typedef struct vcAnimationWheel
+{
+    void *anim[4][2];           // 0x00
+    int cruise_particle;        // 0x20, spawned on the timer below at two bone pairs
+    int boost_particle;         // 0x24, spawned at all four bones
+    int particle_bone[4];       // 0x28, indices into the machine's joint table, -1 for none
+    float cruise_timer[2][2];   // 0x38, {first-pair frame, period}, riding and not
+} vcAnimationWheel;             // 0x48
+
 // A Vc<Class><Stem>.dat's only public, named vcData<Class><Stem>.
 typedef struct vcData
 {
@@ -461,9 +482,11 @@ typedef struct MachineSpawnData
     u8 prev_machine_kind[4];                      // 0x50, circular buffer
     int prev_machine_index;                       // 0x54
     u8 x58[0x54];                                 // 0x58
-    // 0xac, times each MachineKind has been placed in Free Run. Bumped by
-    // CityMachineSpawn_SpawnFreeRunMachine (0x801dee58) and read by
-    // CityMachineSpawn_PickFreeRunKind (0x801de41c) to draw from the kinds still missing.
+    // 0xac, machines of each absolute kind on the Free Run field. Seeded per player by
+    // CityMachineSpawn_Init (0x801ddee8) in every mode, bumped by
+    // CityMachineSpawn_SpawnFreeRunMachine (0x801dee58) and CityMachineSpawn_TakeMachine
+    // (0x801decbc), dropped by CityMachineSpawn_ReleaseMachine (0x801ded8c), and read by
+    // CityMachineSpawn_PickFreeRunKind (0x801de41c), which re-places a kind at 0.
     u8 freerun_placed[VCKIND_NUM];                // 0xac
     u8 xc6_80 : 1;                                // 0xc6, 0x80, is set to 0 when a certain amount of machines have spawned
     u8 machineformation_is_start : 1;             // 0xc6, 0x40, flag set when machine formation event is queued.
@@ -478,7 +501,8 @@ typedef struct MachineData
     GOBJ *rider_unk2;                     // 0xc
     int is_bike;                          // 0x10
     int instance_id;                      // 0x14, unique per object, from a counter bumped in Machine_Create
-    int x18;                              // 0x18
+    u8 city_spawn_slot;                   // 0x18, its City Trial spawn slot, set by Machine_RegisterHitReaction (0x801e0158)
+    u8 x19[3];                            // 0x19
     int x1c;                              // 0x1c
     int x20;                              // 0x20
     MachineKind kind : 8;                 // 0x24, class-relative like PlayerData.machine_kind: indexes the
@@ -890,8 +914,12 @@ typedef struct MachineData
     int x64c;                             // 0x64c
     MachineAttrWork *attr;                // 0x650, the live attribute block, allocated per machine
     int x654;                             // 0x654
-    int x658;                             // 0x658, per-class table of {min, max} multiplier pairs
-                                          //        Machine_ScaleFromRatio lerps a stat ratio across
+    u8 *stat_scale;                       // 0x658, per-class table of {min, max} multiplier pairs
+                                          //        Machine_ScaleFromRatio lerps a stat ratio across.
+                                          //        Six blocks Machine_ApplyStarStatScaling reads are
+                                          //        19-row tables indexed by MachineData.kind: Top Speed
+                                          //        +0x68 / +0x100, Weight +0x328 / +0x3c0, Glide
+                                          //        +0x538 / +0x5d0
     int x65c;                             // 0x65c
     HurtData *hurt_data;                  // 0x660, passed as first arg to Machine_ApplyHurt. Created by Machine_InitHurtData
     struct                                //
@@ -1322,7 +1350,7 @@ static char ***stc_vcNameTable = (char ***)(0x805dd0e0 - 0x6150);
 // indexed [is_bike * 2 + {0, 1}]. Loaded into stc_vcDataKindStar.
 static char **stc_vcClassNameTable = (char **)0x804b07e0;
 
-GOBJ *Machine_Create(MachineSpawnDesc *desc);
+GOBJ *Machine_Create(MachineSpawnDesc *desc); // 0x801c552c
 // Loads a class's shared archive and one class slot's Vc*.dat into
 // stc_vcDataLookup, skipping either if already resident. Machine_Create calls it
 // for every machine it spawns.
@@ -1330,6 +1358,8 @@ void Vehile_LoadFile(int is_bike, int class_index); // 0x801c6d74
 // Scene-entry reset: NULLs every stc_vcDataLookup slot and both class-shared
 // pointers, so the next Vehile_LoadFile reloads them.
 void vcData_InitLookup(void); // 0x801c6c68
+// Loads VcCommon.dat into stc_vcDataCommon and caches its sub-tables in the globals beside it.
+void vcLoadCommon(void); // 0x801c6d0c
 // Allocates and populates a spawning machine's MachineData, resolving
 // md->vcData out of stc_vcDataLookup at +0x9c.
 void Machine_StoreVcDataPtr(GOBJ *machine_gobj, MachineSpawnDesc *desc); // 0x801c4f98
@@ -1339,6 +1369,22 @@ void MachineDesc_SetKindAndIsBikeFromMachineKind(MachineKind kind, int *out_is_b
 // Folds the pair back, `is_bike ? kind + VCSTAR_NUM : kind`. Read by the City
 // Trial machine blips and the CPU distance check.
 MachineKind Machine_GetAbsoluteKind(GOBJ *machine_gobj); // 0x801c85bc
+// The same fold over a bare pair, the class slot taken as a byte. Behind
+// Ply_GetVehicleKind (0x8022c910) and City Trial's Free Run machine counts.
+MachineKind Machine_EncodeVehicleKind(int is_bike, int class_index); // 0x801c85a8
+// The machine in City Trial spawn slot `slot`, NULL outside City Trial.
+#define CITY_SPAWN_SLOT_NUM 23
+GOBJ *CityMachineSpawn_GetSlotGObj(int slot); // 0x801e02e8
+// Seeds the MachineSpawnData carried by City Trial's machine spawner GObj.
+void CityMachineSpawn_Init(GOBJ *gobj); // 0x801ddee8
+// The field spawn and the Machine Formation event's spawn, each a weighted roll over the
+// spawn table's window for match_progress that skips the four most recent kinds.
+void CityMachineSpawn_DecideAndSpawn(MachineSpawnData *sp, float match_progress);     // 0x801defac
+void CityMachineSpawn_SpawnFormationStar(MachineSpawnData *sp, float match_progress); // 0x801df408
+// Count a machine into and out of the spawner's tallies, by its Machine_EncodeVehicleKind,
+// MachineData.x20 and xc3b_10.
+void CityMachineSpawn_TakeMachine(MachineKind kind, int x20, int xc3b_10);    // 0x801decbc
+void CityMachineSpawn_ReleaseMachine(MachineKind kind, int x20, int xc3b_10); // 0x801ded8c
 // Queues one machine archive for preload by filename.
 void Machine_PreloadArchive(char *filename); // 0x801c6e3c
 // Queues one class slot's archive plus its class-shared archive.
@@ -1346,10 +1392,10 @@ void Machine_PreloadKind(int is_bike, int class_index); // 0x801c8c8c
 // City Trial's bulk preload: walks the 26-entry enable table at 0x804b07f0 and
 // queues every enabled kind's archive.
 void Machine_PreloadAll(int stage_kind); // 0x801c8cec
-int Machine_GetRiderPly(MachineData *md);
-void Machine_SetMaxHP(MachineData *md);
-void Machine_GiveIntangibility(MachineData *md, int time);
-void Machine_ApplyColAnim(MachineData *md, int col_anim, int unk);
+int Machine_GetRiderPly(MachineData *md); // 0x801caa40
+void Machine_SetMaxHP(MachineData *md); // 0x801cb4a4
+void Machine_GiveIntangibility(MachineData *md, int time); // 0x801d6c50
+void Machine_ApplyColAnim(MachineData *md, int col_anim, int unk); // 0x801d5ca0
 // Drops every collision animation running on the machine.
 void Machine_ResetColAnims(MachineData *md); // 0x801d633c
 // Adds delta to stat_arr[stat_idx], clamped to [Patch_GetMinValue, Patch_GetMaxValue].
@@ -1366,6 +1412,8 @@ void cityTrial_setMasterStats(GOBJ *machine_gobj, float *stats); // 0x801c8258
 void cityTrial_getMasterStats(GOBJ *machine_gobj, float *out_stats); // 0x801c81c0
 // Updates stat glow, candy, charge, invincibility and vehicle-specific effects.
 void Machine_UpdateAppearance(MachineData *md); // 0x801d6668
+// Per-frame proc Machine_Create installs on a machine GObj.
+void Machine_AnimThink(GOBJ *machine_gobj); // 0x801c618c
 // Drains the machine's three ColAnim request queues, reapplying the overlays its
 // current state calls for and refreshing appearance from them. Machine_AnimThink
 // (0x801c618c) calls it last, so a material written after it is what draws.
@@ -1398,8 +1446,8 @@ void Machine_Wheel_PushAddCharge(double rate, MachineData *md);     // 0x801f5f2
 // Machine_GivePatch already does - but it does not touch the fields
 // Machine_Star_Init seeds once (ground_grip, air_grip, lift_max).
 void Machine_AdjustAttributes(MachineData *md); // 0x801c7278
-// Refills md->attr: `common` from a per-class table indexed by MachineData.kind,
-// `handling` from md->vcData->handling_attr.
+// Refills md->attr: `common` (0xac bytes) from vcDataKindStar.attr, then `handling`
+// from md->vcData->handling_attr at attr+0xac.
 void Machine_CopyCommonAttributes(MachineData *md); // 0x801e812c
 // Allocates md->attr. Called once as a machine is created.
 void Machine_AllocAttrStruct(MachineData *md); // 0x801c71a8
@@ -1419,14 +1467,15 @@ typedef enum MachineStat
     MACHINESTAT_NUM,
 } MachineStat;
 
-// Summed per-stat source contributions / Patch_GetMaxValue(), clamped to [0,1].
+// Summed per-stat source contributions / Patch_GetMaxValue(), clamped to [-1,1].
 float Machine_GetStatRatio(MachineData *md, int stat_idx);  // 0x801caa8c
 // The same ratio lerped across the per-stat min/max attribute pair, giving the
 // interpolated attribute value rather than the raw ratio.
 float Machine_GetStatRatio2(MachineData *md, int stat_idx); // 0x801cabd4
 // Bipolar interpolator: ratio>0 -> 1 + ratio*(high-1), ratio<0 -> 1 + (-ratio)*(low-1).
 float Machine_ScaleFromRatio(float *low_high_pair, float ratio);  // 0x801cab4c
-float Machine_ScaleFromRatio2(float *low_high_pair, float ratio); // 0x801cab94, near-identical variant
+// Additive twin: 0 at ratio 0, ratio*high above it, (-ratio)*low below.
+float Machine_ScaleFromRatio2(float *low_high_pair, float ratio); // 0x801cab94
 // Per-stat scaling loops: GetStatRatio then ScaleFromRatio against the attribute
 // pairs in vcDataKindStar / the bike-specific offsets.
 void Machine_ApplyStarStatScaling(MachineData *md); // 0x801e81e4
@@ -1452,6 +1501,10 @@ void Machine_Star_UpdateThrust(MachineData *md);      // 0x801eb57c
 void Machine_Star_ApplyGroundThrust(MachineData *md); // 0x801ecae4
 void Machine_Star_ApplyAirThrust(MachineData *md);    // 0x801ed4d8
 void Machine_Star_ApplyGrip(MachineData *md);         // 0x801ebc90
+// Flight-state kick from Star_Fly_3_HandleFlightPhysics: when the negated dot of
+// `facing` with zz_801ca968_'s vector clears attr->common+0x38, adds `push` times
+// that dot, `scale` and handling.air_impulse to MachineData.accel.
+void Machine_Star_ApplyAirImpulse(float scale, MachineData *md, Vec3 *facing, Vec3 *push); // 0x801ebe88
 
 // Samples a table at `step` intervals with linear interpolation between
 // neighbours: i = (int)(x / step), lerp(t[i], t[i+1]). Machine_ApplyChargeBoost
@@ -1462,15 +1515,24 @@ float LerpTable(double step, double x, const float *table); // 0x80062c4c
 // boost_gain_any, and writes the boost velocity.
 int Machine_ApplyChargeBoost(MachineData *md, float *out_gain); // 0x801da3c0
 // The star class's spawn reset and per-frame update. Each ends by indexing a
-// 19-entry handler table - 0x804b15c0 for Init, 0x804b160c for Think - by the
-// class-relative MachineData.kind, with no bounds check. Only Hydra, Formula,
-// Wagon and Turbo have handlers.
+// 19-entry handler table - stc_machine_star_init_handler for Init,
+// stc_machine_star_think_handler for Think - by the class-relative MachineData.kind,
+// with no bounds check. Only Hydra, Formula, Wagon and Turbo have handlers.
 void Machine_Star_Init(MachineData *md);  // 0x801e7f3c
 void Machine_Star_Think(MachineData *md); // 0x801eacbc
-void Machine_GivePatch(MachineData *, PatchKind, int num);
-void Machine_GiveAllUp(MachineData *, int num);
-void Machine_OnTouchItem(MachineData *, ItemData *);
-int Machine_IsDead(MachineData *);
+// The star class's air-noise loop, run from Machine_Star_Think.
+void Machine_SoundEffectThink(MachineData *md); // 0x801ee588
+typedef void (*MachineStarProc)(MachineData *md);
+static MachineStarProc *stc_machine_star_init_handler = (MachineStarProc *)0x804b15c0;  // [VCSTAR_NUM]
+static MachineStarProc *stc_machine_star_think_handler = (MachineStarProc *)0x804b160c; // [VCSTAR_NUM]
+// The bike class's counterparts, entries +0x10 and +0x38 of its class descriptor at
+// 0x804b1c40. Neither dispatches through a per-kind table.
+void Machine_Wheel_Init(MachineData *md);  // 0x801f3b54
+void Machine_Wheel_Think(MachineData *md); // 0x801f5390
+void Machine_GivePatch(MachineData *, PatchKind, int num); // 0x801cacf4
+void Machine_GiveAllUp(MachineData *, int num); // 0x801cad40
+void Machine_OnTouchItem(MachineData *, ItemData *); // 0x801db34c
+int Machine_IsDead(MachineData *); // 0x801c856c
 // Triggers fall-off-course death, storing ground_handle at md+0x1B48,
 // respawn_pos[3] at md+0x1B4C and a timestamp at md+0x1B58. respawn_pos is
 // mpColl spline params, not world XYZ.
@@ -1487,19 +1549,22 @@ int Machine_CheckFallDeath(MachineData *md); // 0x801e6464
 // wall test: non-zero means the pushback was stopped by a wall somewhere in its
 // substeps. GetWallContactNum also resets md+0x710, the index the other two read,
 // so call it first; zz_801d0498_ (0x801d0498) and zz_801d04d8_ (0x801d04d8) are
-// what advance that index to pick a particular wall. checkMachineStuck
-// (0x801d2b04) gates wall_stuck_timer (0xb40) on the same count.
+// what advance that index to pick a particular wall. Machine_CheckStuck
+// gates wall_stuck_timer (0xb40) on the same count.
 int  Machine_GetWallContactNum(MachineData *md);              // 0x801cde84
 int  Machine_GetWallContactTriID(MachineData *md);            // 0x801cde9c, GrCollParam.tri index
 void Machine_GetWallContactPos(MachineData *md, Vec3 *out);   // 0x801cdf00, world contact point
-void Machine_SetStatCap(MachineData *md, int stat_group_index); // types 13-19 handler, writes stat cap for kinds 21-26 (SPEEDMAX-CHARGENONE)
-void Machine_ModifyStatByKind(MachineData *md, int kind, float value); // type 22 handler, modifies a stat by item kind
-void Machine_GiveFood(MachineData *md, int flag, float amount); // heals HP, flag=1 triggers SFX
-int Machine_IsLowHP(MachineData *md); // returns 1 if hp < threshold * hp_max (health threshold check, NOT invincibility)
-void Machine_HealTick(MachineData *md); // fixed-amount heal, simplified variant of Machine_GiveFood
-void Machine_GiveCandy(MachineData *md, int duration); // applies candy visual effect (rainbow color anim), clears hurt data. duration param unused
-void Machine_GivePatchOrCandy(MachineData *md, int type, float amount); // dispatches type 27 = candy, types 21-24 = patches
-void Machine_PatchPickupEffect(MachineData *md, int patch_kind); // visual/SFX effect on patch pickup
+// Returns 1 when the wall contact counts as stuck. Run by the fly, jump and drop states
+// of both classes.
+int  Machine_CheckStuck(MachineData *md);                     // 0x801d2b04
+void Machine_SetStatCap(MachineData *md, int stat_group_index); // 0x801caee4, types 13-19 handler, writes stat cap for kinds 21-26 (SPEEDMAX-CHARGENONE)
+void Machine_ModifyStatByKind(MachineData *md, int kind, float value); // 0x801cb3d8, type 22 handler, modifies a stat by item kind
+void Machine_GiveFood(MachineData *md, int flag, float amount); // 0x801e2140, heals HP, flag=1 triggers SFX
+int Machine_IsLowHP(MachineData *md); // 0x801e1ec4, returns 1 if hp < threshold * hp_max (health threshold check, NOT invincibility)
+void Machine_HealTick(MachineData *md); // 0x801e2244, fixed-amount heal, simplified variant of Machine_GiveFood
+void Machine_GiveCandy(MachineData *md, int duration); // 0x801d6c90, applies candy visual effect (rainbow color anim), clears hurt data. duration param unused
+void Machine_GivePatchOrCandy(MachineData *md, int type, float amount); // 0x801cb1c0, dispatches type 27 = candy, types 21-24 = patches
+void Machine_PatchPickupEffect(MachineData *md, int patch_kind); // 0x8027a478, visual/SFX effect on patch pickup
 // Applies hurt through the HitColl system. hurt_subsystem = MachineData.hurt_data,
 // index = 0, hurt_params = the 0x34-byte struct from Trigger_ClearParameterStruct.
 void Machine_ApplyHurt(void *hurt_subsystem, int index, HurtParams *hurt_params); // 0x8018d1a8
@@ -1570,5 +1635,5 @@ void MachineGObj_GetProjectileBaseVelocity(GOBJ *machine_gobj, Vec3 *out); // 0x
 float Machine_GetProjectileChargeScale(MachineData *md);                   // 0x801d7e28
 float MachineGObj_GetProjectileChargeScale(GOBJ *machine_gobj);            // 0x801c868c, unwraps gobj->userdata
 
-AudioEmitter Machine_AllocAudioEmitter(int index);
+AudioEmitter Machine_AllocAudioEmitter(int index); // 0x8005dc5c
 #endif

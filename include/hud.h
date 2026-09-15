@@ -125,19 +125,19 @@ typedef struct HUDElementData // created by 80114e24
 
 static HSD_Archive **stc_if_all_archive = (HSD_Archive **)(0x805dd0e0 + 0x690);
 
-void CityHUD_CreateStatChart(int ply, int ply2);
-void CityHUD_CreateStatBar(int ply, int ply2, int stat_kind);
+void CityHUD_CreateStatChart(int ply, int ply2); // 0x80128bb8
+void CityHUD_CreateStatBar(int ply, int ply2, int stat_kind); // 0x80129154
 
-void HUD_PauseCreate();
-void HUD_PauseDestroy();
-GOBJ *HUD_CreateElement(int ply, JOBJDesc *j);
+void HUD_PauseCreate(); // 0x801285dc
+void HUD_PauseDestroy(); // 0x80128a68
+GOBJ *HUD_CreateElement(int ply, JOBJDesc *j); // 0x80114ba4
 
-void HUD_GXLink(GOBJ *g, int pass);
-void HUD_AddElementData(GOBJ *g, HUDKind kind, int ply, int ply2);
-void HUD_UpdateElement(JOBJ *j, int frame);
+void HUD_GXLink(GOBJ *g, int pass); // 0x80114f1c
+void HUD_AddElementData(GOBJ *g, HUDKind kind, int ply, int ply2); // 0x80114e24
+void HUD_UpdateElement(JOBJ *j, int frame); // 0x8011503c
 
-HSD_Archive **Gm_GetIfAllCityArchive();   // IfAll1c, contains common city trial specific graphics (timer, ready, pause, etc)
-HSD_Archive **Gm_GetIfAllScreenArchive(); // IfAll1Xs, contains player related HUD that needs to be scaled down based on screen number
+HSD_Archive **Gm_GetIfAllCityArchive();   // 0x80112050 - IfAll1c, contains common city trial specific graphics (timer, ready, pause, etc)
+HSD_Archive **Gm_GetIfAllScreenArchive(); // 0x80112058 - IfAll1Xs, contains player related HUD that needs to be scaled down based on screen number
 
 // The pair Gm_SetCinematicFreezeStage toggles: Gm_HideHUD / Gm_ShowHUD plus, when the
 // view count allows, the player dots, the minimap and three more elements.

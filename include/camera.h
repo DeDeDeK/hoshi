@@ -142,7 +142,7 @@ typedef struct PlayerCamLookup
 
 static PlayerCamLookup *stc_plycam_lookup = (PlayerCamLookup *)0x80557248; // array of 32, this is actually part of a larger struct
 
-COBJ *PlyCam_GetCObj(int cam_index);
+COBJ *PlyCam_GetCObj(int cam_index);                            // 0x800b8054
 void PlyCam_Think();                                            // 0x800b3540, per-frame drive for one player camera
 void PlyCam_MachineZoomAdjust(CamData *cam);                    // 0x800b61f4, folds rotation_amt/zoom_amt into x110; no-op unless x84_80
 // C-Stick to rotation_amt / zoom_amt. p = {rot_scale, zoom_min, zoom_max, interest_raise}.
@@ -152,9 +152,9 @@ int PlyCam_OnFootThink(CamData *cam, int pad_index);            // 0x800cb3b4, k
 void PlyCam_OnFootEnter(CamData *cam, int *unk);                // 0x800cc050, kind 6 on-enter
 void PlyCam_OnFootSolve(CamData *cam, int is_first_frame);      // 0x800cb500, kind 6 per-frame solve into xc0
 void PlyCam_OnFootBlend(CamData *cam);                          // 0x800cbec8, kind 6 smoothing of xc0 into xe8
-void PlyCam_GetFullscreenScissor(CamScissor *out);
-void PlyCam_Get2PScissor(int view_index, CamScissor *out);
-void PlyCam_Get4PScissor(int view_index, CamScissor *out);
+void PlyCam_GetFullscreenScissor(CamScissor *out);              // 0x80068574
+void PlyCam_Get2PScissor(int view_index, CamScissor *out); // 0x80068588
+void PlyCam_Get4PScissor(int view_index, CamScissor *out); // 0x800685ac
 
 // Scripted cinematic camera, on a spare slot (5-31) of cam_gobjs. The anchor's
 // world matrix is sampled once and every eye/interest key transformed through it,

@@ -610,64 +610,62 @@ struct VIUnknown
 static volatile GXPipe *gx_pipe = (GXPipe *)0xCC008000;
 static VIUnknown *_p = (VIUnknown *)0x804c0980;
 
-void GXSetZMode(GXBool compare_enable, GXCompare func, GXBool update_enable);
-void GXSetLineWidth(u8 width, int tex_offsets);
-void GXBegin(GXPrimitive type, GXVtxFmt vtxfmt, u16 nverts);
-void GXEnd();
-void GXPixModeSync();
-void GXInitTexObj(GXTexObj *obj, void *image_ptr, u16 width, u16 height, GXTexFmt format, GXTexWrapMode wrap_s, GXTexWrapMode wrap_t, GXBool mipmap);
-void GXLoadTexObj(GXTexObj *obj, GXTexMapID id);
-void GXSetTexCoordGen2(GXTexCoordID dst_coord, GXTexGenType func, GXTexGenSrc src_param, u32 mtx, GXBool normalize, u32 postmtx);
-void GXInvalidateTexAll();
-void GXInvalidateVtxCache();
+void GXSetZMode(GXBool compare_enable, GXCompare func, GXBool update_enable); // 0x803cf8cc
+void GXSetLineWidth(u8 width, int tex_offsets); // 0x803cc42c
+void GXBegin(GXPrimitive type, GXVtxFmt vtxfmt, u16 nverts); // 0x803cc2b4
+void GXPixModeSync(); // 0x803cbe9c
+void GXInitTexObj(GXTexObj *obj, void *image_ptr, u16 width, u16 height, GXTexFmt format, GXTexWrapMode wrap_s, GXTexWrapMode wrap_t, GXBool mipmap); // 0x803cd7d4
+void GXLoadTexObj(GXTexObj *obj, GXTexMapID id); // 0x803cdde4
+void GXInvalidateTexAll(); // 0x803ce084
+void GXInvalidateVtxCache(); // 0x803cb728
 void GXSetAlphaCompare(
     GXCompare func0, u8 reference0,
     GXAlphaOperation operation,
-    GXCompare func1, u8 reference1);
+    GXCompare func1, u8 reference1); // 0x803cf05c
 void GXSetBlendMode(
     GXBlendMode type, GXBlendFactor src_factor,
-    GXBlendFactor dst_factor, GXLogicOp op);
-void GXSetColorUpdate(GXBool enable);
-void GXSetAlphaUpdate(GXBool enable);
-void GXSetZCompLoc(GXBool enable);
-void GXSetDstAlpha(GXBool enable, u8 alpha);
-void GXSetChanMatColor(GXChannelID chan, GXColor *mat_color);
-void GXSetChanAmbColor(GXChannelID chan, GXColor *amb_color);
-void GXSetNumTexGens(u8 nTexGens);
-void GX_blr(int, int);
-void GXSetNumTevStages(u8 stages);
-void GXSetTevOrder(GXTevStageID stage, GXTexCoordID coord, GXTexMapID map, GXChannelID color);
-void GXSetTevColor(GXTevRegID id, GXColor *color);
-void GXSetTevColorIn(GXTevStageID stage, GXTevColorArg a, GXTevColorArg b, GXTevColorArg c, GXTevColorArg d);
-void GXSetTevAlphaIn(GXTevStageID stage, GXTevAlphaArg a, GXTevAlphaArg b, GXTevAlphaArg c, GXTevAlphaArg d);
-void GXSetTevColorOp(GXTevStageID stage, GXTevOp op, GXTevBias bias, GXTevScale scale, GXBool clamp, GXTevRegID out_reg);
-void GXSetTevAlphaOp(GXTevStageID stage, GXTevOp op, GXTevBias bias, GXTevScale scale, GXBool clamp, GXTevRegID out_reg);
-void GXSetTevKAlphaSel(GXTevStageID stage, int sel);
-void GXSetTevKColor(int id, GXColor *color);
-void GXSetTevOp(GXTevStageID stage, GXTevMode mode);
-void GXSetNumChans(u8 nChans);
-void GXSetChanCtrl(GXChannelID chan, GXBool enable, GXColorSrc amb_src, GXColorSrc mat_src, GXLightID light_mask, GXDiffuseFn diff_fn, GXAttnFn attn_fn);
-void GXSetCullMode(GXCullMode cull_mode);
-void GXClearVtxDesc();
-void GXSetVtxAttrFmt(GXVtxFmt vtxfmt, GXAttribute attribute, GXComponentContents contents, GXComponentType type, u8 fracBits);
-void GXSetVtxDesc(GXAttribute attribute, GXAttributeType type);
-void GXLoadPosMtxImm(Mtx *, GXPosNormMtx);
-void GXSetCurrentMtx(GXPosNormMtx);
-u32 GXGetTexBufferSize(u16 width, u16 height, u32 format, GXBool mipmap, u8 max_lod);
-void GXSetTexCoordGen2(GXTexCoordID dst_coord, GXTexGenType func, GXTexGenSrc src_param, u32 mtx, GXBool normalize, u32 postmtx);
-void GXSetViewport(f32 xOrig, f32 yOrig, f32 wd, f32 ht, f32 nearZ, f32 farZ);
-void GXSetDispCopyGamma(GXGamma gamma);
+    GXBlendFactor dst_factor, GXLogicOp op); // 0x803cf820
+void GXSetColorUpdate(GXBool enable); // 0x803cf874
+void GXSetAlphaUpdate(GXBool enable); // 0x803cf8a0
+void GXSetZCompLoc(GXBool enable); // 0x803cf900
+void GXSetDstAlpha(GXBool enable, u8 alpha); // 0x803cfa4c
+void GXSetChanMatColor(GXChannelID chan, GXColor *mat_color); // 0x803cd3ac
+void GXSetChanAmbColor(GXChannelID chan, GXColor *amb_color); // 0x803cd2b8
+void GXSetNumTexGens(u8 nTexGens); // 0x803cba08
+void GX_blr(int, int); // 0x803cf058, GXSetTevClampMode, an empty stub in release
+void GXSetNumTevStages(u8 stages); // 0x803cf30c
+void GXSetTevOrder(GXTevStageID stage, GXTexCoordID coord, GXTexMapID map, GXChannelID color); // 0x803cf134
+void GXSetTevColor(GXTevRegID id, GXColor *color); // 0x803ced38
+void GXSetTevColorIn(GXTevStageID stage, GXTevColorArg a, GXTevColorArg b, GXTevColorArg c, GXTevColorArg d); // 0x803cebe0
+void GXSetTevAlphaIn(GXTevStageID stage, GXTevAlphaArg a, GXTevAlphaArg b, GXTevAlphaArg c, GXTevAlphaArg d); // 0x803cec24
+void GXSetTevColorOp(GXTevStageID stage, GXTevOp op, GXTevBias bias, GXTevScale scale, GXBool clamp, GXTevRegID out_reg); // 0x803cec68
+void GXSetTevAlphaOp(GXTevStageID stage, GXTevOp op, GXTevBias bias, GXTevScale scale, GXBool clamp, GXTevRegID out_reg); // 0x803cecd0
+void GXSetTevKAlphaSel(GXTevStageID stage, int sel); // 0x803cef00
+void GXSetTevKColor(int id, GXColor *color); // 0x803cee20
+void GXSetTevOp(GXTevStageID stage, GXTevMode mode); // 0x803ceb54
+void GXSetNumChans(u8 nChans); // 0x803cd4a0
+void GXSetChanCtrl(GXChannelID chan, GXBool enable, GXColorSrc amb_src, GXColorSrc mat_src, GXLightID light_mask, GXDiffuseFn diff_fn, GXAttnFn attn_fn); // 0x803cd4e4
+void GXSetCullMode(GXCullMode cull_mode); // 0x803cc518
+void GXClearVtxDesc(); // 0x803cac04
+void GXSetVtxAttrFmt(GXVtxFmt vtxfmt, GXAttribute attribute, GXComponentContents contents, GXComponentType type, u8 fracBits); // 0x803cac3c
+void GXSetVtxDesc(GXAttribute attribute, GXAttributeType type); // 0x803ca184
+void GXLoadPosMtxImm(Mtx *, GXPosNormMtx); // 0x803d073c
+void GXSetCurrentMtx(GXPosNormMtx); // 0x803d07dc
+u32 GXGetTexBufferSize(u16 width, u16 height, u32 format, GXBool mipmap, u8 max_lod); // 0x803cd5b0
+void GXSetTexCoordGen2(GXTexCoordID dst_coord, GXTexGenType func, GXTexGenSrc src_param, u32 mtx, GXBool normalize, u32 postmtx); // 0x803cb738
+void GXSetViewport(f32 xOrig, f32 yOrig, f32 wd, f32 ht, f32 nearZ, f32 farZ); // 0x803d09cc
+void GXSetDispCopyGamma(GXGamma gamma); // 0x803ccc5c
 void GXSetCopyClear(GXColor clear_clr, u32 clear_z);             // 0x803cc9cc
 void GXCopyTex(void *dest, GXBool clear);                        // 0x803ccdd4
 void GXSetTexCopySrc(u16 left, u16 top, u16 wd, u16 ht);         // 0x803cc654
 void GXSetTexCopyDst(u16 wd, u16 ht, GXTexFmt fmt, GXBool mipmap); // 0x803cc720
-void GXSetDither(GXBool dither);
-void GXSetScissor(u32 xOrig, u32 yOrig, u32 wd, u32 ht);
-void VIWaitForRetrace();
-void VIConfigure(GXRenderModeObj *rm);
-void VISetPostRetraceCallback(void *cb);
-void GXWaitDrawDone();
-void GXSetDrawDone();
+void GXSetDither(GXBool dither); // 0x803cfa20
+void GXSetScissor(u32 xOrig, u32 yOrig, u32 wd, u32 ht); // 0x803d0a28
+void VIWaitForRetrace(); // 0x803de164
+void VIConfigure(GXRenderModeObj *rm); // 0x803de62c
+void *VISetPostRetraceCallback(void *cb); // 0x803dd9d0, returns the previous callback
+void GXWaitDrawDone(); // 0x803cbe50
+void GXSetDrawDone(); // 0x803cbdb8
 
 /*
 ######################

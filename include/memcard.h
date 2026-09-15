@@ -45,10 +45,10 @@ typedef struct SaveInfo
 //     MemCardIcon_01 (8-frame 32x32 CI8 + 256-entry RGB5A3 TLUT).
 //   The create path writes commentAddr=0, iconAddr=0x40, bannerFormat=NONE (icon-only tile).
 
-MemcardStatus Memcard_GetState();
-void Memcard_RequestCheckExist(int slot, char *save_name);
-MemcardSaveStatus Memcard_GetSaveStatus();
-void Memcard_SetSaveStatus(MemcardSaveStatus);
+MemcardStatus Memcard_GetState(); // 0x80452790
+void Memcard_RequestCheckExist(int slot, char *save_name); // 0x80459c40
+MemcardSaveStatus Memcard_GetSaveStatus(); // 0x80078e30
+void Memcard_SetSaveStatus(MemcardSaveStatus); // 0x80078e40
 
 static MemcardUnk *stc_memcard_unk = (MemcardUnk *)0x805528f8;
 static SaveInfo *stc_save_info = (SaveInfo *)0x8059a880;
