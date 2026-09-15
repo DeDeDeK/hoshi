@@ -53,10 +53,10 @@ typedef enum HookKind
             : "i"(_func), "i"((_exit_addr) ? _exit_addr : (_dol_addr + 0x4)), "i"(HOOKKIND_CONDITIONAL), "i"((_exit_addr_alt) ? _exit_addr_alt : (_dol_addr + 0x4))); \
     }
 
-#define CODEPATCH_HOOKAPPLY(_dol_addr) _CodePatch_HookApply((int *)_dol_addr, hook_##_dol_addr)
-#define CODEPATCH_REPLACEINSTRUCTION(_dol_addr, _instr) _CodePatch_OverwriteApply((int *)_dol_addr, _instr)
-#define CODEPATCH_REPLACECALL(_dol_addr, _func) _CodePatch_ReplaceCall((int *)_dol_addr, (void *)_func)
-#define CODEPATCH_REPLACEFUNC(_dol_addr, _func) _CodePatch_ReplaceFunc((int *)_dol_addr, (void *)_func)
+#define CODEPATCH_HOOKAPPLY(_dol_addr) _CodePatch_HookApply((int *)(_dol_addr), hook_##_dol_addr)
+#define CODEPATCH_REPLACEINSTRUCTION(_dol_addr, _instr) _CodePatch_OverwriteApply((int *)(_dol_addr), (_instr))
+#define CODEPATCH_REPLACECALL(_dol_addr, _func) _CodePatch_ReplaceCall((int *)(_dol_addr), (void *)(_func))
+#define CODEPATCH_REPLACEFUNC(_dol_addr, _func) _CodePatch_ReplaceFunc((int *)(_dol_addr), (void *)(_func))
 
 typedef enum CodePatchKind
 {

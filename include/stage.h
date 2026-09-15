@@ -493,5 +493,5 @@ void *Spline_GetBackward(int segment);                   // 0x800cf44c - backwar
 // HSD spline evaluation. param runs [0.0, 1.0] from first to last control
 // point. The spline struct has u8 type at +0x0 and s16 num_points at +0x2.
 
-AudioEmitter Map_AllocAudioEmitter(int index);
+AudioEmitter Map_AllocAudioEmitter(int index); // 0x8005ded0
 #endif

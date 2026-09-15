@@ -128,17 +128,54 @@ typedef struct SoundTestDesc
 static HSD_Archive **stc_MnSelplyAll_archive = (HSD_Archive **)(0x805dd0e0 + 0x6dc);
 static SoundTestDesc *stc_soundtest_desc = (SoundTestDesc *)0x80496458; // 62 of these
 
-GOBJ *MenuElement_Create(JOBJDesc *jobjdesc);
-MenuElementData *MenuElement_AddData(GOBJ *menu_element_gobj, int element_kind);
+GOBJ *MenuElement_Create(JOBJDesc *jobjdesc); // 0x801388a8
+MenuElementData *MenuElement_AddData(GOBJ *menu_element_gobj, int element_kind); // 0x80138a00
 
 CharacterKind SelIcon_GetCKind(int row_idx, int col_idx); // 0x8000b9bc, the grid
 CharacterKind SelIcon_GetCKindLinear(int idx); // 0x8000b9a8, the single-row strip
 CharacterDesc *Character_GetDesc(CharacterKind ckind); // 0x8000b9dc
 
-// The reverse of CharacterDesc_GetMachineKind, over two byte tables: stars at
-// 0x80495850 (19 entries) and bikes at r13 - 0x7fbc (7). The results screens and
-// the time-attack board use it to reach a machine's art.
+// The roster tables those three form an address into, back to back with no slack.
+#define SELICON_GRID_ROWS 2
+#define SELICON_GRID_COLS 10
+static u8 *stc_selicon_ckind_linear = (u8 *)0x804957ec;                 // [CKIND_NUM]
+static u8 *stc_selicon_ckind_grid = (u8 *)0x80495800;                   // [SELICON_GRID_ROWS * SELICON_GRID_COLS]
+static CharacterDesc *stc_character_desc = (CharacterDesc *)0x80495814; // [CKIND_NUM]
+
+// The reverse of CharacterDesc_GetMachineKind, over stc_machine_ckind_star and
+// stc_machine_ckind_bike. The results screens and the time-attack board use it to
+// reach a machine's art.
 CharacterKind Machine_GetCKind(int is_bike, int class_index); // 0x8000b9f4
+static u8 *stc_machine_ckind_star = (u8 *)0x80495850;            // [VCSTAR_NUM]
+static u8 *stc_machine_ckind_bike = (u8 *)(0x805dd0e0 - 0x7fbc); // [VCWHEEL_NUM]
+
+// The frame of IfAll3c.dat's ScInfStarIcon TexAnim a machine is drawn with on the
+// stadium HUDs (High Jump's opponent heights, the flight-distance marker, the stadium
+// icon element): a byte out of stc_machine_icon_frame, read at
+// is_bike * MACHINE_ICON_FRAME_BIKE_BASE + class_index with no bound.
+int Machine_GetIconFrame(int is_bike, int class_index); // 0x8011584c
+#define MACHINE_ICON_FRAME_BIKE_BASE 12
+static u8 *stc_machine_icon_frame = (u8 *)0x804a7b84; // [17]
+
+// City Trial's field blips. Create builds one template joint per MachineKind and the
+// GObj whose GX callback draws every view's instances; Destroy removes the instances,
+// the templates and the GObj.
+void CityBlip_Create(void);                     // 0x801226e8
+void CityBlip_GXCallback(GOBJ *gobj, int pass); // 0x80122380
+void CityBlip_Destroy(void);                    // 0x80122a6c
+
+// How far City Trial's field blip rides over a machine: a float out of
+// stc_blip_lift_star or stc_blip_lift_bike, read by class slot with no bound, times
+// stc_blip_lift_scale. Its only caller is the blip's per-view placement at 0x80122b38.
+float CityBlip_GetMachineLift(int is_bike, int class_index); // 0x800096b8
+static float *stc_blip_lift_star = (float *)0x804894a0;  // [VCSTAR_NUM]
+static float *stc_blip_lift_bike = (float *)0x804894ec;  // [VCWHEEL_NUM]
+static float *stc_blip_lift_scale = (float *)0x805de738; // 0.175
+
+// Places each player's machine model on the City Trial stat radar screen, lowered by a
+// float out of a 19-entry star table at 0x80489558 or a 7-entry bike table at 0x804895a4,
+// read at the player's saved (is_bike, class slot) with no bound, times 0.175.
+void MnRadar_PlaceMachines(void); // 0x80045e14
 
 // CharacterDesc.machine_kind is a class-relative slot, not a MachineKind: it
 // equals the VCKIND only for the vanilla stars.

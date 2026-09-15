@@ -43,20 +43,18 @@ struct DevText
 
 /*** Functions ***/
 
-DevText *DevelopText_Create(int unk1, int x, int y, int width, int height, void *alloc);
+DevText *DevelopText_Create(int unk1, int x, int y, int width, int height, void *alloc); // 0x800ab2d4
 void DevelopText_Activate(void *unk, DevText *text);
 void DevelopText_Deactivate(void *unk);
-void DevelopText_AddString(DevText *text, ...);
-void DevelopText_EraseAllText(DevText *text);
-void DevelopText_SetCursorXY(DevText *text, int x, int y);
-void DevelopText_StoreTextColor(DevText *text, u8 *RGBA);
-void DevelopText_StoreBGColor(DevText *text, u8 *RGBA);
+void DevelopText_AddString(DevText *text, ...); // 0x800ab78c
+void DevelopText_EraseAllText(DevText *text); // 0x800ab5a4
+void DevelopText_SetCursorXY(DevText *text, int x, int y); // 0x800ab4c0
+void DevelopText_StoreTextColor(DevText *text, u8 *RGBA); // 0x800ab55c
+void DevelopText_StoreBGColor(DevText *text, u8 *RGBA); // 0x800ab584
 void DevelopText_ShowText(DevText *text);
 void DevelopText_HideText(DevText *text);
 void DevelopText_ShowBG(DevText *text);
 void DevelopText_HideBG(DevText *text);
 void DevelopText_StoreTextScale(DevText *text, float x, float y);
-void Develop_DrawSphere(float size, Vec3 *pos1, Vec2 *pos2, GXColor *diffuse, GXColor *ambient);
-void Develop_UpdateMatchHotkeys();
 
 #endif

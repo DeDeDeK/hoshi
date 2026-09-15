@@ -99,9 +99,9 @@ typedef struct StadiumResults
                            //        (feet = metres / 0.3048)
 } StadiumResults;
 
-StadiumGroup Gm_GetStadiumGroupFromKind(StadiumKind st_kind);
-StadiumKind Gm_GetCurrentStadiumKind();
-StadiumGroup Gm_GetCurrentStadiumGroup();
+StadiumGroup Gm_GetStadiumGroupFromKind(StadiumKind st_kind); // 0x8000ba20
+StadiumKind Gm_GetCurrentStadiumKind(); // 0x8000ae50
+StadiumGroup Gm_GetCurrentStadiumGroup(); // 0x8000ae74
 int Gm_StadiumIsDefaultUnlocked(StadiumKind kind);  // 0x8000C148
 int Gm_StadiumIsUnlocked(StadiumKind kind);        // 0x8000C17C, maps StadiumKind 3-22 -> reward indices 37-42
 int Gm_StadiumIsAvailable(StadiumKind kind);        // 0x8000C228 - composite check (default + checklist + bitfield)
@@ -119,7 +119,7 @@ float Ply_GetStadiumDistance(int ply);   // 0x8000B798 - metres
 
 // Increments GameData.city.stadium_round (stb r0,0x5af(r31) at 0x800406FC)
 // before returning - calling it to read the round corrupts the counter.
-int Gm_StadiumRoundNum();
+int Gm_StadiumRoundNum(); // 0x800406dc
 u8 Gm_GetStadiumRound(); // 0x8000AE08 - the pure read of GameData.city.stadium_round
 
 // The two StadiumKind-indexed bitfields the Write/Check functions above front.

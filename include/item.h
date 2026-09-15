@@ -1490,5 +1490,5 @@ GOBJ *Box_SpawnContents(ItemKind kind, int spawn_type, Vec3 *pos, Vec3 *dir, int
 // 1 if n more items fit under the field's simultaneous-item cap.
 int CityItem_CanSpawnNMore(int n);                     // 0x80252d40
 
-AudioEmitter Item_AllocAudioEmitter(int index);
+AudioEmitter Item_AllocAudioEmitter(int index); // 0x8005de3c
 #endif

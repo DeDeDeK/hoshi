@@ -224,7 +224,8 @@ struct ScMenuCommon
             GOBJ *handicap;
             GOBJ *cpu_level;
         } bar_gobj[4];
-        u8 x808[0x54];                                   // 0x808
+        JOBJSet **ScMenSelplySiconCt_scene_models;       // 0x808
+        GOBJ *sicon_gobj[20];                            // 0x80c
         JOBJSet **ScMenSelplySicon2Ct_scene_models;      // 0x85c
         GOBJ *sicon2_gobj[4];                            // 0x860
         JOBJSet **ScMenSelplyCpos2Ct_scene_models;       // 0x870
@@ -846,24 +847,44 @@ MinorThink: run Scene_ExitMinor to execute Scene_Decide
 SceneDecide: run either Scene_SetNextMinor to enter another minor, OR Scene_SetNextMajor then Scene_ExitMajor to enter another major
 */
 
-void Gm_Minor();
+void Gm_Minor(); // 0x80008ad4
 MajorKind Scene_GetCurrentMajor(); // 0x8000aea8
-MinorKind Scene_GetCurrentMinor();
+MinorKind Scene_GetCurrentMinor(); // 0x8000aecc
 void SceneLoad_3D(void); // 0x8001442c, builds a 3D round: stage, players, enemies, City Trial CPU stat pools
-void Scene_SetNextMajor(int major_id);  // run this in scene decide!
-void Scene_ExitMajor();                 // run this to cause a major scene change, usually ran in scene decide!
-void Scene_SetNextMinor(int minor_id);  // run this in scene decide!
-void Scene_ExitMinor();                 // run this to cause a minor scene change, usually ran in scene think!
-void Scene_SetDirection(int direction); // usually the button used to change scene
-int Scene_GetDirection();               // usually the button used to change scene
-void Scene_InitHeaps();                 //
+void Scene_SetNextMajor(int major_id);  // 0x800082a0, run this in scene decide!
+void Scene_ExitMajor();                 // 0x80008220, run this to cause a major scene change, usually ran in scene decide!
+void Scene_SetNextMinor(int minor_id);  // 0x800088c8, run this in scene decide!
+void Scene_ExitMinor();                 // 0x800064f0, run this to cause a minor scene change, usually ran in scene think!
+void Scene_SetDirection(int direction); // 0x8000a498, usually the button used to change scene
+int Scene_GetDirection();               // 0x8000a474, usually the button used to change scene
+void Scene_InitHeaps();                 // 0x8000891c
 ScMenuCommon *Gm_GetMenuData();         // 0x801311e0, returns stc_scene_menu_common (0x80558788)
-void MainMenu_InitAllVariables();
+void MainMenu_InitAllVariables();       // 0x80007808
 
 // Character select icon layout. Both screens keep the icon world positions in the
-// ipos GObj's userdata, behind 20 anchor JObj pointers at +0x10. The layout pass
-// sets the anchor animation's frame to the icon count and reads the posed anchors
-// back, so the count is what decides the grid shape.
+// ipos GObj's userdata, behind 20 anchor JObj pointers. The layout pass sets the
+// anchor animation's frame to the icon count and reads the posed anchors back, so
+// the count is what decides the grid shape.
+#define SELECT_ICON_ANCHOR_NUM 20
+
+// The two userdata differ only in where the shared icon scale and the icon count sit.
+typedef struct AirRideSelectIposData
+{
+    u8 x0[0x10];                          // 0x00
+    JOBJ *anchor[SELECT_ICON_ANCHOR_NUM]; // 0x10
+    Vec3 pos[SELECT_ICON_ANCHOR_NUM];     // 0x60, AirRideSelect_GetIconPos
+    Vec3 scale;                           // 0x150, AirRideSelect_GetIconScale
+} AirRideSelectIposData;
+
+typedef struct CitySelectIposData
+{
+    u8 x0[0x10];                          // 0x00
+    JOBJ *anchor[SELECT_ICON_ANCHOR_NUM]; // 0x10
+    Vec3 pos[SELECT_ICON_ANCHOR_NUM];     // 0x60, CitySelect_GetIconPos
+    u8 x150[4];                           // 0x150, the icon count
+    Vec3 scale;                           // 0x154, CitySelect_GetIconScale
+} CitySelectIposData;
+
 void AirRideSelect_LayoutIcons(s8 count);            // 0x80133f68
 void _AirRideSelect_LayoutIcons(s8 count);           // 0x80151258
 void AirRideSelect_CreateSIcon(s8 ckind, s8 index);  // 0x80133f48
@@ -892,9 +913,15 @@ void TopRide_UpdatePanel(s8 panel, s8 pkind, s8 frame);      // 0x80134a0c
 
 // Machine name and description under a select screen's cursor. Both screens load
 // their SIS file into slot 0 and turn a CharacterKind into a pair of text indices
-// through two 20-entry tables of words read as signed bytes - 0x804aa3d8 and
-// 0x804aa428 on Air Ride, 0x804aa598 and 0x804aa5e8 on City Trial. -1 in either
-// suppresses both texts.
+// through two 20-entry tables of words read as signed bytes. -1 in either
+// suppresses both texts. Each SIS file holds SIS_SELPLY_ENTRY_NUM entries: the image
+// and kerning banks, six pieces of screen furniture, the 20 names from 8 and the 20
+// descriptions from 28.
+#define SIS_SELPLY_ENTRY_NUM 48
+static int *stc_airride_select_name_text = (int *)0x804aa3d8; // [CKIND_NUM]
+static int *stc_airride_select_desc_text = (int *)0x804aa428; // [CKIND_NUM]
+static int *stc_city_select_name_text = (int *)0x804aa598;    // [CKIND_NUM]
+static int *stc_city_select_desc_text = (int *)0x804aa5e8;    // [CKIND_NUM]
 void AirRideSelect_LoadSisFile(void);                    // 0x8013bacc, SisSelply.dat
 void CitySelect_LoadSisFile(void);                       // 0x8013c4a8, SisSelplyCt.dat
 void AirRideSelect_SetMachineText(s8 player, s8 ckind);  // 0x80153d2c

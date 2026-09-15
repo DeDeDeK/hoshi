@@ -10,7 +10,7 @@
 
 typedef s64 OSTime;
 
-char *strrchr(const char *, int);
+char *strrchr(const char *, int); // 0x803b7df8
 
 // OS Macros
 #define OSRoundUp32B(x) (((u32)(x) + 32 - 1) & ~(32 - 1))
@@ -662,124 +662,112 @@ static SIXYLookup *stc_si_xy = (SIXYLookup *)0x80402ca0;
 static OSReportData *osreport_data = (OSReportData *)0x8058d198;
 
 /*** OS Library ***/
-int OSGetTick();
-u64 OSGetTime();
-void OSTicksToCalendarTime(u64 time, OSCalendarTime *td);
-u64 __cvt_dbl_usll(double num);
-void OSCancelThread(OSThread* thread);
-long OSCheckActiveThreads(void);
-int OSCreateThread(OSThread* thread, void* (*func)(void*), void* param, void* stackBase, u32 stackSize, s32 priority, u16 attribute);
-void OSExitThread(void* val);
-s32 OSResumeThread(OSThread* thread);
-void OSSleepThread(OSThreadQueue* queue);
-s32 OSSuspendThread(OSThread* thread);
-void OSWakeupThread(OSThreadQueue* queue);
-void OSCreateAlarm(OSAlarm *alarm);
-void OSSetAlarm(OSAlarm *alarm, OSTime tick, void *handler);
-void OSSetPeriodicAlarm(OSAlarm *alarm, OSTime start, OSTime period, void *handler);
-void OSCancelAlarm(OSAlarm *alarm);
-void OSReport(char *, ...);
-void OSPanic(const char *file, int line, const char *msg, ...);
-void OSRegisterResetFunction(void *info);
-void __assert(char *file, int line, char *assert);
-int OSCreateHeap(void *heap_lo, void *heap_hi);
-void OSDestroyHeap(int heap_id);
-void *OSAllocFromHeap(int heap_id, int size);
-void OSFreeToHeap(int heap_id, void *alloc);
-int OSCheckHeap(int heap);
-void *OSAllocFromArenaLo(int size, int align);
-int OSGetPhysicalMemSize();
-int OSGetConsoleType();
-int OSDisableInterrupts(void);
-int OSEnableInterrupts(void);
-int OSRestoreInterrupts(int enable);
-void OSClearContext(OSContext *ctx);
-int DVDConvertPathToEntrynum(char *file);
-int DVDFastOpen(s32 entrynum, DVDFileInfo *dvdFileInfo);
-int DVDClose(DVDFileInfo *dvdFileInfo);
-s32 DVDReadAbsAsyncPrio(
-    DVDCommandBlock *block,                              // Command block used for the request
-    void *addr,                                          // Destination buffer (must be 32-byte aligned)
-    s32 length,                                          // Number of bytes to read (must be multiple of 32)
-    s32 offset,                                          // Absolute offset on the disc (in bytes, must be multiple of 2048)
-    void (*callback)(int result, DVDFileInfo *fileInfo), // Callback function when read completes
-    s32 prio                                             // Priority (1 = lowest, 2+ = higher priority)
-);
-int DVDWaitForRead();
-int File_Read(int entrynum, int file_offset, void *buffer, int read_size, int flags, int unk_index, void (*cb)(int r3, void *arg), void *cb_arg2); // just use 0x21 for flags if dram, 0x23 if aram, 1 for unk_index
+typedef void *(*OSThreadStartFunction)(void *param);
+typedef void (*DVDReadCallback)(int result, DVDFileInfo *fileInfo);
+typedef void (*FileReadCallback)(int result, void *arg);
+
+int OSGetTick(); // 0x803db530
+u64 OSGetTime(); // 0x803db518
+void OSTicksToCalendarTime(u64 time, OSCalendarTime *td); // 0x803db790
+u64 __cvt_dbl_usll(double num); // 0x803ae0f0
+void OSCancelThread(OSThread* thread); // 0x803da39c
+long OSCheckActiveThreads(void); // 0x803dad1c
+int OSCreateThread(OSThread* thread, OSThreadStartFunction func, void* param, void* stackBase, u32 stackSize, s32 priority, u16 attribute); // 0x803da0d0
+void OSExitThread(void* val); // 0x803da2b8
+s32 OSResumeThread(OSThread* thread); // 0x803da698
+void OSSleepThread(OSThreadQueue* queue); // 0x803daa90
+s32 OSSuspendThread(OSThread* thread); // 0x803da920
+void OSWakeupThread(OSThreadQueue* queue); // 0x803dab7c
+void OSCreateAlarm(OSAlarm *alarm); // 0x803d2e80
+void OSSetAlarm(OSAlarm *alarm, OSTime tick, void *handler); // 0x803d30e0
+void OSSetPeriodicAlarm(OSAlarm *alarm, OSTime start, OSTime period, void *handler); // 0x803d3148
+void OSCancelAlarm(OSAlarm *alarm); // 0x803d31c4
+void OSReport(char *, ...); // 0x803d4ce8
+void OSPanic(const char *file, int line, const char *msg, ...); // 0x803d4d68
+void OSRegisterResetFunction(void *info); // 0x803d8574
+void __assert(char *file, int line, char *assert); // 0x804284b8
+int OSCreateHeap(void *heap_lo, void *heap_hi); // 0x803d3804
+void OSDestroyHeap(int heap_id); // 0x803d3870
+void *OSAllocFromHeap(int heap_id, int size); // 0x803d360c
+void OSFreeToHeap(int heap_id, void *alloc); // 0x803d3708
+int OSCheckHeap(int heap); // 0x803d3884
+void *OSAllocFromArenaLo(int size, int align); // 0x803d3c04
+int OSGetPhysicalMemSize(); // 0x803d7b30
+int OSGetConsoleType(); // 0x803d2470
+int OSDisableInterrupts(void); // 0x803d70a8
+int OSEnableInterrupts(void); // 0x803d70bc
+int OSRestoreInterrupts(int enable); // 0x803d70d0
+void OSClearContext(OSContext *ctx); // 0x803d4768
+int DVDConvertPathToEntrynum(char *file); // 0x803c4ed4
+int DVDFastOpen(s32 entrynum, DVDFileInfo *dvdFileInfo); // 0x803c51c8
+int DVDClose(DVDFileInfo *dvdFileInfo); // 0x803c5304
+// addr must be 32-byte aligned, length a multiple of 32, offset an absolute disc
+// byte offset that is a multiple of 2048; prio 1 is lowest, 2+ is higher.
+s32 DVDReadAbsAsyncPrio(DVDCommandBlock *block, void *addr, s32 length, s32 offset, DVDReadCallback callback, s32 prio); // 0x803c7364
+int File_Read(int entrynum, int file_offset, void *buffer, int read_size, int flags, int unk_index, FileReadCallback cb, void *cb_arg2); // 0x80446acc, just use 0x21 for flags if dram, 0x23 if aram, 1 for unk_index
 // Completion callback for File_Read: sets *stc_file_read_done to 1, asserting first
 // that the read reported no error. Clear the flag before the read and spin on
 // File_Wait afterwards to turn File_Read into a blocking one - buffer and read_size
 // must be 32-byte aligned, file_offset a multiple of 32.
-void File_ReadDone(int r3, void *arg);
+void File_ReadDone(int r3, void *arg); // 0x80058e1c
 // Pumps the file task queue (DoTasks) and returns *stc_file_read_done, so a
 // `while (File_Wait() == 0);` loop both drives and waits for an outstanding read.
-int File_Wait();
+int File_Wait(); // 0x80058e60
 static int *stc_file_read_done = (int *)0x805dd5a8;
-int File_CopyFromARAMToDRAM(int entrynum, int file_offset, void *buffer, int read_size, int flags, int unk_index);                                          // just use 0x21 for flags if dram, 0x23 if aram, 1 for unk_index
+int File_CopyFromARAMToDRAM(int entrynum, int file_offset, void *buffer, int read_size, int flags, int unk_index);                                          // 0x80059228, just use 0x21 for flags if dram, 0x23 if aram, 1 for unk_index
 // Reads the whole file into buffer, writes size to *out_size. ".dat" is appended ONLY when
 // file_name has no "_" or "." - a name containing either is taken verbatim (pass its full
 // "name.dat"). Panics (assert) if the resolved file does not exist, so gate with a presence
 // check first. buffer must be 32-byte aligned.
-int File_LoadSync(char *file_name, void *buffer, int *out_size);
+int File_LoadSync(char *file_name, void *buffer, int *out_size); // 0x80059364
 // Loads file_name (extension appended) and Archive_Init's it. The returned archive's
 // storage is NOT safe to cache across scene transitions: it comes from a reclaimable
 // per-scene heap and is overwritten once another scene loads its archives (the cached
 // descriptors then dangle). Reload per scene-context, or for a persistent asset read
 // the file into your own buffer (File_LoadSync) and Archive_Init it in place.
 int Gm_LoadGameFile(HSD_Archive **out, char *file_name); // 0x80059818
-// 0x80059798 - the matching free. Asserts the archive is non-NULL and carries
+// The matching free. Asserts the archive is non-NULL and carries
 // HSD_ARCHIVE_DONT_FREE, then releases the file blob and the archive struct.
-void Gm_FreeGameFile(HSD_Archive *archive);
+void Gm_FreeGameFile(HSD_Archive *archive); // 0x80059798
 // Same ".dat"-append rule as File_LoadSync, and likewise panics if the file is missing.
-int File_GetSize(char *file_name);
+int File_GetSize(char *file_name); // 0x8005915c
 // void memcpy(void *dest, void *source, int size);
 // void memset(void *dest, int fill, int size);
-s32 CARDGetStatus(s32 chan, s32 fileNo, CARDStat *stat);
-s32 CARDMount(s32 chan, void *workArea, void *detachCallback);
-s32 CARDMountAsync(s32 chan, void *workArea, void *detachCallback, void *attachCallback);
-s32 CARDUnmount(s32 chan);
-s32 CARDOpen(s32 chan, char *fileName, CARDFileInfo *fileInfo);
-s32 __CARDSync(s32 chan);
-s32 CARDFastOpen(s32 chan, s32 fileNo, CARDFileInfo *fileInfo);
-s32 CARDClose(CARDFileInfo *fileInfo);
-s32 CARDProbeEx(s32 chan, s32 *memSize, s32 *sectorSize);
-s32 CARDCheckExAsync(s32 chan, s32 *xferBytes, void *callback);
-s32 CARDFreeBlocks(s32 chan, s32 *byteNotUsed, s32 *filesNotUsed);
-s32 CARDDeleteAsync(s32 chan, char *fileName, void *callback);
-s32 CARDDelete(s32 chan, char *fileName); // sync wrapper around CARDDeleteAsync + __CARDSync (0x803e8000)
-s32 CARDCreate(s32 chan, char *fileName, u32 size, CARDFileInfo *fileInfo);
-s32 CARDCreateAsync(s32 chan, char *fileName, u32 size, CARDFileInfo *fileInfo, void *callback);
-s32 CARDSetStatusAsync(s32 chan, s32 fileNo, CARDStat *stat, void *callback);
-s32 CARDSetStatus(s32 chan, s32 fileNo, CARDStat *stat); // sync wrapper around CARDSetStatusAsync + __CARDSync (0x803e84e0)
-s32 CARDRead(CARDFileInfo *fileInfo, void *buf, s32 length, s32 offset);
-s32 CARDReadAsync(CARDFileInfo *fileInfo, void *buf, s32 length, s32 offset, void *callback);
-s32 CARDWrite(CARDFileInfo *fileInfo, void *buf, s32 length, s32 offset);
-s32 CARDWriteAsync(CARDFileInfo *fileInfo, void *buf, s32 length, s32 offset, void *callback);
-s32 CARDGetXferredBytes(s32 chan);
-u32 PADRead(PADStatus *status);
-u32 PADReset(u32 mask); // use PAD_CHANX_BIT
-void SISetXY(u16 line, u8 cnt);
-void SISetSamplingRate(int msec);
-void SIEnablePolling(int mask);
-int SIIsChanBusy(s32 chan);
-int SIGetStatus(s32 chan);
-int SIGetType(s32 chan);
-int SIGetResponse(s32 chan, void *out);
-void DCFlushRange(void *startAddr, u32 nBytes);
-void DCInvalidateRange(void *startAddr, u32 nBytes);
-void DCStoreRange(void *startAddr, u32 nBytes);
-void TRK_FlushCache(void *startAddr, u32 nBytes);
+s32 CARDGetStatus(s32 chan, s32 fileNo, CARDStat *stat); // 0x803e8240
+s32 CARDMount(s32 chan, void *workArea, void *detachCallback); // 0x803e64ec
+s32 CARDMountAsync(s32 chan, void *workArea, void *detachCallback, void *attachCallback); // 0x803e634c
+s32 CARDUnmount(s32 chan); // 0x803e65d0
+s32 CARDOpen(s32 chan, char *fileName, CARDFileInfo *fileInfo); // 0x803e70ec
+s32 __CARDSync(s32 chan); // 0x803e3024
+s32 CARDClose(CARDFileInfo *fileInfo); // 0x803e7264
+s32 CARDProbeEx(s32 chan, s32 *memSize, s32 *sectorSize); // 0x803e5c88
+s32 CARDCheckExAsync(s32 chan, s32 *xferBytes, void *callback); // 0x803e55d8
+s32 CARDFreeBlocks(s32 chan, s32 *byteNotUsed, s32 *filesNotUsed); // 0x803e2ed4
+s32 CARDDeleteAsync(s32 chan, char *fileName, void *callback); // 0x803e7ef0
+s32 CARDDelete(s32 chan, char *fileName); // 0x803e8000, sync wrapper around CARDDeleteAsync + __CARDSync
+s32 CARDCreate(s32 chan, char *fileName, u32 size, CARDFileInfo *fileInfo); // 0x803e7610
+s32 CARDCreateAsync(s32 chan, char *fileName, u32 size, CARDFileInfo *fileInfo, void *callback); // 0x803e73f0
+s32 CARDSetStatusAsync(s32 chan, s32 fileNo, CARDStat *stat, void *callback); // 0x803e836c
+s32 CARDSetStatus(s32 chan, s32 fileNo, CARDStat *stat); // 0x803e84e0, sync wrapper around CARDSetStatusAsync + __CARDSync
+s32 CARDRead(CARDFileInfo *fileInfo, void *buf, s32 length, s32 offset); // 0x803e7a88
+s32 CARDReadAsync(CARDFileInfo *fileInfo, void *buf, s32 length, s32 offset, void *callback); // 0x803e7940
+s32 CARDWrite(CARDFileInfo *fileInfo, void *buf, s32 length, s32 offset); // 0x803e7e04
+s32 CARDWriteAsync(CARDFileInfo *fileInfo, void *buf, s32 length, s32 offset, void *callback); // 0x803e7cf0
+s32 CARDGetXferredBytes(s32 chan); // 0x803126b4
+u32 PADRead(PADStatus *status); // 0x803dc8e8
+u32 PADReset(u32 mask); // 0x803dc4cc, use PAD_CHANX_BIT
+u32 SISetXY(u16 line, u8 cnt); // 0x803e93c0, returns the new XY register value
+void SISetSamplingRate(int msec); // 0x803e9e5c
+u32 SIEnablePolling(int mask); // 0x803e942c, returns the resulting poll register value
+int SIIsChanBusy(s32 chan); // 0x803e878c
+int SIGetStatus(s32 chan); // 0x803e9320
+int SIGetType(s32 chan); // 0x803e9b5c
+int SIGetResponse(s32 chan, void *out); // 0x803e9608
+void DCFlushRange(void *startAddr, u32 nBytes); // 0x803d3f24
+void DCInvalidateRange(void *startAddr, u32 nBytes); // 0x803d3ef8
+void DCStoreRange(void *startAddr, u32 nBytes); // 0x803d3f54
+void TRK_FlushCache(void *startAddr, u32 nBytes); // 0x803bffd8
 // int memcmp(void *buf1, void *buf2, u32 nBytes);
-void blr();
-void blr2();
-
-/*** THP Functions ***/
-void MTH_Init(char *filename, void *playback_param, void *buffer, int buffer_size, void *unk);
-void MTH_Terminate();
-void MTH_Render(GOBJ *gobj, int pass);
-void MTH_Advance();
-int MTH_CheckEnd();
 
 /** String Library **/
 // #define vsprintf(buffer, format, args) _vsprintf(buffer, -1, format, args)
@@ -799,63 +787,59 @@ int MTH_CheckEnd();
 // float atan(float in);
 // float atan2(float y, float x);
 // float cos(float x);
-void MTXOrtho(Mtx44 m, f32 t, f32 b, f32 l, f32 r, f32 n, f32 f); //
-void MTXLookAt(Mtx *dest, Vec3 *eye, Vec3 *up, Vec3 *target);
-void MTXRotAxisRad(Mtx *m, Vec3 *axis, float rad); // Sets a matrix for rotation about an arbitrary axis whose ( x, y, z ) components are specified by axis.
-void MTXMultVec(Mtx *m, Vec3 *src, Vec3 *dst);     // Post-multiplies a 3D vector or 3D point by a matrix ( m x src = dst ).
-void MTXLightPerspective(Mtx *m, float fovy, float aspect, float scaleS, float scaleT, float transS, float transT);
-void VECNormalize(Vec3 *src, Vec3 *dest);
-void VECScale(Vec3 *src, Vec3 *dst, float scale);
-void VECAdd(Vec3 *a, Vec3 *b, Vec3 *ab);
-void VECSubtract(Vec3 *a, Vec3 *b, Vec3 *a_b);
-void PSMTXIdentity(Mtx *dest);
-void PSMTXCopy(Mtx *src, Mtx *dest);
-void PSMTXConcat(Mtx *a, Mtx *b, Mtx *ab);
-void VECMultAndAdd(Vec3 *a, Vec3 *b);
-float VECDotProduct(Vec3 *a, Vec3 *b);
-void VECCrossProduct(Vec3 *a, Vec3 *b, Vec3 *axb);
+void MTXOrtho(Mtx44 m, f32 t, f32 b, f32 l, f32 r, f32 n, f32 f); // 0x803d2000
+void MTXLookAt(Mtx *dest, Vec3 *eye, Vec3 *up, Vec3 *target); // 0x803d1a78
+void MTXRotAxisRad(Mtx *m, Vec3 *axis, float rad); // 0x803d1908 - Sets a matrix for rotation about an arbitrary axis whose ( x, y, z ) components are specified by axis.
+void MTXMultVec(Mtx *m, Vec3 *src, Vec3 *dst);     // 0x803d1dec - Post-multiplies a 3D vector or 3D point by a matrix ( m x src = dst ).
+void MTXLightPerspective(Mtx *m, float fovy, float aspect, float scaleS, float scaleT, float transS, float transT); // 0x803d1c98
+void VECNormalize(Vec3 *src, Vec3 *dest); // 0x803d20fc
+void VECScale(Vec3 *src, Vec3 *dst, float scale); // 0x803d20e0
+void VECAdd(Vec3 *a, Vec3 *b, Vec3 *ab); // 0x803d2098
+void VECSubtract(Vec3 *a, Vec3 *b, Vec3 *a_b); // 0x803d20bc
+void PSMTXIdentity(Mtx *dest); // 0x803d13fc
+void PSMTXCopy(Mtx *src, Mtx *dest); // 0x803d1428
+void PSMTXConcat(Mtx *a, Mtx *b, Mtx *ab); // 0x803d145c
+float VECDotProduct(Vec3 *a, Vec3 *b); // 0x803d219c
+void VECCrossProduct(Vec3 *a, Vec3 *b, Vec3 *axb); // 0x803d21bc
 // void MTXQuat(Mtx *m, Vec4 *dest);           // quat to matrix
-void HSD_MkRotationMtx(Mtx *dest, Vec4 *v); // quat to rot matrix
-void HSD_MtxGetScale(Mtx *m, Vec3 *dest);
-void HSD_MtxGetRotation(Mtx *m, Vec3 *dest);
-void HSD_MtxGetTranslate(Mtx *m, Vec3 *dest);
-void HSD_MtxSRT(Mtx *m, Vec3 *scale, Vec3 *rot, Vec3 *trans, int unk);
-float sqrtf(float num);
-void MTXRotRad(Mtx m, char axis, f32 rad);
-void Vec3_RotateAboutUnitAxis(Vec3 *v, Vec3 *axis, float angle);
+void HSD_MkRotationMtx(Mtx *dest, Vec4 *v); // 0x80416ffc, quat to rot matrix
+void HSD_MtxGetScale(Mtx *m, Vec3 *dest); // 0x80416b24
+void HSD_MtxGetRotation(Mtx *m, Vec3 *dest); // 0x80416048
+void HSD_MtxGetTranslate(Mtx *m, Vec3 *dest); // 0x80416b08
+void HSD_MtxSRT(Mtx *m, Vec3 *scale, Vec3 *rot, Vec3 *trans, int unk); // 0x80417580
+float sqrtf(float num); // 0x803bd490
+void MTXRotRad(Mtx m, char axis, f32 rad); // 0x803d1738
+void Vec3_RotateAboutUnitAxis(Vec3 *v, Vec3 *axis, float angle); // 0x800638f8
 
 /* GameCube SDK math library */
-float VECMag(Vec3 *v);                          // |v|
-float VECSquareMag(Vec3 *v);                    // |v|^2 (no sqrt)
-float VECDistance(Vec3 *a, Vec3 *b);            // |a-b|
-float VECSquareDistance(Vec3 *a, Vec3 *b);      // |a-b|^2 (no sqrt)
-void VECHalfAngle(Vec3 *a, Vec3 *b, Vec3 *half);
-void MTXScale(Mtx m, f32 xS, f32 yS, f32 zS);   // build a scale matrix
-void MTXTrans(Mtx m, f32 xT, f32 yT, f32 zT);   // build a translation matrix
-void MTXTranspose(Mtx src, Mtx xPose);
-u32 MTXInverse(Mtx src, Mtx inv);               // 0 if singular
-u32 MTXInvXpose(Mtx src, Mtx invX);             // inverse-transpose (normal matrix)
-void MTXRotTrig(Mtx m, char axis, f32 sinA, f32 cosA);
-void MTXMultVecSR(Mtx m, Vec3 *src, Vec3 *dst); // 3x3 part only (no translation)
-void MTXFrustum(Mtx44 m, f32 t, f32 b, f32 l, f32 r, f32 n, f32 f);
-void MTXPerspective(Mtx44 m, f32 fovY, f32 aspect, f32 n, f32 f);
-void MTXLightFrustum(Mtx m, f32 t, f32 b, f32 l, f32 r, f32 n, f32 scaleS, f32 scaleT, f32 transS, f32 transT);
-void MTXLightOrtho(Mtx m, f32 t, f32 b, f32 l, f32 r, f32 scaleS, f32 scaleT, f32 transS, f32 transT);
-float sinf(float x);
-float cosf(float x);
-float tanf(float x);
-double floor(double x);
-double pow(double x, double y);
-double acos(double x);
-double asin(double x);
-double log10(double x);
-float VEC_NormalizeAndSnap(Vec3 *src, Vec3 *dst);          // normalize src->dst, returns |src|
-void VEC_CrossNormalizeSnap(Vec3 *a, Vec3 *b, Vec3 *axb);  // axb = normalize(a x b)
-float Vec_GetAngleBetween(Vec3 *a, Vec3 *b);               // angle (radians) between a and b
+float VECMag(Vec3 *v);                          // 0x803d2158, |v|
+float VECSquareMag(Vec3 *v);                    // 0x803d2140, |v|^2 (no sqrt)
+float VECDistance(Vec3 *a, Vec3 *b);            // 0x803d22f4, |a-b|
+float VECSquareDistance(Vec3 *a, Vec3 *b);      // 0x803d22cc, |a-b|^2 (no sqrt)
+void VECHalfAngle(Vec3 *a, Vec3 *b, Vec3 *half); // 0x803d21f8
+void MTXScale(Mtx m, f32 xS, f32 yS, f32 zS);   // 0x803d19ac, build a scale matrix
+void MTXTrans(Mtx m, f32 xT, f32 yT, f32 zT);   // 0x803d1978, build a translation matrix
+void MTXTranspose(Mtx src, Mtx xPose);          // 0x803d1528
+u32 MTXInverse(Mtx src, Mtx inv);               // 0x803d1578, 0 if singular
+u32 MTXInvXpose(Mtx src, Mtx invX);             // 0x803d1670, inverse-transpose (normal matrix)
+void MTXRotTrig(Mtx m, char axis, f32 sinA, f32 cosA); // 0x803d17a8
+void MTXMultVecSR(Mtx m, Vec3 *src, Vec3 *dst); // 0x803d1e40, 3x3 part only (no translation)
+void MTXFrustum(Mtx44 m, f32 t, f32 b, f32 l, f32 r, f32 n, f32 f); // 0x803d1e94
+void MTXPerspective(Mtx44 m, f32 fovY, f32 aspect, f32 n, f32 f); // 0x803d1f30
+void MTXLightFrustum(Mtx m, f32 t, f32 b, f32 l, f32 r, f32 n, f32 scaleS, f32 scaleT, f32 transS, f32 transT); // 0x803d1c04
+void MTXLightOrtho(Mtx m, f32 t, f32 b, f32 l, f32 r, f32 scaleS, f32 scaleT, f32 transS, f32 transT); // 0x803d1d64
+float sinf(float x); // 0x803bd53c
+float cosf(float x); // 0x803bd560
+float tanf(float x); // 0x803bd518
+double floor(double x); // 0x803bcda4
+double pow(double x, double y); // 0x803baafc
+double acos(double x); // 0x803b9a0c
+double asin(double x); // 0x803b9d1c
+double log10(double x);                                    // 0x803ba9ec
+float VEC_NormalizeAndSnap(Vec3 *src, Vec3 *dst);          // 0x80062ca4, normalize src->dst, returns |src|
+void VEC_CrossNormalizeSnap(Vec3 *a, Vec3 *b, Vec3 *axb);  // 0x80062dd0, axb = normalize(a x b)
+float Vec_GetAngleBetween(Vec3 *a, Vec3 *b);               // 0x80062ecc, angle (radians) between a and b
 
-void Wind_StageCreate(Vec3 *pos, int duration, float radius, float lifetime, float angle, float left, float right, float top, float bottom);
-void Wind_FighterCreate(Vec3 *pos, int duration, float radius, float lifetime, float angle);
-
-int bp();
+int bp(); // 0x802d4bb0
 
 #endif
