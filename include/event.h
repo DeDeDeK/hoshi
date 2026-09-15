@@ -100,7 +100,7 @@ typedef struct EventCheckData
     int event_time;        // 0x14, event triggers when timer matches this number
     int prev_kind[10];     // 0x18, last 10 events that have occurred
     int prev_kind_num;     // 0x40, number of events that occurred this match
-    u8 x44[0x40];          // 0x44
+    int occurrence_count[EVKIND_NUM]; // 0x44, per-kind starts this match; gates once_only
     EventKind reserve[16]; // 0x84
     int reserve_kind_num;  // 0xc4. max is 16 (Gr_EventGene_Reserve_Num)
 } EventCheckData;
@@ -141,7 +141,7 @@ static volatile int *stc_meteor_data = (volatile int *)(0x805dd0e0 + 0x650);    
 static volatile int *stc_meteor_event_data = (volatile int *)(0x805dd0e0 + 0x654);        // 0x805dd734
 static volatile int *stc_meteor_spawn_count = (volatile int *)(0x805dd0e0 + 0x658);       // 0x805dd738
 
-void CityEvent_ModifyItemFallDesc(EventKind evkind);
+void CityEvent_ModifyItemFallDesc(EventKind evkind); // 0x800ed784
 // Gates on IsInCity || IsInStadium, then calls stadiumPrediction.
 void CityEvent_ShowHudText(int event_kind, int hud_display_frames); // 0x80113fb4
 // Creates or replaces the event HUD text object from a SIS entry, storing it at

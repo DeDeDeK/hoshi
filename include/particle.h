@@ -67,6 +67,14 @@ struct PtclDesc
     u8  program[];  // 0x3c
 };
 
+// The PtclDesc.flags bits psRelocDataBanks (0x8042a874) rewrites in every descriptor
+// it relocates.
+#define PTCL_FLAGS_RELOC_MASK 0x0E000000
+#define PTCL_FLAGS_RELOCATED  0x08000000
+// Relocates a bank's _ptcl, _texg and _form publics in place, from
+// Effect_InstallBankGroupReloc. form may be NULL.
+void psRelocDataBanks(ParticleGroup *ptcl, TexGBank *texg, void *form); // 0x8042a874
+
 // Program opcodes, stepped once per frame per particle by Ptcl_TickOne
 // (0x8042cce8) when the wait counter at Particle+0x1a reaches zero. A byte below
 // 0x80 is a wait; everything above is dispatched through the 128-entry table at
@@ -87,7 +95,13 @@ const u8 *Ptcl_ProgReadF32(const u8 *prog, f32 *out);    // 0x8042bbd8
 // generator is psGeneratorDesc[bank][id]. Both are rebuilt on every scene load
 // that installs banks, so re-resolve a descriptor rather than caching it. Which
 // archive lands in which bank is a literal at the install site.
+#define PTCL_BANK_VEHICLE 0 // EfPtclVehicle.dat, which machine animation banks name their trails out of
 static u32 *const psGeneratorCount = (u32 *)0x8058C608;
 static u8 ***const psGeneratorDesc = (u8 ***)0x8058C708;
+// Installs EfPtclVehicle.dat as PTCL_BANK_VEHICLE. Returns 0 when the archive is missing.
+int Ptcl_LoadEfPtclVehicle(void); // 0x80235394
+// Allocates a generator node for psGeneratorDesc[bank][id]. NULL for a link_no past 32,
+// a bank past 64, an id past psGeneratorCount[bank], a NULL descriptor or a failed allocation.
+void *Ptcl_Alloc(int link_no, int bank, int id); // 0x8043294c
 
 #endif

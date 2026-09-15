@@ -217,8 +217,8 @@ typedef struct YakumonoTable
 {
     void **data_array;        // 0x00 - per-instance param-block pointers, indexed by data_idx
     int data_count;           // 0x04
-    int x08;                  // 0x08
-    int x0c;                  // 0x0c
+    void **spawn_data_array;  // 0x08 - runtime-spawned param blocks; grColl_Alloc reserves collision for each once
+    int spawn_data_count;     // 0x0c - City Trial fills both from GrCity1Event.dat (fn_grSetupCityEventData)
     YakumonoEntry *entries;   // 0x10
     int entry_count;          // 0x14
 } YakumonoTable;
@@ -227,6 +227,10 @@ typedef struct YakumonoTable
 // grdata->yakumono->data_array. Returns the new GObj so per-instance creators
 // can run their tail-init on it.
 GOBJ *GrYaku_Create(int desc_id, int data_idx);                                // 0x800f446c
+
+// GrYaku_Create over spawn_data_array. Collision attaches are never returned to the
+// pool, so spawning an entry more often than the table lists it asserts in grcoll.c.
+GOBJ *GrYaku_CreateSpawn(int desc_id, int spawn_idx);                          // 0x800f48cc
 
 // Cannon creator (desc_id 48). Hardcodes desc_id, so grobj_unused is ignored.
 void GrYakuCannon_Create(GrObj *grobj_unused, int data_idx);                   // 0x800fed20
@@ -289,7 +293,7 @@ void GrYaku_IncrementBreakCount(GOBJ *yaku_gobj, int player_idx);              /
 void Ply_IncrementYakumonoBreakCount(int player_idx, int desc_id);            // 0x8022fed8
 
 void Gr_StateChange(YakumonoData *yd, int state_idx, int anim_idx, int joint_idx,
-                    int flags, float start_frame, float anim_rate, float blend_rate);
+                    int flags, float start_frame, float anim_rate, float blend_rate); // 0x800f5548
 #define GRSTATECHANGE_NOANIM (1 << 2)
 
 void Gr_AddAnim(YakumonoData *yd, int anim_idx);                               // 0x800f5ce8

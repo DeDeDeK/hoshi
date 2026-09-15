@@ -53,8 +53,8 @@ struct Effect
     void *aux;        // 0x90 optional heap block freed by the destructor (0x80233ddc)
 };
 
-// id (group*10000+entry) -> per-kind model descriptor (0x80235190).
-EffectModelDesc *Effect_GetModelData(int id);
+// id (group*10000+entry) -> per-kind model descriptor.
+EffectModelDesc *Effect_GetModelData(int id); // 0x80235190
 
 // Universal effect spawn. Only the low word of the {r3, r4} handle is declared -
 // it is enough to tell success (0 on failure) and every vanilla caller discards

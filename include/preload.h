@@ -186,21 +186,25 @@ static PreloadHeapLookup *stc_preload_heaps_lookup = (PreloadHeapLookup *)0x8053
 static PreloadHeapDesc *stc_preload_heap_descs = (PreloadHeapDesc *)0x80497ed0; // kind 10 is the terminator
 
 /*** Functions ***/
-void Preload_Update();                                                                                                                                                                               // checks for new files to preload and begins loading them synchronously
-void Preload_Invalidate();                                                                                                                                                                           // invalidates cache, this is usually used from scene prep on CSS's
-Preload *Preload_GetTable();                                                                                                                                                                         // gets preload table
-PreloadEntry *Preload_CreateEntry(PreloadFileKind file_kind, char *filename, PreloadHeapKind r5, PreloadHeapKind heap_kind, int file_size, int is_init_archive, int r9, int flags, int r11);         // 80072c90, resolves the name to an entrynum and hands all nine arguments to Preload_CreateEntryByEntrynum (file_kind is 0 for stuff like fod reflection, r5 = 4, r9 = 7)
-PreloadEntry *Preload_CreateEntryByEntrynum(PreloadFileKind file_kind, int entrynum, PreloadHeapKind r5, PreloadHeapKind heap_kind, int file_size, int is_init_archive, int r9, int flags, int r11); // creates a preload entry for any given file/ (file_kind is 0 for stuff like fod reflection, r5 = 4, r9 = 7) 80017740
-PreloadEntry *Preload_CreateAllMEntry(char *file_name);                                                                                                                                              // must be called during Preload_Update
-void Preload_RequestLoadEntry(int preload_entry_index);                                                                                                                                              //
+void Preload_Update();                                                                                                                                                                               // 0x80073fbc, checks for new files to preload and begins loading them synchronously
+void Preload_Invalidate();                                                                                                                                                                           // 0x80073fa4, invalidates cache, this is usually used from scene prep on CSS's
+static inline Preload *Preload_GetTable()
+{
+    return stc_preload_table;
+}
+PreloadEntry *Preload_CreateEntry(PreloadFileKind file_kind, char *filename, PreloadHeapKind r5, PreloadHeapKind heap_kind, int file_size, int is_init_archive, int r9, int flags, int r11);         // 0x80072c90, resolves the name to an entrynum and hands all nine arguments to Preload_CreateEntryByEntrynum (file_kind is 0 for stuff like fod reflection, r5 = 4, r9 = 7)
+PreloadEntry *Preload_CreateEntryByEntrynum(PreloadFileKind file_kind, int entrynum, PreloadHeapKind r5, PreloadHeapKind heap_kind, int file_size, int is_init_archive, int r9, int flags, int r11); // 0x80072ad8, creates a preload entry for any given file/ (file_kind is 0 for stuff like fod reflection, r5 = 4, r9 = 7) 80017740
+PreloadEntry *Preload_CreateAllMEntry(char *file_name);                                                                                                                                              // 0x8019065c, must be called during Preload_Update
 void Preload_FreeEntry(int preload_entry_index);                                                                                                                                                   // 0x800727e8
-HSD_Archive *Preload_GetArchiveByFilename(char *file_name);                                                                                                                                          // returns 0 if file is not loaded   
-int Preload_CheckFileStatus(int entrynum);                                                                                                                                                           // 0 = not loading, 1 = loading, 2 = loaded
-int Preload_CheckIfFilesAreLoading(int preload_flags);                                                                                                                                               // use PRELOADFLAG_ definitions
-void Preload_FreeUnneededInitializedArchivesInHeap(PreloadHeapKind heap_kind);                                                                                                                       // arg is heap_kind in PreloadEntry
-void Preload_Wait(int preload_flags);
-void *Preload_AllocFromHeap(PreloadHeapKind heap_kind, int size);
-void Preload_FreeToHeap(void *ptr, int size);
-void Preload_SetGrKind(GroundKind);
+HSD_Archive *Preload_GetArchiveByFilename(char *file_name);                                                                                                                                          // 0x80073ba0, returns 0 if file is not loaded
+int Preload_CheckFileStatus(int entrynum); // 0x80074f10, 0 = not queued, 1 = loading, 2 = loaded
+int Preload_CheckIfFilesAreLoading(int preload_flags); // 0x8007514c, PRELOADFLAG_ mask, 0 = no match, 1 = loading, 2 = loaded
+int Preload_FreeUnneededInitializedArchivesInHeap(PreloadHeapKind heap_kind); // 0x80072964, returns 1 without freeing while heap_kind is the heap being loaded
+void Preload_Wait(int preload_flags); // 0x80075360, runs DoTasks while Preload_CheckIfFilesAreLoading returns 1
+void Preload_Free(PreloadHeapKind heap_kind, void *ptr); // 0x80058920, frees an allocation made with Heap_Alloc
+void Preload_SetGrKind(GroundKind); // 0x800726f0
+// Preload_Update's City Trial pass: queues the stage, yakumono, rider, machine, enemy
+// and legendary assembly archives for stage_kind.
+void Preload_AllCityFiles(int stage_kind); // 0x80262ba4
 
 #endif
