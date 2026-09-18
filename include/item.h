@@ -1454,6 +1454,13 @@ void Event_FakeItems_FillHurtParams(void *fake_data, void *hurt_params); // 0x80
 void CityItemSpawn_Create();                           // 0x800ec4cc. Creates item spawn system GObj
 void CityItemSpawn_Init();                             // 0x800ebf70. Initializes spawn parameters
 void CityItemSpawn_InitItemFallChances(int stadium_group); // 0x800eb374. Populates grBoxGeneObj spawn tables from item data
+// The stadium counterparts of InitItemFallChances, for a stage whose GrItemNode
+// carries a GrItemPool instead of an item_desc. Each clears grBoxGeneObj and
+// files every pool entry into item_group_spawn[ItemCommonAttr.box_kind], taking
+// the round's chance column; entries whose box_kind is outside 0..2 are dropped.
+// A and B differ only in reading GrItemNode.pool_a vs pool_b.
+void CityItemSpawn_InitStadiumPoolsA(); // 0x800ed8b0
+void CityItemSpawn_InitStadiumPoolsB(); // 0x800eda0c
 int GrBoxGeneratorDetermine(int *box_color, int *box_size);  // 0x800ebc04. Picks box color (BoxKind 0-2) and size (0-2) from the weighted chance table, and returns the box's ItemKind (ITKIND_BOXBLUE + color)
 
 // The per-tick spawn preamble CityItemSpawn_Think runs before it picks a kind.
