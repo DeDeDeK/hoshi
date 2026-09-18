@@ -198,6 +198,43 @@ typedef struct StageNode
     Vec3 oob_max;           // 0xD8 - out-of-bounds box maximum corner (X,Y,Z)
 } StageNode;
 
+// One row of a stadium item pool. The chance column is picked once per round by
+// HSD_Randi(3) in CityItemSpawn_Init, so a stage can offer three alternative
+// weightings of the same kinds - identical columns mean the pool never varies.
+typedef struct GrItemPoolEntry
+{
+    int it_kind;    // 0x00, ItemKind
+    int chance[3];  // 0x04, one column per round
+} GrItemPoolEntry;
+
+typedef struct GrItemPool
+{
+    void *box_spawn_chances;   // 0x00
+    GrItemPoolEntry *entries;  // 0x04
+    int entry_num;             // 0x08
+} GrItemPool;
+
+// GrData.item is an array of these indexed by the stage's ItemposId
+// (stGetCurrentStageKind_ItemposId, Stage.dat row +0x24), so two StageKinds
+// sharing a ground file get separate pools: GrCity1 carries the open city at 0,
+// Destruction Derby 4 at 1 and Derby 5 at 2, and GrColosseum1 carries Derby 1 at
+// 0 and Vs. King Dedede at 1. Only GrCity1, GrColosseum1, GrColosseum3 and
+// GrDedede1 have one at all - every other ground, Air Ride courses included,
+// leaves GrData.item NULL and runs no item spawner.
+//
+// CityItemSpawn_Init takes the first non-NULL of item_desc, pool_a, pool_b.
+// item_desc is the full City Trial table (box chances, event drops, legendary
+// pieces) and appears only on GrCity1 entry 0; the derbies use pool_a and
+// Vs. King Dedede pool_b, and the two pool slots are read by identical code.
+typedef struct GrItemNode
+{
+    int kind;            // 0x00, 0 city / 1 pool_a / 2 pool_b
+    void *fall_timer;    // 0x04, {void *, ItemFallDesc *, int} spawn-timing table
+    void *item_desc;     // 0x08, grBoxGeneInfo.item_desc
+    GrItemPool *pool_a;  // 0x0c
+    GrItemPool *pool_b;  // 0x10
+} GrItemNode;
+
 typedef struct GrData // exists in the stage file
 {                     //
     int flags;                      // 0x00
@@ -211,7 +248,7 @@ typedef struct GrData // exists in the stage file
     void *yakumono_pos;    // 0x20 - yakumono position-record block; grGetYakumonoposNum reads [+0x2c]->[+0x8] as the record count (0x800d1434)
     int x24;               // 0x24
     int x28;               // 0x28
-    int x2c;               // 0x2c
+    GrItemNode *item;      // 0x2c - item-spawn tables, one entry per ItemposId
     EventConfigData *event_config; // 0x30 - set on entering City Trial, whatever the events on/off
                            //        setting. Also stored as EventCheckData.data when events are on.
     SkyBlock *sky_block;   // 0x34 - sky/fog descriptor pair: [0] HSD_FogDesc, [1] preset sub-header (array base + count)
@@ -401,6 +438,10 @@ StageKind Gm_GetCurrentStageKind();  // 0x800092d8 - reads GameData.stage_kind (
 StageKind stGetCurrentStageKind();   // 0x80261ECC - reads the r13[0x7F8] StageKind cache (same value)
 GroundKind Gr_GetCurrentGrKind();    // 0x800d1d3c - reads (*stc_grobj)->gr_kind (+0x04): the physical ground
 GroundKind Gm_GetGrKindFromStageKind(StageKind stage_kind); // 0x80261ce8 - StageKind -> physical GroundKind
+int stGetCurrentStageKind_ItemposId(); // 0x802623e8 - Stage.dat row +0x24, the GrData.item index
+// Returns GrData.item[ItemposId], or NULL when the stage has no item node or
+// Gm_IsItemsDisabled() holds.
+GrItemNode *fn_grGetItemData(void *st_obj); // 0x800da518
 
 // Minimum signed distance from a world position to any of the six
 // StageNode.oob_min/oob_max planes; positive = inside, negative = past a wall.
