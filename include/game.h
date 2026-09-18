@@ -1360,7 +1360,7 @@ typedef struct GameData // 805359d8
     u8 xaa4;                         // 0xaa4
     u8 xaa5_unk_damage : 1;          // 0xaa5, 0x80 (Gm_CheckUnkDamage)
     u8 xaa5_40 : 1;                  // 0xaa5, 0x40
-    u8 xaa5_20 : 1;                  // 0xaa5, 0x20
+    u8 is_items_disabled : 1;        // 0xaa5, 0x20 (Gm_IsItemsDisabled)
     u8 is_damage_enabled : 1;        // 0xaa5, 0x10 (Gm_IsDamageEnabled)
     u8 is_perma_death_enabled : 1;   // 0xaa5, 0x08 (Gm_IsPermaDeathEnabled)
     u8 xaa5_04 : 1;                  // 0xaa5, 0x04
@@ -2851,6 +2851,9 @@ typedef enum AirRideRule
 
 // Which rule ends the race (GameData.city_kind, 0xa94), an AirRideRule in Air Ride.
 u8 Gm_GetCityKind();                  // 0x8000916c
+// GameData.is_items_disabled. fn_grGetItemData returns NULL when it holds, so
+// the stage's item spawner never starts.
+int Gm_IsItemsDisabled();             // 0x8000a2a0
 
 // Laps the race is configured for (GameData.race_lap_total, 0xa9a). Meaningful only
 // in a lap race - a timed race ends on Gm_GetRaceTimeLimitSeconds() instead.

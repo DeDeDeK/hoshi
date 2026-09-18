@@ -457,6 +457,8 @@ SECTIONS
   grColl_TreeInit = 0x800de0e8;
   grColl_TreeFree = 0x800de1a8;
   Gm_GetGrKindFromStageKind = 0x80261ce8;
+  stGetCurrentStageKind_ItemposId = 0x802623e8;
+  fn_grGetItemData = 0x800da518;
   TopRide_GetSelectedCourse = 0x8000b2b8;
   TopRide_SetSelectedCourse = 0x8000b2dc;
   TopRide_SetCourseValid = 0x8000b5ac;
@@ -1564,4 +1566,7 @@ SECTIONS
   Preload_Free = 0x80058920;
   Text_DestroyAllSisCanvas = 0x8044f438;
   Text_CreateHeap = 0x8044f5b4;
+  Gm_IsItemsDisabled = 0x8000a2a0;
+  CityItemSpawn_InitStadiumPoolsA = 0x800ed8b0;
+  CityItemSpawn_InitStadiumPoolsB = 0x800eda0c;
 }
