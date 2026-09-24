@@ -149,6 +149,18 @@ CODEPATCH_HOOKCONDITIONALCREATE(0x8044fb54, "stwu	1, -40 (1)\n\t"
                                             "addi 1, 1, 40\n\t",
                                             0, 0x8044fea4)
 
+// Text_SetText and Text_AddSubtext convert into a 128-byte stack buffer just below the input still
+// being read, at up to 3 bytes per character, so long text overtakes its own input and then the
+// saved registers. Converting here instead, the stack slot holds a pointer the patched copy loops
+// load. Worst case is 128 input bytes at 5 bytes each, plus a closing 0x0b and the terminator.
+static char text_convert_buf[128 * 5 + 2];
+int Text_ConvertToStatic(char **slot, char *in)
+{
+    int len = Text_ConvertASCIIToShiftJIS(text_convert_buf, in);
+    *slot = text_convert_buf;
+    return len;
+}
+
 // MemAlloc Assert
 void *MemAlloc_Error(void *addr, int size)
 {
@@ -233,6 +245,14 @@ void Patches_Apply()
     
     // text ascii commands
     CODEPATCH_HOOKAPPLY(0x8044fb54);
+
+    // text conversion buffer (addi rX, r1, N -> lwz rX, N(r1))
+    CODEPATCH_REPLACECALL(0x80450474, Text_ConvertToStatic);
+    CODEPATCH_REPLACEINSTRUCTION(0x804506c0, 0x80810078);
+    CODEPATCH_REPLACEINSTRUCTION(0x80450724, 0x80610078);
+    CODEPATCH_REPLACECALL(0x8044ff8c, Text_ConvertToStatic);
+    CODEPATCH_REPLACEINSTRUCTION(0x804501b8, 0x80610074);
+    CODEPATCH_REPLACEINSTRUCTION(0x80450278, 0x80a10074);
 
     // remove main menu input lockout
     CODEPATCH_REPLACEINSTRUCTION(0x80018278, 0x48000010);
