@@ -476,6 +476,21 @@ typedef struct ItemDesc // used to spawn an item
     int flags;          // 0x58, [computed] by Item_InitDesc from the item kind range. Maps to ItemData[0x48]
 } ItemDesc;
 
+// ItemData.spawn_type - what spawned the item. Ply_IncrementItemCollectNum receives it
+// as src_tag. A dropped patch picked back up respawns as ITSPAWN_RIDERDROP.
+typedef enum ItemSpawnType
+{
+    ITSPAWN_DIRECT,            // 0, debug and mod spawns, and the Gourmet Race
+    ITSPAWN_SKY,               // 1
+    ITSPAWN_BOX,               // 2
+    ITSPAWN_RIDERDROP,         // 3, Rider_TickDropAllUp, Rider_SpawnDropPatchSeq
+    ITSPAWN_TAC,               // 4
+    ITSPAWN_DYNABLADE,         // 5
+    ITSPAWN_METEOR,            // 6
+    ITSPAWN_SECRETCHAMBER = 8, // 8
+    ITSPAWN_UFO = 9,           // 9, every stop of the UFO event
+} ItemSpawnType;
+
 typedef struct ItemData
 {
     GOBJ *item_gobj;            // 0x0, this item's GObj
@@ -484,7 +499,7 @@ typedef struct ItemData
     GOBJ *shadow_gobj;          // 0x18
 
     ItemKind kind;              // 0x1c
-    int spawn_type;             // 0x20, from ItemDesc.x8, differentiates spawn contexts
+    int spawn_type;             // 0x20, ItemSpawnType, from ItemDesc.x8
     int item_category;          // 0x24, 0=box, non-0=powerup. Determines shadow size, bounce SFX
     JOBJDesc *jobjdesc;         // 0x28
     itData *itData;             // 0x2c

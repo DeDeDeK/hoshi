@@ -95,6 +95,12 @@ u32 Effect_SpawnSync(GOBJ *parent, int id, int efgroup, int anchor_mode, ...); /
 // effect, hide its model tree (JObj_SetFlagsAll(root, JOBJ_HIDDEN)) and let the
 // engine own the lifetime.
 
+// EfGroup buckets. A particle generator created while a group is current (a
+// projectile's state animation runs under proj+0x114) belongs to that group.
+int  Effect_AllocEfGroup(void);             // 0x802364e0
+void Effect_SetCurrentEfGroup(int efgroup); // 0x802369e0
+void Effect_ClearCurrentEfGroup(void);      // 0x802369f0
+
 // Effect-instance manager. The per-group EffectModelDesc* table at +0x24 is the
 // only source for model-effect descriptor lookup.
 static void **const gEffectMgr = (void **)0x8055D7A0;

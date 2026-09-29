@@ -882,6 +882,15 @@ void EventActor_Destroy(GOBJ *gobj); // 0x801fbf2c
 // machine / rider / projectile, credits it through Ply_RecordEnemyDefeat, and leaves
 // the attacker and the knockback direction in the actor's hit-reaction fields.
 void EventActor_ResolveHit(EnemyData *ed); // 0x802021fc
+// Per-hit stadium KO credit from EventActor_ResolveHit: Ply_AddStadiumEnemyKO for an
+// actor passing ActorID_CountsAsKO. ply 5 = no player.
+void EventActor_CreditStadiumKO(EnemyData *ed, int ply); // 0x802025dc
+// 0 for the Cappy B and Dayl B kinds of every tier, the special Broom Hatter / Sword
+// Knight / Waddle Dee Truck, and anything out of range; 1 for every other actor.
+int ActorID_CountsAsKO(ActorID actor_id); // 0x802049fc
+// The same test on an actor GObj's EnemyData.kind; gates Ply_RecordEnemyDefeat and
+// Ply_RecordEnemySwallow.
+int EventActor_IsChecklistEnemy(GOBJ *enemy); // 0x80204a80
 void EventActor_CleanupCollisionSphere(EnemyData *ed); // 0x8021f1bc, destroys xB74 collision sphere if non-null and nulls it.
 void EventActor_CleanupVfxA3C(EnemyData *ed); // 0x8020c6e0, destroys VFX handle at xa3c if != -1.
 void EventActor_CleanupVfxA40(EnemyData *ed); // 0x8020c70c, destroys VFX handle at xa40 if != -1.

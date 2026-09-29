@@ -427,6 +427,11 @@ static inline JOBJ *Gr_GetJoint(int idx)
     return gr->joint_table[idx].jobj;
 }
 
+// A terrain joint's world translation and world Y axis, refreshing a dirty matrix
+// first. Assert on a joint the stage never built.
+void Gr_GetNodeWorldPos(int joint, Vec3 *out);   // 0x800d4bf4
+void Gr_GetNodeWorldAxisY(int joint, Vec3 *out); // 0x800d4d58, not normalized
+
 // Moving sweep + tree walk over a segment, moving pass always.
 int Raycast_Do(GrCollParam *gcp, Vec3 *start, Vec3 *end, int kind_mask, int filter, Vec3 *out_pos); // 0x800d9958
 

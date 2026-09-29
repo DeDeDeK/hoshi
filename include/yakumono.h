@@ -87,14 +87,18 @@ typedef union YakumonoParam
     struct
     {
         int joint_idx;          // 0x00
-        int x4;                 // 0x04
-        int x8;                 // 0x08
-        int xc;                 // 0x0c
-        int x10;                // 0x10
+        int *light_joints;      // 0x04, one lamp joint per light, the beam leaves along -Y
+        int light_num;          // 0x08, 2 on GrCity1
+        int *zones;             // 0x0c
+        int zone_num;           // 0x10
         int start_anim_idx;     // 0x14
         int active_anim_idx;    // 0x18
         int end_anim_idx;       // 0x1c
         int inactive_anim_idx;  // 0x20
+        float beam_len;         // 0x24
+        float beam_slope;       // 0x28, beam radius per unit of t along the beam
+        float beam_base;        // 0x2c, beam radius at the lamp
+        float *heal_max;        // 0x30
     } *lighthouse;
 
     // Break kinds carry an optional drop descriptor whose offset varies by
@@ -323,6 +327,27 @@ void GrYakuBreakCoral_DropItems(int param);   // 0x801040fc - "BigStar" / star p
 // Per-instance creators: create one yakumono and run its kind-specific tail-init.
 void Lighthouse_Create(GrObj *grobj, int data_idx);  // 0x8010d228 (desc_id 68)
 void Lighthouse_Init(GOBJ *yaku_gobj);               // 0x8010d260
+
+// The lighthouse, stored by the Lighthouse event's start and left stale once it ends.
+// Its lights are on in yakumono state 3.
+static GOBJ **stc_lighthouse_gobj = (GOBJ **)(0x805dd0e0 + 0x670);
+
+// Is pos inside the cone from origin to end? t is pos projected onto the segment, and
+// the cone's radius there is slope * t + base. The game builds end as the lamp joint's
+// position minus its normalized world Y axis times beam_len.
+int CityLighthouse_InBeam(Vec3 *pos, Vec3 *origin, Vec3 *end, float slope, float base); // 0x8010d910
+
+// The Rail Fire stations are yakumono desc 65. Nothing else creates one.
+#define YAKU_DESC_RAILFIRE 65
+
+// The UFO's five states, {think, ?, 0, 0} each in the table at 0x804a7390. Every think
+// drops its state's ring of items: slot 0 a hardcoded ITKIND_ALLUP, the rest
+// CityItem_GetEventItem(EVDROP_UFO).
+void CityUFO_State0Think(GOBJ *gobj); // 0x8010b024
+void CityUFO_State1Think(GOBJ *gobj); // 0x8010b714
+void spawnUFOItems(GOBJ *gobj);       // 0x8010be88, state 2
+void CityUFO_State3Think(GOBJ *gobj); // 0x8010c560
+void CityUFO_State4Think(GOBJ *gobj); // 0x8010cca4
 void whispyLogic(GrObj *grobj, int data_idx);        // 0x8010db64 (desc_id 69) - WhispyWoods
 
 // A prop's placed instances, its solid collision and its live transform all live
