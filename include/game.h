@@ -725,7 +725,8 @@ typedef struct TopRideSlot   // 9 bytes; one slot, committed at TR scene-exit, r
     u8 pkind;            // 0x0, TopRidePlayerKind (HMN/CPU/NONE); TopRide_Get/SetPlayerKind
     u8 color;            // 0x1, Kirby color; TopRide_Get/SetColor
     u8 cpu_level;        // 0x2, 0..4; TopRide_SetCpuLevel
-    u8 handicap;         // 0x3, 0..4; TopRide_SetHandicap
+    u8 handicap;         // 0x3, 0..4; TopRide_SetHandicap. A CPU's skill (CPU Level 1..5); vanilla's
+                         //      "CPUs set to level 5" cells test 4
     u8 x4;               // 0x4
     u8 x5;               // 0x5, TopRide_SetSlotConfigD25
     u8 controller_port;  // 0x6, TopRide_SetControllerPort
@@ -733,13 +734,20 @@ typedef struct TopRideSlot   // 9 bytes; one slot, committed at TR scene-exit, r
     u8 machine_kind;     // 0x8, TopRideMachineKind (0=Free Star, 1=Steer Star); TopRide_Get/SetMachineKind
 } TopRideSlot;
 
-// GameData+0xcc8, returned by gmGetTopRideConfigP. The slot block at +0x58 is
-// committed at TR scene-exit and read per-slot by TopRide_KirbyMgrInit.
+// GameData+0xcc8, returned by gmGetTopRideConfigP and TopRide_GetGameConfig, and the
+// Top Ride KirbyMgr's game_config. The slot block at +0x58 is committed at TR
+// scene-exit and read per-slot by TopRide_KirbyMgrInit.
 typedef struct TopRideConfig
 {
-    u8 header[0x58];         // 0x00, lobby/selection + timer state (mostly unmapped)
+    u8 x00[0x3d];            // 0x00, lobby/selection + timer state (mostly unmapped)
+    u8 lap_total;            // 0x3d, laps to finish; a kirby finishes when lap_progress reaches it
+    u8 x3e[0x02];            // 0x3e
+    u8 item_rule;            // 0x40, 3 = the "Zero Items" rule: nothing spawns
+    u8 x41[0x17];            // 0x41
     TopRideSlot slots[4];    // 0x58 (GameData+0xd20), per-slot config
 } TopRideConfig;             // 0x7c bytes
+
+#define TOPRIDE_ITEM_RULE_ZERO 3
 
 typedef struct GameData // 805359d8
 {
@@ -1343,8 +1351,8 @@ typedef struct GameData // 805359d8
     GOBJ *legendary_assembly_gobj;   // 0xa8c, the running assembly cinematic's controller, NULL when none
     int xa90;                        // 0xa90
     u8 city_kind;                    // 0xa94, 5 = main city trial. stadium modes are derived here @ 8004051c (0xE is destruction derby)
-    u8 xa95;                         // 0xa95
-    u8 view_num;                     // 0xa96, number of views to create?
+    u8 xa95;                         // 0xa95, occupied player slots (p_kind != PKIND_NONE), Gm_GetPlayerNum
+    u8 view_num;                    // 0xa96, number of views to create?
     u8 stage_kind;                   // 0xa97, StageKind
     u8 bgm_override;                 // 0xa98, when this is not 1, it plays it as the song id
     u8 is_always_ura_bgm;            // 0xa99
@@ -1365,7 +1373,9 @@ typedef struct GameData // 805359d8
     u8 is_perma_death_enabled : 1;   // 0xaa5, 0x08 (Gm_IsPermaDeathEnabled)
     u8 xaa5_04 : 1;                  // 0xaa5, 0x04
     u8 xaa5_02 : 1;                  // 0xaa5, 0x02
-    u8 xaa5_01 : 1;                  // 0xaa5, 0x01
+    u8 xaa5_01 : 1;                  // 0xaa5, 0x01 (Gm_IsMachineHitboxEnabled), machine hit regions 1-3;
+                                     //        1 in the city, stadium desc byte 4 bit 0x20 (clear for
+                                     //        every stadium), 0 in Air Ride
     u8 xaa6_80 : 1;                  // 0xaa6, 0x80
     u8 xaa6_40 : 1;                  // 0xaa6, 0x40
     u8 xaa6_20 : 1;                  // 0xaa6, 0x20 (always enabled)
@@ -1462,20 +1472,6 @@ typedef struct GameData // 805359d8
     // actual size is 0x1518
 } GameData;
 
-// Per-mode tuning block for the patch-drop pipeline. Three live in Game3dData
-// at 0x1d4 / 0x1ec / 0x204, one per `patch_drop_mode` (0/1/2). Handlers
-// interpolate between each (lo, hi) pair with a random factor: pair C scales the
-// spawn velocity, pairs A/B feed two scalar args to SpawnItem.
-typedef struct PatchDropModeParams
-{
-    f32 lo_a;  // 0x00
-    f32 hi_a;  // 0x04
-    f32 lo_b;  // 0x08
-    f32 hi_b;  // 0x0c
-    f32 lo_c;  // 0x10
-    f32 hi_c;  // 0x14
-} PatchDropModeParams;
-
 typedef struct Game3dData
 {
     u8 plyview_num;                               // 0x0
@@ -1567,20 +1563,33 @@ typedef struct Game3dData
     int x1b0;                                     // 0x1b0
     int x1b4;                                     // 0x1b4
     int x1b8;                                     // 0x1b8
-    int patch_drop_mode0_count;                   // 0x1bc, drop count for mode 0, used unconditionally -
-                                                  //        mode 0 ignores the stat array
-    int patch_drop_spawn_arg7;                    // 0x1c0, passed verbatim as r7 (4th int arg) to SpawnItem (0x80253ce4)
-    f32 patch_drop_spawn_y_bias;                  // 0x1c4, added to spawn position Y in both sub-handlers
-    f32 patch_drop_mode2_factor;                  // 0x1c8, multiplied with sum-of-positive-stats to size mode-2 drops
-    f32 patch_drop_mode1_factor;                  // 0x1cc, multiplied with sum-of-positive-stats to size mode-1 drops
-    f32 patch_drop_throw_spread;                  // 0x1d0, max throw-spread half-angle in degrees; scaled by
-                                                  //        a random factor whose sign alternates with the count
-    PatchDropModeParams patch_drop_mode0_params;  // 0x1d4
-    PatchDropModeParams patch_drop_mode1_params;  // 0x1ec
-    PatchDropModeParams patch_drop_mode2_params;  // 0x204
-    int patch_drop_cooldown_init;                 // 0x21c, frames until the next spawn after a successful one
-    int patch_drop_burst_threshold;               // 0x220, when patch_drop_progress reaches this, switch from sequential to burst
-    int patch_drop_allup_rng_max;                 // 0x224, mode-0 only: HSD_Randi ceiling for the all-up RNG roll
+    int x1bc;                                     // 0x1bc
+    int x1c0;                                     // 0x1c0
+    int x1c4;                                     // 0x1c4
+    int x1c8;                                     // 0x1c8
+    int x1cc;                                     // 0x1cc
+    int x1d0;                                     // 0x1d0
+    int x1d4;                                     // 0x1d4
+    int x1d8;                                     // 0x1d8
+    int x1dc;                                     // 0x1dc
+    int x1e0;                                     // 0x1e0
+    int x1e4;                                     // 0x1e4
+    int x1e8;                                     // 0x1e8
+    int x1ec;                                     // 0x1ec
+    int x1f0;                                     // 0x1f0
+    int x1f4;                                     // 0x1f4
+    int x1f8;                                     // 0x1f8
+    int x1fc;                                     // 0x1fc
+    int x200;                                     // 0x200
+    int x204;                                     // 0x204
+    int x208;                                     // 0x208
+    int x20c;                                     // 0x20c
+    int x210;                                     // 0x210
+    int x214;                                     // 0x214
+    int x218;                                     // 0x218
+    int x21c;                                     // 0x21c
+    int x220;                                     // 0x220
+    int x224;                                     // 0x224
     int x228;                                     // 0x228
     int x22c;                                     // 0x22c
     int x230;                                     // 0x230
@@ -2272,11 +2281,14 @@ typedef struct gmDataAll
     } *stadium_desc;  // array of these, STKIND_NUM
 } gmDataAll;
 
-// Per-player gameplay-stat record that drives checklist completion. Embedded in
-// PlayerData at +0xB0 (PlayerData.stat_record); Ply_GetItemCollectArray(ply)
 // Bit of PlayerStats.copy_chance_mask for a CopyKind (MSB-first).
 #define COPY_CHANCE_BIT(copy_kind) ((u16)(1 << (15 - (copy_kind))))
 
+// Entries in PlayerStats.copy_history, the high 5 bits of copy_history_num.
+#define COPY_HISTORY_NUM(st) ((st)->copy_history_num >> 3)
+
+// Per-player gameplay-stat record that drives checklist completion. Embedded in
+// PlayerData at +0xB0 (PlayerData.stat_record); Ply_GetItemCollectArray(ply)
 // returns &stc_playerdata[ply].stat_record. Offsets here are record-relative
 // (the doc's "stat+0xNNN").
 typedef struct PlayerStats
@@ -2289,7 +2301,7 @@ typedef struct PlayerStats
     u8 rivals_damaged_mask;                       // 0x331, per-rival "damaged this game" bits 0-4 (cell 0x4e)
     u8 x332[0x334 - 0x332];
     int copy_obtain_count[COPYKIND_NUM];          // 0x334, times each CopyKind was granted this game (Rider_RecordCopyAbility)
-    int copy_history[6];                          // 0x360, most recent CopyKinds granted, oldest first; count in copy_history_num
+    int copy_history[6];                          // 0x360, the last 6 CopyKinds granted, oldest first; COPY_HISTORY_NUM entries
     u8 copy_history_num;                          // 0x378, low 3 bits = ability-sequence flags, high 5 = copy_history entries
     u8 x379[0x37a - 0x379];
     u16 copy_chance_mask;                         // 0x37a, MSB-first bit(15-CopyKind) set when the Copy Chance Wheel granted it (cells 0x46/0x47)
@@ -2891,6 +2903,32 @@ void AirRide_CheckRaceLapObjectives(int ply);   // 0x8004d248
 // off two dispatch tables, then the per-course distance cells.
 void AirRide_CheckRaceFinishObjectives(void);   // 0x8004aa58
 
+// Race finish time in frames (GameData.player_finish_time), clamped to 359999.
+int Gm_GetPlayerFinishTime(int ply);            // 0x800097d0
+
+// Best Free Run lap so far in frames (GameData.player_free_run_time). 0 until the
+// first lap is done; AirRide_OnFinishRace lowers it as each faster lap completes.
+int Gm_GetPlayerFreeRunTime(int ply);           // 0x80009fb8
+
+// Per-lap checklist pass, called only from AirRide_OnFinishRace (bl at 0x80010418).
+// For a human in AIRRIDEMODE_FREE runs AirRide_CheckFreeRunLapObjectives; bails while
+// Checklist_IsCacheValid, in a replay, or outside MJRKIND_AIR.
+void AirRide_DispatchFreeRunObjectives(int ply);        // 0x8004a90c
+
+// Per-finish checklist pass, called only from race3D_isFinished (bl at 0x80010d68).
+// Same gates as the Free Run dispatcher; runs AirRide_CheckRaceLapObjectives for a
+// lap race in AIRRIDEMODE_RACE, or AirRide_CheckTimeAttackObjectives in
+// AIRRIDEMODE_TIME.
+void AirRide_DispatchRaceTimeAttackObjectives(int ply); // 0x8004a994
+
+// The "Time Attack: <course> Finish in under T!" cells: two open tiers and one
+// machine-gated tier per course against Gm_GetPlayerFinishTime. GR_SPACE2 has no case.
+void AirRide_CheckTimeAttackObjectives(int ply);        // 0x8004d5d4
+
+// The "Free Run: <course> 1 lap under T!" cells, the same shape against
+// Gm_GetPlayerFreeRunTime. GR_SPACE2 has no case.
+void AirRide_CheckFreeRunLapObjectives(int ply);        // 0x8004d8a8
+
 // Awards the City Trial cells for ten machine changes and for total drive time. Run
 // from Game_Think.
 void CityTrial_CheckFreeRunObjectives(void);    // 0x8004e660
@@ -2935,6 +2973,27 @@ int Ply_GetKONum(int ply);                                      // 0x8022f2a0, s
 // Spin, 0x11/0x12/0x13 = Firework / Sensor Bomb / Gold Spike). Also bumps
 // enemies_defeated and the per-ACTORID defeat counter.
 void Ply_RecordEnemyDefeat(int ply, void *attacker_log, GOBJ *enemy); // 0x8023205c, credits ply with an enemy kill; reached only from 0x802022ec
+// The swallow counterpart: bumps the swallow fields for an enemy passing
+// EventActor_IsChecklistEnemy and never touches the defeat counters.
+void Ply_RecordEnemySwallow(int ply, GOBJ *enemy); // 0x80230cec
+void Ply_SetDamagedDynaBlade(int ply);     // 0x80231160, PlayerStats +0x84c bit 0x01
+void Ply_SetTrampledByDynaBlade(int ply);  // 0x80231120, PlayerStats +0x84c bit 0x02
+// Sets the attacker's PlayerStats +0x84c bit 0x80 while timer_10s still runs.
+void Ply_RecordRivalDamage10Sec(int attacker, int victim); // 0x8022ec84
+// Run by Projectile_SetState on an attack-cause change: bumps the attacker's
+// attacks-used counts. Causes 1..0x1a index a bounded array; causes >= 0x1b land at
+// PlayerStats +0x16c + cause*4 unchecked, which from 0x29 up overwrites the
+// per-actor defeat counters.
+void Ply_RecordAttackUsed(GOBJ *attacker, void *attack_block, void *prev_attack_block); // 0x80231bdc
+void Ply_IncrementSpinPanelCount(int ply); // 0x80230f4c, PlayerStats +0x7f4
+// Per frame: ticks the 20 s / 10 s round timers and adds the ridden machine's
+// grounded or airborne drive time while it moves at least 0.02 per frame.
+void Ply_TickTimeStats(int ply);     // 0x80231200
+void Ply_UpdateAllOffMachines(void); // 0x8022df1c, the all-players-off-machine run behind PlayerStats +0x840
+// Kirby Melee's score source: bumps the game manager's per-player enemy-KO
+// counter at (*0x805dd570)+0xd0.
+void GameManager_AddEnemyKO(int ply, int actor_id); // 0x80010fd8
+void Ply_AddStadiumEnemyKO(int ply, int actor_id);  // 0x8022d758, wraps GameManager_AddEnemyKO
 void Ply_SetHP(int ply, float hp); // 0x8022ca38
 int Ply_GetAllUpCollected(int ply); // 0x8022d024
 int Ply_SetAllUpCollected(int ply, int num); // 0x8022d03c
@@ -3107,6 +3166,8 @@ float Gm_GetDownVector(Vec3 *pos, Vec3 *out); // 0x800ceb18
 
 void Gm_SetCameraNormal(); // 0x800bc17c
 int Gm_IsDamageEnabled(); // 0x8000a188
+u8 Gm_IsMachineHitboxEnabled(void); // 0x8000a200, GameData.xaa5_01
+u8 Gm_GetPlayerNum(void); // 0x80009208, GameData.xa95
 int Gm_IsReplay(); // 0x8000aac4
 
 void Pad_StopRumbleAll(); // 0x80071d7c
@@ -3134,6 +3195,8 @@ void Ply_SetDragoonPieceMask(int ply, int mask);                         // 0x80
 void Ply_OnLegendaryPieceCollect(int ply, int piece_count);                // 0x8027a4e8, plays SFX based on piece collection progress
 void Ply_MarkLegendaryMachineAssembled(int ply, int machine_index);        // 0x80231198, marks legendary machine as assembled (0=Dragoon, 1=Hydra)
 void Ply_PlayFGM(int fgm_id, int ply, int param_3);                       // 0x80277c84, plays a positional sound effect for a player
+// The burn sound, played only when a Rail Fire station's hit lands on a machine or a rider.
+void Ply_PlayRailFireHitSFX(int ply);                                     // 0x8027aa1c
 
 // Source enum passed to CityItem_GetEventItem; dispatched through a 13-entry
 // jump table at 0x804a5290. Inputs 4-8, 10, 11 are unmapped (return -1).
@@ -3157,8 +3220,9 @@ void City_SpawnMiscItems(int *desc, ...);                                // 0x80
 
 // Spawn one item with a randomized throw velocity: throw_dir pitched up/down by
 // elev_angle (radians) about a horizontal axis, scaled by speed. spawn_group is
-// a source-attribution tag copied onto the item (3 = patch-drop, 4/5/6 =
-// yakumono-break); no gameplay logic branches on it.
+// the ItemSpawnType stored in ItemData.spawn_type. DynaBlade_ThrowItems (0x8021db44)
+// makes the one call with a hardcoded kind (bl at 0x8021ddf4): the ITKIND_ALLUP she
+// throws once, when enough damage has landed.
 void CityItem_Throw(ItemKind item_kind, int spawn_group, Vec3 *position, Vec3 *throw_dir, int item_flags, f32 elev_angle, f32 speed); // 0x80253ce4
 
 // Legendary Machine Assembly

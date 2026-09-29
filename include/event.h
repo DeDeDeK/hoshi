@@ -116,6 +116,7 @@ typedef struct EventFunction
 
 static GOBJ **stc_eventcheck_gobj = (GOBJ **)(0x805dd0e0 + 0x618);
 static int *stc_event_machineformation_loadnum = (int *)(0x805dd0e0 + 0x750); // number of machines spawned for the machine formation event
+static GOBJ ***stc_event_formation_slots = (GOBJ ***)(0x805dd0e0 + 0x790);     // GOBJ *[5], indexed by MachineData.formation_slot
 // note: 0x80538088 is the Audio3D global (audio_3d_data, audio.h), not an event global
 static EventFunction (*stc_event_function)[EVKIND_NUM] = (void *)0x804a5410;
 

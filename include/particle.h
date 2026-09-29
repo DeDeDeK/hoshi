@@ -86,6 +86,9 @@ void psRelocDataBanks(ParticleGroup *ptcl, TexGBank *texg, void *form); // 0x804
 #define PTCL_OP_COLOR2     0xd0 // | channels, ramps the secondary color (+0x16)
 #define PTCL_OP_END        0xff
 
+#define PTCL_OP_COLOR_MASK     0xf0 // a color opcode with its channel bits cleared
+#define PTCL_OP_COLOR_OPERANDS 2    // offset of a color opcode's RGB, past it and its duration byte
+
 // A color operand is read on the frame a particle spawns, so overwriting one in a
 // loaded descriptor recolors only the particles born after that.
 const u8 *Ptcl_ProgReadVarU16(const u8 *prog, u16 *out); // 0x8042bc10

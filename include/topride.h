@@ -74,16 +74,19 @@ typedef struct TopRideKirby
     u8 player_slot;                     // 0x0C, controller slot 0..3
     u8 char_type;                       // 0x0D
     u8 start_position;                  // 0x0E, shuffled starting grid position (0..3) - not a CPU level
-    u8 place;                           // 0x0F, race placement / finish rank; 0 while still racing
-    u8 is_active;                       // 0x10, final standings byte, set on race start. Stays 0 in Time
-                                        //       Attack and Free Run, so don't gate on it in solo modes.
-    u8 active_item_kind;                // 0x11, held TopRideItemKind; 0xFF = none. Not reset on natural expiry.
+    u8 place;                           // 0x0F, live rank by course progress, 0 = leading; ranked every frame
+                                        //       by TopRide_KirbyMgrUpdate, all equal in the solo modes
+    u8 standing;                        // 0x10, rank by finish time, 0 = 1st; unfinished kirbys rank by their
+                                        //       projected time. Vanilla's 1st-place cells read it. Race only
+    u8 active_item_kind;                // 0x11, last TopRideItemKind TopRide_KirbyApplyItem applied, 0xFF = none.
+                                        //       A human's is reset each frame by TopRide_CheckPerCourseObjectives
     u8 x12[0x02];                       // 0x12
-    int lap_progress;                   // 0x14, accumulated CheckLine cross result (init -1); positive completes a lap
+    int lap_progress;                   // 0x14, laps completed; -1 until the line is first crossed, never decreases
     u8 lap_pending;                     // 0x18, set on a backward checkpoint cross; gates lap completion
     u8 x19[0x03];                       // 0x19
-    u32 finish_time;                    // 0x1C, latched from the master race timer (KirbyMgr+0x402C) on finish
-    u32 prev_lap_frames;                // 0x20, snapshot of cur_lap_frames at lap completion
+    u32 finish_time;                    // 0x1C, master race timer (KirbyMgr+0x402C) at the finish; a projected
+                                        //       total time, rewritten every frame, until then
+    u32 prev_lap_frames;                // 0x20, the last completed lap's time, snapshot of cur_lap_frames
     u32 cur_lap_frames;                 // 0x24, current-lap frame counter, reset on lap completion
     u8 x28[0x04];                       // 0x28
     float mass;                         // 0x2C, per-character mass / scale base
@@ -186,6 +189,19 @@ typedef struct TopRideKirbyMgr
 
 // KirbyMgr singleton pointer. NULL when not in Top Ride gameplay.
 static TopRideKirbyMgr **stc_topride_kirbymgr = (TopRideKirbyMgr **)(0x805dd0e0 + 0xA64); // 0x805ddb44
+
+// The session's per-kirby record for the vanilla checklist evaluators, one per
+// occupied slot. The rest carries the evaluators' per-race tracking.
+typedef struct TopRideKirbyRecord
+{
+    u8 x00[0x04];        // 0x00
+    TopRideKirby *kirby; // 0x04
+} TopRideKirbyRecord;
+
+// Top Ride's per-kirby checklist evaluator. TopRide_CheckForNewUnlocks (0x802ac850)
+// calls it once a frame for every occupied slot, right after TopRide_KirbyMgrUpdate,
+// from a single bl at 0x802acd4c. A human's active_item_kind is consumed here.
+void TopRide_CheckPerCourseObjectives(TopRideKirbyRecord *rec); // 0x802b88f4
 
 // Per-slot player kind, stored at GameData[slot*9 + 0xD20]. Discriminates
 // human/CPU/empty for each of the 4 controller slots in a TR session.
@@ -299,6 +315,9 @@ typedef enum TopRideKirbyStateId
 #define TR_KSTATE_VT_TRANSPARENT ((void *)0x804da304)
 #define TR_KSTATE_VT_SPEEDUP     ((void *)0x804dbcf8)
 #define TR_KSTATE_VT_SPEEDDOWN   ((void *)0x804dbac8)
+// Ant Doom: swallowed (Doodlebug) and thrown back out (DoodlebugOut).
+#define TR_KSTATE_VT_DOODLEBUG     ((void *)0x804d2488)
+#define TR_KSTATE_VT_DOODLEBUG_OUT ((void *)0x804d9328)
 
 // The kirby's current state class vtable, or NULL before the round wires
 // state_handler. Compare it against the constants above to identify the state.

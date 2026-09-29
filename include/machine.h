@@ -493,6 +493,8 @@ typedef struct MachineSpawnData
     u8 machineformation_is_spawning_machines : 1; // 0xc6, 0x20, flag set when machine formation event is queued. lowered when all 5 are spawned
 } MachineSpawnData;
 
+#define MACHINE_FORMATION_NONE 5 // MachineData.formation_slot of a machine not flying in a formation
+
 typedef struct MachineData
 {
     GOBJ *gobj;                           // 0x0. points to the machines gobj
@@ -502,7 +504,8 @@ typedef struct MachineData
     int is_bike;                          // 0x10
     int exist_num;                        // 0x14, unique per object, from a counter bumped in Machine_Create
     u8 city_spawn_slot;                   // 0x18, its City Trial spawn slot, set by Machine_RegisterHitReaction (0x801e0158)
-    u8 x19[3];                            // 0x19
+    u8 formation_slot;                    // 0x19, Machine Formation flight slot 0-4, MACHINE_FORMATION_NONE otherwise
+    u8 x1a[2];                            // 0x1a
     int x1c;                              // 0x1c
     int x20;                              // 0x20
     MachineKind kind : 8;                 // 0x24, class-relative like PlayerData.machine_kind: indexes the
@@ -531,10 +534,10 @@ typedef struct MachineData
     u8  x79;                              // 0x79
     u8  x7a;                              // 0x7a
     u8  x7b;                              // 0x7b
-    int x7c;                              // 0x7c
-    int x80;                              // 0x80
-    int x84;                              // 0x84
-    MachineMotionStatus mstatus2;         // 0x88
+    int x7c;                              // 0x7c, current sub-state
+    int x80;                              // 0x80, MachineSubStateDesc * for sub-states 0-13
+    int x84;                              // 0x84, MachineSubStateDesc * for the class's sub-states from 14
+    int x88;                              // 0x88
     int x8c;                              // 0x8c
     int x90;                              // 0x90
     int x94;                              // 0x94
@@ -1350,6 +1353,17 @@ static char ***stc_vcNameTable = (char ***)(0x805dd0e0 - 0x6150);
 // indexed [is_bike * 2 + {0, 1}]. Loaded into stc_vcDataKindStar.
 static char **stc_vcClassNameTable = (char **)0x804b07e0;
 
+// A machine sub-state: the spins and hit reactions layered over the physics state.
+typedef struct MachineSubStateDesc
+{
+    int action;      // 0x00, class action index, -1 = none
+    int attack_log;  // 0x04, merged into MachineData.dmg_log's attack word; low byte = attack cause
+    void *callback[3]; // 0x08
+} MachineSubStateDesc; // 0x14
+// Sub-states 0-13, shared by every machine (MachineData+0x80): 1 = quick spin,
+// 2 = forced spin, 4-11 = hit reactions.
+static MachineSubStateDesc *stc_machine_substates = (MachineSubStateDesc *)0x804b08f0;
+
 GOBJ *Machine_Create(MachineSpawnDesc *desc); // 0x801c552c
 // Loads a class's shared archive and one class slot's Vc*.dat into
 // stc_vcDataLookup, skipping either if already resident. Machine_Create calls it
@@ -1507,13 +1521,16 @@ void Machine_Star_ApplyGrip(MachineData *md);         // 0x801ebc90
 void Machine_Star_ApplyAirImpulse(float scale, MachineData *md, Vec3 *facing, Vec3 *push); // 0x801ebe88
 
 // Samples a table at `step` intervals with linear interpolation between
-// neighbours: i = (int)(x / step), lerp(t[i], t[i+1]). Machine_ApplyChargeBoost
-// calls it with step 0.1 over vcAttributes.boost_gain to turn a charge into a
+// neighbours: i = (int)(x / step), lerp(t[i], t[i+1]). Both charge-boost functions
+// call it with step 0.1 over vcAttributes.boost_gain to turn a charge into a
 // speed gain.
 float LerpTable(double step, double x, const float *table); // 0x80062c4c
 // Spends a charge release: samples boost_gain at charge_display_value, scales by
-// boost_gain_any, and writes the boost velocity.
+// boost_gain_any, and writes the boost velocity. This one runs from the rail states
+// of both classes; Machine_ApplyGroundChargeBoost is the Run / Landing counterpart.
+// Both set MachineData.xc34 bit 0x02 for each frame the boost is applied.
 int Machine_ApplyChargeBoost(MachineData *md, float *out_gain); // 0x801da3c0
+int Machine_ApplyGroundChargeBoost(MachineData *md, float *out_gain); // 0x801d93a0
 // The star class's spawn reset and per-frame update. Each ends by indexing a
 // 19-entry handler table - stc_machine_star_init_handler for Init,
 // stc_machine_star_think_handler for Think - by the class-relative MachineData.kind,
@@ -1562,20 +1579,38 @@ void Machine_ModifyStatByKind(MachineData *md, int kind, float value); // 0x801c
 void Machine_GiveFood(MachineData *md, int flag, float amount); // 0x801e2140, heals HP, flag=1 triggers SFX
 int Machine_IsLowHP(MachineData *md); // 0x801e1ec4, returns 1 if hp < threshold * hp_max (health threshold check, NOT invincibility)
 void Machine_HealTick(MachineData *md); // 0x801e2244, fixed-amount heal, simplified variant of Machine_GiveFood
-void Machine_GiveCandy(MachineData *md, int duration); // 0x801d6c90, applies candy visual effect (rainbow color anim), clears hurt data. duration param unused
+void Machine_GiveCandy(MachineData *md, int duration); // 0x801d6c90, HurtData_SetCandyInvincible plus the rainbow color anim. duration param unused
+// Candy on: sets MachineData.xc36 bit 0x40 (which arms hit region 2), Machine_GiveCandy,
+// and the rider's candy timer. Machine_EndCandy clears the bit and the invincibility
+// and ends the color anim.
+void Machine_StartCandy(MachineData *md, int duration); // 0x801cb16c
+void Machine_EndCandy(MachineData *md);                 // 0x801cb074
 void Machine_GivePatchOrCandy(MachineData *md, int type, float amount); // 0x801cb1c0, dispatches type 27 = candy, types 21-24 = patches
 void Machine_PatchPickupEffect(MachineData *md, int patch_kind); // 0x8027a478, visual/SFX effect on patch pickup
 // Applies hurt through the HitColl system. hurt_subsystem = MachineData.hurt_data,
 // index = 0, hurt_params = the 0x34-byte struct from Trigger_ClearParameterStruct.
 void Machine_ApplyHurt(void *hurt_subsystem, int index, HurtParams *hurt_params); // 0x8018d1a8
 // High-level damage: accumulates into +0x6AC, subtracts HP, triggers death at
-// HP <= 0 and applies the low-HP color anim, all gated on Gm_IsDamageEnabled().
-// source_gobj supplies the hit-spark direction and must not be NULL in City
-// Trial. Causes no knockback or bounce.
-void Machine_GiveDamage(MachineData *md, float damage, GOBJ *source_gobj); // 0x801e1ee8
+// HP <= 0 and applies the low-HP color anim, all gated on Gm_IsDamageEnabled(),
+// then runs Machine_DropPatchesOnDamage. `hit` is the machine's hit record,
+// &md->hurt_data->hitcoll_log_idx, which is what Machine_DmgApply passes. Its
+// contents go unused, but it is read in the city with a rider aboard, so it must
+// not be NULL. Causes no knockback or bounce.
+void Machine_GiveDamage(MachineData *md, float damage, int *hit); // 0x801e1ee8
+// In the city with a rider aboard, hands the hit to RiderGObj_DropPatchesOnDamage
+// with the machine's master stats (+0x94c), so a heavy hit knocks patches out. The
+// deflect direction it derives from `hit` is discarded downstream.
+void Machine_DropPatchesOnDamage(MachineData *md, int *hit, float stat_array[9], int damage); // 0x801e09ac
+void Machine_CalcDeflectDir(int *hit, Vec3 *fallback, Vec3 *out); // 0x801e0a44, Hit_CalcDeflectDir
 // Enters hit-reaction (state 5) and its "bounce up" animation, no-op if already
 // there. Set HurtData.kb_mag first for knockback physics.
 void Machine_EnterHitReaction(MachineData *md);        // 0x801e05bc
+// Machine-vs-machine bumps. A real bump calls Machine_EnterHitReaction on the other
+// machine (bl at 0x801dacb8) and then on this one (0x801dacc0).
+void Machine_CheckMachineBumpCollision(MachineData *md); // 0x801daac4
+// A hit that logged knockback: enters hit reaction, and for a Rail Fire station plays
+// Ply_PlayRailFireHitSFX (bl at 0x801d741c).
+void Machine_ActOnHitCollision(MachineData *md);         // 0x801d7308
 // Destroys a machine: captures the rider ply into md+0x1b48 (sentinel 5 when
 // unridden), sets is_dead, disables hit-collision and enters BreakDown (state
 // 29). The BreakDown proc (Star 0x801f0234, Wheel 0x801fb3d0) calls
@@ -1623,6 +1658,45 @@ void Machine_ActOnHitCollision(MachineData *md);       // 0x801d7308
 // HurtData_Create(HURTKIND_MACHINE), callback at HurtData+0x8C, hurt descriptors from itData.
 void Machine_InitHurtData(MachineData *md);            // 0x801d6e84
 HurtData *MachineGObj_GetHurtData(GOBJ *machine_gobj); // 0x801c8660. Returns *(MachineData+0x660) from GOBJ userdata
+// Returns &MachineData.dmg_log. Its first word is the attack word hits are credited
+// through: the low byte is the attack cause, and a cause-0 hit is credited only while
+// bit 0x8000 is set, which the region 1-3 updater holds while a rider is aboard and
+// the machine is not charging.
+DmgLog *MachineGObj_GetAttackerLog(GOBJ *machine_gobj); // 0x801c8708
+
+// Machine hit regions 1-3, all switched off unless Gm_IsMachineHitboxEnabled. The Init
+// functions arm a region from its VcCommon HurtParams template and the machine's
+// attributes; the Update functions run each frame and return 1 while their region is
+// live, which suppresses the ram region. Region 0 carries the quick-spin and
+// forced-spin hitboxes from the action scripts and is not switched.
+// Region 3, ram: live while |world_velocity| >= VcCommon +0xe4, a rider is aboard and
+// xc39 bits 4-5 are clear (they are set while charging).
+void Machine_InitRamHitbox(MachineData *md);     // 0x801d74cc
+// Region 2, Candy: live while xc36 bit 0x40 is set, with no speed test.
+void Machine_InitCandyHitbox(MachineData *md);   // 0x801d785c
+int Machine_UpdateCandyHitbox(MachineData *md);  // 0x801d7980
+// Region 1, boost: armed for VcCommon +0x130 frames on the first frame of a charge boost.
+void Machine_InitBoostHitbox(MachineData *md);   // 0x801d7ac8
+int Machine_UpdateBoostHitbox(MachineData *md);  // 0x801d7bf4
+
+// Sub-state 1 (actions 0x41 / 0x42, attack cause 0x10) from a rider's quick spin.
+// dir -1 picks 0x41. Sets +0x1bb4 bit 5, which marks the spin as a quick spin.
+void Machine_EnterQuickSpin(MachineData *md, int dir);                 // 0x801e3098
+// Sub-state 2 for spin panels and the other forced spins, lasting `frames`. Clears
+// +0x1bb4 bit 5. Its plain variants (actions 0x43 / 0x45) carry the same cause-0x10
+// hitbox as the quick spin.
+void Machine_EnterForcedSpin(MachineData *md, int frames, int dir);    // 0x801e32f8
+void MachineGObj_EnterQuickSpin(GOBJ *machine_gobj, int dir);          // 0x801c80ec
+void MachineGObj_EnterForcedSpin(GOBJ *machine_gobj, int frames, int dir); // 0x801c80c8
+// 1 while the machine is spinning (xc34 bit 4) from a quick spin (+0x1bb4 bit 5).
+int MachineGObj_IsQuickSpinning(GOBJ *machine_gobj); // 0x801c7b00
+// Run / RunPush state check: on entering a new spin-zone ground, enters a forced
+// spin and bumps the rider's spin-panel count. Returns 1 when it did.
+int Machine_CheckSpinZone(MachineData *md); // 0x801e359c
+// Hit reaction after a hit with knockback, from Machine_DmgApply: enters one of
+// sub-states 4-11 picked by the attacker region's hurt type (+0x1ba4). hit points at
+// HurtData.hitcoll_log_idx.
+void Machine_DispatchHitReaction(MachineData *md, void *hit); // 0x801e2620
 
 // Reads the machine's world_velocity Vec3 (md+0x354) into *out.
 // Used by the rider-level projectile spawners (spawnBomb/spawnGordo/...) to

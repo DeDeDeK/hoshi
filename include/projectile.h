@@ -139,12 +139,15 @@ typedef enum PlasmaDState {
 typedef struct ProjectileStateEntry
 {
     s32   state_id;                // 0x00: written to proj+0x2c. 0xffffffff = sentinel/terminator
-    u32   flags;                   // 0x04: anim class (upper byte) + per-state bits
+    u32   flags;                   // 0x04: attack word, copied to proj+0x17c; low byte = attack cause
     void (*fn0)(void *proj);       // 0x08: prio-1 tick (early AI, timers)
     void (*fn1)(void *proj);       // 0x0c: prio-4 tick (pre-physics velocity update)
     void (*fn2)(void *proj);       // 0x10: prio-5 tick (main state tick, collision response)
     void (*fn3)(void *proj);       // 0x14: prio-6 tick (post-collision, aura re-snap)
 } ProjectileStateEntry;
+
+#define PROJ_ATTACK_CAUSE_MASK 0xff  // ProjectileStateEntry.flags / DmgLog.credited_attack
+#define PROJ_ATTACK_ACTIVE     0x100 // set on every active vanilla state
 
 // Per-kind data at *(0x8055a9a8 + kind*4). Registration is all-or-nothing and
 // rider-driven: Rider_Create feeds the full 17-kind list from RdKirbyAbility.dat
@@ -156,41 +159,78 @@ typedef struct ProjectileStateEntry
 // walks the tree and asserts if it holds a different number of joints, or more than 10.
 typedef struct ProjModelBlock
 {
-    JOBJDesc *tree;    // +0x00
-    u32       flags;   // +0x04: top byte is the tree's joint count
+    JOBJDesc *tree;        // +0x00
+    u8        joint_num;   // +0x04: the tree's joint count
+    u8        anchor_part; // +0x05: part whose world position Proc6 writes to proj+0xc4
+    u8        pad_06[2];   // +0x06
 } ProjModelBlock;
+
+// One per state_id. Projectile_BindStateAnim binds the anims onto whatever model the
+// projectile loaded; the script carries the hitbox commands.
+typedef struct ProjStateAnimSpec
+{
+    void       *anim_joint;    // +0x00: may be NULL
+    void       *matanim_joint; // +0x04: may be NULL
+    const void *script;        // +0x08: run by Projectile_RunScript
+    u32         flags;         // +0x0c: bit 6 = loop
+} ProjStateAnimSpec;
+
+// ProjKindData.params, copied into proj+0xf4..0x100 by Projectile_LoadKindParams.
+typedef struct ProjKindParams
+{
+    float model_scale; // 0x00: root model scale, times cur_scale (Projectile_SyncRootMtx)
+    float cull_scale;  // 0x04: camera visibility radius, times cur_scale
+    float x08;         // 0x08: Projectile_InitRuntimeState branches on it; 0 for plasma
+    int   lifetime;    // 0x0c: default lifetime in frames, 0 = infinite
+} ProjKindParams;
+
+// ProjKindData.mpcoll_desc, handed to mpColl_Init by Projectile_RebuildCollShape. The
+// radius is not scaled by cur_scale.
+typedef struct ProjCollDesc
+{
+    float radius;  // 0x00
+    Vec3  extents; // 0x04: zero for every round kind
+} ProjCollDesc;
 
 typedef struct ProjKindData
 {
-    const void                 *params;              // +0x00: 4 words; params[3] = default lifetime in frames
+    const ProjKindParams       *params;              // +0x00
     const void                 *render_state_tmpl;   // +0x04: copied into proj+0x104. word0 is the muzzle
-                                                     //        speed plasma / sword-star post_inits apply.
+                                                     //        speed plasma / sword-star post_inits apply;
+                                                     //        plasma's word1 is its burst angle in degrees.
     ProjModelBlock             *model_desc;          // +0x08: NULL falls back to a global default model
-    const void                 *state_anim_spec_array; // +0x0c: 16-byte stride by state_id
+    const ProjStateAnimSpec    *state_anim_spec_array; // +0x0c: indexed by state_id
     const void                 *vuln_region_spec;    // +0x10: vulnerable-region list (0x44 stride). NULL for
                                                      //        every kind but FIRE_BULLET and SENSORBOMB; the
                                                      //        two attack regions are hardcoded in
                                                      //        Projectile_InitHurtData instead.
-    const void                 *mpcoll_desc;         // +0x14: 0 = no environment collision
+    const ProjCollDesc         *mpcoll_desc;         // +0x14: NULL = no environment collision
 } ProjKindData;
 
 // Per-kind vtable at *(0x804b4338 + kind*4). Kind pairs 5/6 and 7/8 alias to
-// the same vtable.
+// the same vtable. The table holds exactly 17 entries: 0x804b437c is the
+// "WnCommon.dat" string Projectile_LoadCommonArchive reads.
 typedef struct ProjKindVTable
 {
-    const ProjectileStateEntry *state_table; // 0x00: per-kind state entries
-    void                       *reserved04;  // 0x04: always 0
+    const ProjectileStateEntry *state_table; // 0x00: per-kind state entries, loaded into proj+0x34
+    void                      (*system_init)(void); // 0x04: run by Projectile_SystemInit on every 3D load
     void                      (*init)(void *proj);          // 0x08: one-shot at create
-    void                      (*refresh_xfm_a)(void *proj); // 0x0c: per-frame JObj mtx refresh
-    void                      (*refresh_xfm_b)(void *proj); // 0x10: identical to refresh_xfm_a in every vanilla kind
-    void                      (*aux_a)(void *proj);         // 0x14: state-exit cleanup; NULL for some kinds
+    void                      (*load_render_state)(void *proj);  // 0x0c: fills proj+0x104 from the kind data,
+                                                                 //       after Projectile_LoadKindParams copies params
+    void                      (*reset_render_state)(void *proj); // 0x10: the same, on a params reset
+    void                      (*aux_a)(void *proj);         // 0x14: teardown cleanup, run by the dtor
     void                      (*post_init)(void *proj);     // 0x18: one-shot at create, after proc registration
-    void                      (*aux_b)(void *proj);         // 0x1c: per-frame kind-specific hook; NULL for some kinds
+    int                       (*on_hit)(void *proj, void *hit); // 0x1c: prio-10 hit reaction; non-zero destroys
     void                      (*despawn)(void *proj);       // 0x20: Projectile_Despawn's exit; NULL falls back to
                                                             //       GObj_Destroy. Most kinds install a bare one
 } ProjKindVTable;
 
-// Indexed by ProjectileKind. Slots are NULL until a rider registers the list.
+// Indexed by ProjectileKind. Every function slot is NULL-checked before it is called.
+// Every reader forms the table's address with a lis / addi pair, so a mod can relocate it.
+static ProjKindVTable **proj_kind_vtables = (ProjKindVTable **)0x804b4338;
+
+// Indexed by ProjectileKind. Slots are NULL until a rider registers the list. The
+// word after the 17 slots (0x8055a9ec) is padding that nothing clears or fills.
 static ProjKindData **proj_kind_data = (ProjKindData **)0x8055a9a8;
 
 // Inner projectile data - 0x220 bytes, reached via *(handle + 0x2c). Known
@@ -211,15 +251,15 @@ typedef struct ProjectileData
                                          //       is dead.
     s32            state_id;             // 0x2c: the table entry's state_id
     const ProjectileStateEntry *state_table_ext;  // 0x30: extension table; never written or read by vanilla
-    const ProjectileStateEntry *state_table;      // 0x34: primary table, from kind_data+0x00. Every vanilla
-                                         //       SetState dispatch reads from here.
-    void          *state_anim_spec;      // 0x38: kind_data[0x0C] + state_id*16, a 16-byte per-state
-                                         //       animation/blend record
+    const ProjectileStateEntry *state_table;      // 0x34: primary table, from the vtable's state_table.
+                                         //       Every vanilla SetState dispatch reads from here.
+    const ProjStateAnimSpec *state_anim_spec; // 0x38: kind_data->state_anim_spec_array[state_id]
     u8             pad_3c[0x70 - 0x3c];  // 0x3c..0x6f: anim accumulator + sub-vtable refs (internal)
     float          velocity_scale;       // 0x70: desc.velocity_scale copy
     float          cur_scale;            // 0x74: live size scale, seeded from velocity_scale. The shared
-                                         //       pipeline only reads it - HurtData size, env sweep radius
-                                         //       and render cull radius all come off this one field
+                                         //       pipeline only reads it - HurtData size, env sweep radius,
+                                         //       render cull radius and the root model scale (times
+                                         //       params[0], via Projectile_SyncRootMtx) all come off it
     int            type_flag;            // 0x78: desc.type_flag copy
     Vec3           accel;                // 0x7c: per-frame acceleration, zeroed at prio 0 and integrated
                                          //       into velocity at prio 4. Nothing supplies gravity - a
@@ -254,7 +294,7 @@ typedef struct ProjectileData
     void         (*user_hook_0)(void *p);     // 0x160: per-state hook, invoked at prio 0
     void         (*user_hook_1)(void *p);     // 0x164: per-state hook, invoked at prio 7
     void         (*user_hook_2)(void *p);     // 0x168
-    int          (*user_hook_on_hit)(void *p);// 0x16c: prio-10 on-hit; non-zero requests a state transition
+    int          (*user_hook_on_hit)(void *p);// 0x16c: prio-10 on-hit; non-zero destroys the projectile
     u8             pad_170[0x1b4 - 0x170]; // 0x170..0x1b3: hit sub-struct (internal)
     u8             flag_a;               // 0x1b4: bit 0 = PROJ_ALLOW_SELF_HIT_INBOUND. Other bits set
                                           //        during damage logging.
@@ -283,6 +323,10 @@ typedef struct ProjectileData
 #define PROJ_ALLOW_SELF_HIT_INBOUND  0x01  // OR into proj->flag_a (proj+0x1b4)
 #define PROJ_ALLOW_SELF_HIT_OUTBOUND 0x20  // OR into proj->flag_b (proj+0x1b5)
 
+// proj->flag_b bit 0: Proc5 clears it before fn2, and Projectile_UpdateEnvColl sets it
+// on any floor, wall or ceiling contact.
+#define PROJ_FLAGB_ENV_CONTACT 0x01
+
 // Creates a projectile from a pre-filled descriptor, touching no rider bones or
 // rider state. The ProjectileData hangs off the returned GObj's userdata. Leaves
 // the projectile in state index 0, which for bomb / sensor bomb / gordo is "held
@@ -291,24 +335,72 @@ typedef struct ProjectileData
 GOBJ *Projectile_Create(ProjectileDesc *desc); // 0x8021f428
 
 // Transitions to the given state entry index. Does NOT touch physics velocity -
-// set that first, mirroring vanilla throw() ordering. f_blend_a/f_blend_b are
-// animation blend params (vanilla passes 1.0). flags bit 0 skips a
-// rider-attached cleanup path; vanilla passes 1 for THROWN transitions and 0
-// for the initial HELD setup.
+// set that first, mirroring vanilla throw() ordering. anim_frame/anim_rate are
+// handed to Projectile_BindStateAnim for the new state's animation (vanilla passes
+// 1.0 for both). flags bit 0 skips a rider-attached cleanup path; vanilla passes 1
+// for THROWN transitions and 0 for the initial HELD setup.
 void Projectile_SetState(void *proj, int state_index,
-                         float f_blend_a, float f_blend_b, int flags); // 0x8021f7dc
+                         float anim_frame, float anim_rate, int flags); // 0x8021f7dc
 
 // Returns proj->owner_gobj; used by every victim-side self-hit exclusion check.
 void *Projectile_GetOwnerGObj(void *projGObj); // 0x8022312c
+
+// The ply a projectile's hit credits: the owner's, when the owner is a rider or a
+// ridden machine, else 5 (nobody).
+int Projectile_GetOwnerPly(GOBJ *projGObj); // 0x802230c4
+
+// &proj+0x17c, the attack block Machine_StoreAttacker copies onto a victim's DmgLog.
+// Its first word is the state entry's flags, so it names the kind, not the projectile.
+void *Projectile_GetAttackerLog(GOBJ *projGObj); // 0x80223178
 
 // Despawn by outer GObj handle, running the per-kind aux_a slot before
 // GObj_Destroy. Vanilla uses it from the Fire/Spike/Ice LoseAbility handlers to
 // destroy the held aura at rider+0x3F0.
 void Projectile_DespawnGObj(void *projGObj); // 0x802230a0
 
-// Writes a state entry's flags word into the projectile's per-state animation
-// bytes (proj+0x17c / 0x184 / 0x18a / 0x18b).
+// Resets the attack block at proj+0x17c to a state entry's attack word: the word
+// itself, the hit counter at +0x184 and the victim mask at +0x18a/0x18b. A new
+// attack cause also mints a fresh attack-instance id into +0x194.
 void Projectile_AssignStateFlags(void *proj, int flags); // 0x80222298
+void Projectile_ClearAttackBlock(void *proj);            // 0x80222240
+void ProjectileGObj_RenewAttackId(GOBJ *projGObj);       // 0x8022230c, AllocSeqId16 into proj+0x194
+
+int  Projectile_GetKind(GOBJ *projGObj); // 0x80223184
+
+// Every 3D load: resets the projectile pools, clears the kind-data table, loads
+// WnCommon.dat and runs each vtable's system_init.
+void Projectile_SystemInit(void);                                // 0x8021f1fc
+void Projectile_LoadCommonArchive(void);                         // 0x80220194
+// Fills only the NULL slots of proj_kind_data from a {count, entries} list of
+// {kind, data} pairs, without bounds-checking the kind.
+void Projectile_RegisterKindDataList(void *list);                // 0x802201e0
+// kind_data->params into proj+0xf4..0x100, then the vtable's load_render_state.
+void Projectile_LoadKindParams(void *proj);                      // 0x802205e8
+// The same params copy, then the vtable's load_render_state and reset_render_state.
+// Called once, from Projectile_Create.
+void Projectile_ReloadKindParams(void *proj);                    // 0x80220654
+// Rebuilds the root JObj matrix from the basis and position, scaled by
+// cur_scale * params[0].
+void Projectile_SyncRootMtx(void *proj);                         // 0x80220310
+void Projectile_BindStateAnim(void *proj, float frame, float rate); // 0x80220b20
+// Advances the state animation under the projectile's efgroup, then its script.
+void Projectile_AnimThink(void *proj);                           // 0x802208fc
+void Projectile_RunScript(void *proj);                           // 0x802211cc
+void Projectile_AllocEfGroups(void *proj);                       // 0x80221b04, proj+0x114 / 0x118
+void Projectile_CreateEnvColl(void *proj);                       // 0x80221cf0
+int  Projectile_HasFloorContact(void *proj);                     // 0x80222144, under_rec_num != 0
+void Projectile_GetFloorContactNormal(void *proj, Vec3 *out);    // 0x802221b8
+
+// Turns forward toward the homing tracker's target by at most turn_deg, then sets
+// velocity along it, decaying any excess speed toward `speed`.
+void Projectile_HomingSteer(float turn_deg, float speed, void *proj); // 0x80223298
+void Projectile_HomingUpdateTracker(void *proj);                      // 0x802231e8
+// The tracker at proj+0x13c. It registers itself on its target rider and must be
+// freed through HomingTracker_Destroy.
+void *HomingTracker_Create(GOBJ *owner, const float *params); // 0x8022438c
+void  HomingTracker_Destroy(void *tracker);                   // 0x80224444
+void  HomingTracker_Acquire(void *tracker);                   // 0x80223738
+GOBJ *HomingTracker_FindNearest(void *tracker);               // 0x80223400
 
 // Tail of Projectile_Create: seeds cur_scale, lifetime, the animation
 // accumulators and the alive flags. A projectile is unusable before it runs.
@@ -337,6 +429,12 @@ void PlasmaSpread_State0_Fn1(void *proj);           // 0x802269f8
 void PlasmaSpread_State0_EnvCollide(void *proj);    // 0x802269fc
 void PlasmaSpread_State0_Fn3(void *proj);           // 0x80226abc
 void PlasmaSpread_Despawn(void *proj);              // 0x80226b1c
+// SetState(0), then velocity = spawn velocity + forward * render template word0.
+void PlasmaSpread_PostInit(void *proj);             // 0x80226960
+int  PlasmaSpread_OnHit(void *proj, void *hit);     // 0x80226ac8, always 0
+
+void SwordStar_Init(void *proj);                    // 0x802244cc, creates the homing tracker
+void SwordStar_State0_Homing(void *proj);           // 0x802245f0
 
 // Rider-side spawn helpers used by copy abilities. All assert on the rider
 // having the matching ability hat model loaded. Position/forward/up come from
