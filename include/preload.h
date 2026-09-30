@@ -111,12 +111,6 @@ struct PreloadHeapLookup //
     PreloadHeap heap_arr[10]; // 0x10, indexed by PreloadHeapKind
 };
 
-struct PreloadChar
-{
-    int kind;
-    u8 costume;
-};
-
 struct PreloadAllocData
 {
     PreloadAllocData *next;
@@ -147,10 +141,10 @@ struct PreloadEntry // scene changes wait for asyncronous disc reads to finish i
     u16 file_entry_num;                   // 0x6, if this is greater than 2000 its a special allocation (like fountain reflection (2001) or pokemon stadium transformation (200?))
     s16 status;                           // 0x8, is -9999 when marked for unload, 9999 when needed
     int file_size;                        // 0xc
-    PreloadAllocData *file_data;          // 0x10, this gets allocated @ 80017c00
+    PreloadAllocData *file_data;          // 0x10
     PreloadAllocData *header_data;        // 0x14
-    int x18;                              // 0x18
-    int x1c;                              // 0x1c
+    int x18;                              // 0x18, last arg of Preload_CreateEntryByEntrynum
+    char *file_name;                      // 0x1c, set by Preload_CreateEntry
     int x20;                              // 0x20
     int x24;                              // 0x24
 };
@@ -163,7 +157,7 @@ struct PreloadTable
     int is_cache_menus;      // 0xc, checked @ 80074908 and will cache game menus flagged in the stc_preload_menu_files array
     int x10;                 // 0x10
     int update_num;          // 0x14, used to know how up to date the cache is. incremented when Preload::heap_kind != MinorSceneDesc::heap_kind OR when calling Preload_Invalidate
-    GroundKind gr_kind;      // 0x18, set via Preload_SetGrKind; index space (physical GroundKind vs StageKind) unclear
+    GroundKind gr_kind;      // 0x18, set via Preload_SetGrKind
     int x1c;                 // 0x1c, checked @ 800748e0
     int x20;                 // 0x20, -1 to disable entirely? 800748d8
     int is_cache_alloc1;     // 0x24, alloc id 2001, not sure what uses this
@@ -173,10 +167,11 @@ struct PreloadTable
 
 struct Preload
 {
-    int kind;               // 0x0, copied from current MinorScene struct, affects the behavior @ 80074128
+    int kind;               // 0x0, copied from the current MinorSceneDesc.preload_kind, affects the behavior @ 80074128
     PreloadTable queued;    // 0x4, modify this to request files to preload
     PreloadTable updated;   // 0x84
-    PreloadEntry entry[80]; // 0x104
+    PreloadEntry entry[120];            // 0x104
+    PreloadHeapKind loading_heap_kind;  // 0x13c4, heap of the file Preload_LoadFile has in flight; 10 when idle
 };
 
 static Preload *stc_preload_table = (Preload *)0x80550f68;
@@ -192,8 +187,8 @@ static inline Preload *Preload_GetTable()
 {
     return stc_preload_table;
 }
-PreloadEntry *Preload_CreateEntry(PreloadFileKind file_kind, char *filename, PreloadHeapKind r5, PreloadHeapKind heap_kind, int file_size, int is_init_archive, int r9, int flags, int r11);         // 0x80072c90, resolves the name to an entrynum and hands all nine arguments to Preload_CreateEntryByEntrynum (file_kind is 0 for stuff like fod reflection, r5 = 4, r9 = 7)
-PreloadEntry *Preload_CreateEntryByEntrynum(PreloadFileKind file_kind, int entrynum, PreloadHeapKind r5, PreloadHeapKind heap_kind, int file_size, int is_init_archive, int r9, int flags, int r11); // 0x80072ad8, creates a preload entry for any given file/ (file_kind is 0 for stuff like fod reflection, r5 = 4, r9 = 7) 80017740
+PreloadEntry *Preload_CreateEntry(PreloadFileKind file_kind, char *filename, PreloadHeapKind match_heap_kind, PreloadHeapKind heap_kind, int file_size, int is_init_archive, int status, int flags, int x18);         // 0x80072c90, resolves the name to an entrynum and hands all nine arguments to Preload_CreateEntryByEntrynum
+PreloadEntry *Preload_CreateEntryByEntrynum(PreloadFileKind file_kind, int entrynum, PreloadHeapKind match_heap_kind, PreloadHeapKind heap_kind, int file_size, int is_init_archive, int status, int flags, int x18); // 0x80072ad8, refreshes the status of an entry already holding entrynum on match_heap_kind, else fills a free one on heap_kind
 PreloadEntry *Preload_CreateAllMEntry(char *file_name);                                                                                                                                              // 0x8019065c, must be called during Preload_Update
 void Preload_FreeEntry(int preload_entry_index);                                                                                                                                                   // 0x800727e8
 HSD_Archive *Preload_GetArchiveByFilename(char *file_name);                                                                                                                                          // 0x80073ba0, returns 0 if file is not loaded

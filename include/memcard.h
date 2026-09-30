@@ -25,9 +25,9 @@ typedef struct MemcardUnk
     int x8;               //
     MemcardStatus status; // 0xc
     GOBJ *save_cam_gobj;  // 0x10
-    int x14;              // 0x10
-    int x18;              // 0x10
-    int x1c;              // 0x10
+    int x14;              // 0x14
+    int x18;              // 0x18
+    int x1c;              // 0x1c
     int x20;              // 0x20
     char *save_name;      // 0x24
 } MemcardUnk;
@@ -38,8 +38,8 @@ typedef struct SaveInfo
     int save_size; // 0x54c
 } SaveInfo;
 
-// Vanilla game-save card tile (managed by the threaded GCP_MemCard worker, 0x8045xxxx):
-//   *(stc_save_info + 0x64) -> icon format/speed descriptor (byte[0..1] feed bannerFormat;
+// Vanilla game-save card tile (managed by the threaded GCP_MemCard worker):
+//   the pointer at (u8 *)stc_save_info + 0x64 -> icon format/speed descriptor (byte[0..1] feed bannerFormat;
 //     per-frame entries carry format at +2 and speed at +10).
 //   Tile assets are publics in LbMcGame.dat: MemCardBanner_01 (96x32 RGB5A3),
 //     MemCardIcon_01 (8-frame 32x32 CI8 + 256-entry RGB5A3 TLUT).

@@ -56,7 +56,7 @@ typedef struct EventConfigData
         int delay_max;                     // 0x4
         int occur_chance;                  // 0x8
         int skip_chance;                   // 0xc
-        u8 x10[0x4];                             // 0x10, unknown (not read by CityEvent_StateIdle)
+        u8 x10[0x4];                             // 0x10
         int min_time;                            // 0x14, events only start while at least this many round frames remain
         int prev_kind_max;                       // 0x18, max history entries
         int music_fadeout_frames;                // 0x1c, number of frames to fade out the music
@@ -105,19 +105,19 @@ typedef struct EventCheckData
     int reserve_kind_num;  // 0xc4. max is 16 (Gr_EventGene_Reserve_Num)
 } EventCheckData;
 
+// Per-kind event callbacks, run by the CityEvent state handlers.
 typedef struct EventFunction
 {
-    void *x0;
-    void *x4;
-    void *x8;
-    void *xc;
-    int (*check)(EventCheckData *gp);
+    void (*start)(EventCheckData *ev_chk);  // 0x00, once on entering state 2
+    void (*active)(EventCheckData *ev_chk); // 0x04, every frame of state 2; NULL ends the event at once
+    void (*end)(EventCheckData *ev_chk);    // 0x08, every frame of state 3
+    void (*end2)(EventCheckData *ev_chk);   // 0x0c, once when state 3 finishes
+    int (*check)(EventCheckData *ev_chk);   // 0x10, CityEvent_Decide rejects the kind on 0
 } EventFunction;
 
 static GOBJ **stc_eventcheck_gobj = (GOBJ **)(0x805dd0e0 + 0x618);
 static int *stc_event_machineformation_loadnum = (int *)(0x805dd0e0 + 0x750); // number of machines spawned for the machine formation event
 static GOBJ ***stc_event_formation_slots = (GOBJ ***)(0x805dd0e0 + 0x790);     // GOBJ *[5], indexed by MachineData.formation_slot
-// note: 0x80538088 is the Audio3D global (audio_3d_data, audio.h), not an event global
 static EventFunction (*stc_event_function)[EVKIND_NUM] = (void *)0x804a5410;
 
 // Event SIS ID lookup table, EVKIND_NUM + STKIND_NUM (40) entries. Indices 0-15 = vanilla event
@@ -136,7 +136,7 @@ void CityEvent_StateStarting(EventCheckData *ev_chk); // 0x800ee328
 void CityEvent_StateActive(EventCheckData *ev_chk);   // 0x800ee4c0
 void CityEvent_StateCleanup(EventCheckData *ev_chk);  // 0x800ee50c
 
-// Meteor event globals (r13-relative). Used by BehaviorInit helpers to read zone/speed data.
+// Meteor event globals (r13-relative), read by Meteor_BehaviorInit for zone/speed data.
 // stc_meteor_data is checked non-null as guard; stc_meteor_event_data holds zone table (+0x0C) and speed table (+0x04).
 static volatile int *stc_meteor_data = (volatile int *)(0x805dd0e0 + 0x650);              // 0x805dd730
 static volatile int *stc_meteor_event_data = (volatile int *)(0x805dd0e0 + 0x654);        // 0x805dd734
@@ -155,13 +155,12 @@ int CityEvent_PlayStartSound(int kind);            // 0x8027a5d8, state 1's per-
 int CityEvent_GetActiveKind(void);                 // 0x800ee8c4, cur_kind while in state 2, else -1
 int CityEvent_GetCurrentKind(void);                // 0x800ee8f0, cur_kind in any state, -1 with events off
 int CityEvent_GetActiveTimer(void);                // 0x800ee910, timer while in state 2, else 0
-void *Event_GetInstanceData(EventCheckData *ev_chk); // 0x800ee73c, table lookup: data[0x04][cur_kind * 20 + 16]. returns event instance data pointer
+void *CityEvent_GetInstanceData(EventCheckData *ev_chk); // 0x800ee73c, data->bgm_sky[cur_kind].event_data
 // Returns 1 while a legendary-machine (Dragoon/Hydra) assembly cinematic is
 // running. Reads GameData+0xA8C, the active assembly cinematic GObj pointer:
 // set by LegendaryMachine_StartAssembly and cleared to 0 when the cinematic
-// completes. NOT a stadium check - Machine_OnTouchItem uses it to suppress
-// certain item pickups during the cutscene. For "in a stadium" use
-// CityTrial_IsInStadium(); for "on the open CT map" use Gm_IsInCity().
+// completes. Machine_OnTouchItem uses it to suppress certain item pickups during
+// the cutscene.
 int Gm_IsLegendaryAssembling(); // 0x8000c934
 void Gm_SetLegendaryAssemblyGObj(GOBJ *gobj);  // 0x8000c964, writes GameData+0xA8C
 

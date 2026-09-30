@@ -34,7 +34,7 @@ typedef struct ModDesc
     void (*OnHideHUD)();
     void (*OnReset)();
     void (*OnTopRideLoadEnd)();            // after Top Ride gameplay init. Mirrors On3DLoadEnd, which
-                                            // does not fire for Top Ride's minor 19.
+                                            // does not fire for MNRKIND_TOPRIDE.
 } ModDesc;
 
 

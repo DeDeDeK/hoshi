@@ -162,7 +162,7 @@ static u16 hashstr_16(char *str)
 
 static void AOBJ_CheckEnded(AOBJ *a, int *is_done)
 {
-    if (a->flags != AOBJ_NO_ANIM)
+    if (!(a->flags & AOBJ_NO_ANIM))
         *is_done = 0;
 }
 static inline int JObj_CheckJointAnimEnded(JOBJ *j)
@@ -234,8 +234,6 @@ static inline GOBJ *GOBJ_EZCreator(int entity_class, int p_link, int flags, int 
 
 static inline GOBJ *JObj_LoadSet_SetPri(int is_hidden, JOBJSet *set, int anim_id, float frame, int p_link, int gx_link, int is_add_anim, void *cb, int pri)
 {
-    void (*JObj_SetAllAOBJRateByFlags)(JOBJ *j, int flags) = (void *)0x800550bc;
-
     GOBJ *g = GOBJ_EZCreator(14, p_link, 0,
                              0, 0,
                              HSD_OBJKIND_JOBJ, set->jobj,
@@ -264,9 +262,6 @@ static inline GOBJ *JObj_LoadSet_SetPri(int is_hidden, JOBJSet *set, int anim_id
         // JObj_AddAnimAll(g->hsd_object, animjoint, matanim, shapeanim);
         // JObj_ReqAnimAll(g->hsd_object, 0);
         // JObj_AnimAll(g->hsd_object);
-
-        // set to last frame?
-        // JObj_SetAllAOBJRateByFlags(g->hsd_object, 0xffff);
 
         if (is_hidden)
             JObj_SetFlagsAll(g->hsd_object, JOBJ_HIDDEN);
@@ -391,9 +386,7 @@ static void C_QUATMtx(Vec4 *r, Mtx m)
 
 static HSD_Pad *PadGetSys(int idx)
 {
-    HSD_Pad *pads = (HSD_Pad *)0x8058b0e4;
-
-    return (&pads[idx]);
+    return &stc_master_pads[idx];
 }
 
 static JOBJ *JObj_GetIndex(JOBJ *j, int idx)
@@ -682,7 +675,7 @@ static void C_MTXRotAxisRad(Mtx *m, Vec3 *axis, f32 rad)
     f32 xSq, ySq, zSq; // x, y, z squared
 
     s = sinf(rad);
-    c = cos(rad);
+    c = cosf(rad);
     t = 1.0f - c;
 
     VECNormalize(axis, &vN);
@@ -736,7 +729,7 @@ static void RecalcParentTrspBits(JOBJ* jobj)
             break;
         }
         jobj->flags &= flags;
-        jobj = jobj->sibling;
+        jobj = jobj->parent;
     }
 }
 
@@ -1082,28 +1075,10 @@ static char* SOInetNtoP(int af, void* src, char* dst, u32 len) {
     return NULL;
 }
 
-// Spawn an item at the given player's machine position.
-//
-// For most ItemKinds we drive Machine_OnTouchItem(md, id) immediately so the
-// pickup happens on the same frame -- the effect-id switch in
-// Machine_OnTouchItem (0x801db550) dispatches direct calls to
-// Machine_GivePatch / Machine_GiveAbility / Stadium_GiveAbility / etc. for
-// regular patches, ALL-UP, copy abilities, food, and stat traps, all of
-// which apply atomically in-place.
-//
-// ITKIND_*FAKE is the exception. Effect 37 in the same switch reaches
-// CityItem_ProcessFakeItem -> Machine_ApplyHurt -> HitColl_SetDamageLog,
-// and the log entry only takes effect once HitColl_ActOnCollision +
-// Machine_ActOnHitCollision run later in Machine_UpdateHitColl. Calling
-// Machine_OnTouchItem outside of a natural collision frame writes the log
-// entry but the next HitColl_Init clears it before any actuation runs, so
-// the fake-patch hit silently drops. For fake items we skip the manual
-// pickup and let the natural per-frame collision pass catch the spawned
-// item next frame -- the spawn is at md->pos so the catch is reliable.
-//
-// Caller must guarantee item data tables are loaded (Item_CheckIsLoaded()).
-// Crashes inside Item_GetItDataPtr in AR / CT Free Run / stadium modes
-// otherwise.
+// Spawns an item at ply's machine and, except for fake patches, collects it at once
+// through Machine_OnTouchItem. A fake patch hurts through the damage log, which only
+// takes effect on a natural collision frame, so it is left for the next frame's
+// collision pass. The item data tables must be loaded (Item_CheckIsLoaded()).
 static inline void SpawnItemPlayer(int ply, ItemKind kind)
 {
     GOBJ *mg = Ply_GetMachineGObj(ply);
@@ -1122,11 +1097,10 @@ static inline void SpawnItemPlayer(int ply, ItemKind kind)
     }
 }
 
-// Spawn the given item for every human player. See SpawnItemPlayer for
-// caller invariants.
+// Spawns the item for every human player, under SpawnItemPlayer's requirements.
 static inline void SpawnItemHumans(ItemKind kind)
 {
-    for (int i = 0; i < 5; i++)
+    for (int i = 0; i < PLY_NUM; i++)
     {
         if (Ply_GetPKind(i) == PKIND_HMN)
             SpawnItemPlayer(i, kind);

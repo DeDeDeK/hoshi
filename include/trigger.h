@@ -3,6 +3,7 @@
 
 #include "datatypes.h"
 #include "obj.h"
+#include "hurt.h"
 
 typedef enum TriggerStatus
 {
@@ -20,32 +21,37 @@ typedef struct TriggerDesc
     Vec3 offset;
 } TriggerDesc;
 
-// TriggerData serves dual purpose:
-// 1. As a trigger zone descriptor (x0=hurtdesc, state=TriggerStatus)
-// 2. As an attack parameter container for enemies/items. In this case,
-//    Trigger_InitParameters copies HurtParams[0..12] into offsets 0x04-0x34:
-//      +0x04 = base_damage, +0x08 = dmg_distance_factor, +0x24 = base_knockback,
-//      +0x28 = kb_distance_factor, +0x30 = hit_flags. Mirrors HurtParams.
+// One attack region. HurtData.regions holds these at a 0xc8 stride and
+// TriggerData embeds one; Trigger_UpdatePosition places it each frame.
+typedef struct HitRegion
+{
+    TriggerStatus state;   // 0x00
+    HurtParams params;     // 0x04, copied in by Trigger_InitParameters; +0x08..+0x10 is the
+                           //       joint offset and +0x14 the base radius
+    JOBJ *jobj;            // 0x38, joint the region follows; NULL for a region placed by hand
+    int x3c;               // 0x3c
+    Vec3 pos;              // 0x40, world position
+    float radius;          // 0x4c, base radius times the update's scale
+    Vec3 pos_prev;         // 0x50
+    Vec3 x5c;              // 0x5c
+    struct
+    {
+        HurtData *victim;  // 0x00
+        int frames;        // 0x04
+    } victims[12];         // 0x68, so a victim is hit once per rehit interval
+} HitRegion;               // 0xc8
+
+
+// A HitRegion set up by Trigger_Init (0x8018afe4) from a TriggerDesc and a joint.
+// MachineData, ItemData and RiderData embed one.
 typedef struct TriggerData
 {
-    void *x0;               // 0x00, hurtdesc pointer (trigger zones) or context ptr
-    int x04;                // 0x04, TriggerStatus (zones) or base_damage (attack params)
-    int x08;                // 0x08, dmg_distance_factor when used as attack params
-    int x0c;                // 0x0c
-    int x10;                // 0x10
-    int x14;                // 0x14
-    int x18;                // 0x18
-    float scale;            // 0x1c
-    int x20;                // 0x20
-    int x24;                // 0x24, base_knockback when used as attack params
-    int x28;                // 0x28, kb_distance_factor when used as attack params
-    int x2c;                // 0x2c
-    int x30;                // 0x30, hit_flags when used as attack params
-    int x34;                // 0x34
-    int x38;                // 0x38, additional flags (set by Trigger_InitParameters param3)
-    Vec3 attacker_pos_cur;  // 0x3c, current attacker position (set by Machine_ApplyHurt)
-    Vec3 attacker_pos_prev; // 0x48, previous attacker position
-    Vec3 attacker_pos_prev2; // 0x54, second previous position
-} TriggerData;
+    int x0;                // 0x00, TriggerDesc.x4
+    HitRegion region;      // 0x04, TriggerDesc.scale lands in region.params as the base radius
+    float xcc;             // 0xcc
+    float scale;           // 0xd0, Trigger_Init f1; MachineData passes model_scale
+    float xd4;             // 0xd4, Trigger_Init f2; MachineData passes coll_radius_base
+} TriggerData;             // 0xd8
+
 
 #endif

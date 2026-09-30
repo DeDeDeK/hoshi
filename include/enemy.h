@@ -3,170 +3,198 @@
 
 #include "datatypes.h"
 #include "trigger.h"
+#include "hurt.h"
 
-// Actor type IDs for EventActor_Create. Encompasses all enemies and event actors.
-// Data table at 0x804b22b4 maps each ID to {data_index, flags}.
-typedef enum ActorID
+// Kinds for EventActor_Create: every enemy and event actor. The table at
+// 0x804b22b4 maps each kind to {data_index, flags}.
+typedef enum EnemyKind
 {
     // Tier 0 - Base enemies (flags=0)
-    ACTORID_BROOM_HATTER       = 0x00,
-    ACTORID_BROOM_HATTER_B     = 0x01,
-    ACTORID_BRONTO_BURT        = 0x02,
-    ACTORID_BRONTO_BURT_B      = 0x03,
-    ACTORID_SCARFY             = 0x04,
-    ACTORID_SWORD_KNIGHT       = 0x05,
-    ACTORID_CAPPY              = 0x06,
-    ACTORID_CAPPY_B            = 0x07,
-    ACTORID_WHEELIE            = 0x08,
-    ACTORID_PHAN_PHAN          = 0x09,
-    ACTORID_NODDY              = 0x0A,
-    ACTORID_CHILLY             = 0x0B,
-    ACTORID_FLAPPY             = 0x0C,
-    ACTORID_PLASMA_WISP        = 0x0D,
-    ACTORID_GORDO              = 0x0E,
-    ACTORID_BOMBER             = 0x0F,
-    ACTORID_PICHIKURI          = 0x10,
-    ACTORID_PICHIKURI_B        = 0x11,
-    ACTORID_DAYL               = 0x12,
-    ACTORID_DAYL_B             = 0x13,
-    ACTORID_CALLER             = 0x14, // Shaturn / Tornado caller
-    ACTORID_WALKY              = 0x15,
-    ACTORID_WADDLE_DEE_TRUCK   = 0x16,
-    ACTORID_WADDLE_DEE         = 0x17,
+    ENEMYKIND_BROOM_HATTER       = 0x00,
+    ENEMYKIND_BROOM_HATTER_B     = 0x01,
+    ENEMYKIND_BRONTO_BURT        = 0x02,
+    ENEMYKIND_BRONTO_BURT_B      = 0x03,
+    ENEMYKIND_SCARFY             = 0x04,
+    ENEMYKIND_SWORD_KNIGHT       = 0x05,
+    ENEMYKIND_CAPPY              = 0x06,
+    ENEMYKIND_CAPPY_B            = 0x07,
+    ENEMYKIND_WHEELIE            = 0x08,
+    ENEMYKIND_PHAN_PHAN          = 0x09,
+    ENEMYKIND_NODDY              = 0x0A,
+    ENEMYKIND_CHILLY             = 0x0B,
+    ENEMYKIND_FLAPPY             = 0x0C,
+    ENEMYKIND_PLASMA_WISP        = 0x0D,
+    ENEMYKIND_GORDO              = 0x0E,
+    ENEMYKIND_BOMBER             = 0x0F,
+    ENEMYKIND_PICHIKURI          = 0x10,
+    ENEMYKIND_PICHIKURI_B        = 0x11,
+    ENEMYKIND_DAYL               = 0x12,
+    ENEMYKIND_DAYL_B             = 0x13,
+    ENEMYKIND_CALLER             = 0x14, // Shaturn / Tornado caller
+    ENEMYKIND_WALKY              = 0x15,
+    ENEMYKIND_WADDLE_DEE_TRUCK   = 0x16,
+    ENEMYKIND_WADDLE_DEE         = 0x17,
 
     // Tier 1 - Enhanced variants (flags=1), same data_index sequence
-    ACTORID_T1_BROOM_HATTER       = 0x18,
-    ACTORID_T1_BROOM_HATTER_B     = 0x19,
-    ACTORID_T1_BRONTO_BURT        = 0x1A,
-    ACTORID_T1_BRONTO_BURT_B      = 0x1B,
-    ACTORID_T1_SCARFY             = 0x1C,
-    ACTORID_T1_SWORD_KNIGHT       = 0x1D,
-    ACTORID_T1_CAPPY              = 0x1E,
-    ACTORID_T1_CAPPY_B            = 0x1F,
-    ACTORID_T1_WHEELIE            = 0x20,
-    ACTORID_T1_HEAT_PHAN_PHAN     = 0x21, // Fire-themed variant
-    ACTORID_T1_NODDY              = 0x22,
-    ACTORID_T1_CHILLY             = 0x23,
-    ACTORID_T1_FLAPPY             = 0x24,
-    ACTORID_T1_PLASMA_WISP        = 0x25,
-    ACTORID_T1_GORDO              = 0x26,
-    ACTORID_T1_BOMBER             = 0x27,
-    ACTORID_T1_PICHIKURI          = 0x28,
-    ACTORID_T1_PICHIKURI_B        = 0x29,
-    ACTORID_T1_DAYL               = 0x2A,
-    ACTORID_T1_DAYL_B             = 0x2B,
-    ACTORID_T1_CALLER             = 0x2C,
-    ACTORID_T1_WALKY              = 0x2D,
-    ACTORID_T1_WADDLE_DEE_TRUCK   = 0x2E,
-    ACTORID_T1_WADDLE_DEE         = 0x2F,
+    ENEMYKIND_T1_BROOM_HATTER       = 0x18,
+    ENEMYKIND_T1_BROOM_HATTER_B     = 0x19,
+    ENEMYKIND_T1_BRONTO_BURT        = 0x1A,
+    ENEMYKIND_T1_BRONTO_BURT_B      = 0x1B,
+    ENEMYKIND_T1_SCARFY             = 0x1C,
+    ENEMYKIND_T1_SWORD_KNIGHT       = 0x1D,
+    ENEMYKIND_T1_CAPPY              = 0x1E,
+    ENEMYKIND_T1_CAPPY_B            = 0x1F,
+    ENEMYKIND_T1_WHEELIE            = 0x20,
+    ENEMYKIND_T1_HEAT_PHAN_PHAN     = 0x21, // Fire-themed variant
+    ENEMYKIND_T1_NODDY              = 0x22,
+    ENEMYKIND_T1_CHILLY             = 0x23,
+    ENEMYKIND_T1_FLAPPY             = 0x24,
+    ENEMYKIND_T1_PLASMA_WISP        = 0x25,
+    ENEMYKIND_T1_GORDO              = 0x26,
+    ENEMYKIND_T1_BOMBER             = 0x27,
+    ENEMYKIND_T1_PICHIKURI          = 0x28,
+    ENEMYKIND_T1_PICHIKURI_B        = 0x29,
+    ENEMYKIND_T1_DAYL               = 0x2A,
+    ENEMYKIND_T1_DAYL_B             = 0x2B,
+    ENEMYKIND_T1_CALLER             = 0x2C,
+    ENEMYKIND_T1_WALKY              = 0x2D,
+    ENEMYKIND_T1_WADDLE_DEE_TRUCK   = 0x2E,
+    ENEMYKIND_T1_WADDLE_DEE         = 0x2F,
 
     // Tier 2 - Further enhanced (flags=1), same data_index sequence
-    ACTORID_T2_BROOM_HATTER       = 0x30,
-    ACTORID_T2_BROOM_HATTER_B     = 0x31,
-    ACTORID_T2_BRONTO_BURT        = 0x32,
-    ACTORID_T2_BRONTO_BURT_B      = 0x33,
-    ACTORID_T2_SCARFY             = 0x34,
-    ACTORID_T2_SWORD_KNIGHT       = 0x35,
-    ACTORID_T2_CAPPY              = 0x36,
-    ACTORID_T2_CAPPY_B            = 0x37,
-    ACTORID_T2_WHEELIE            = 0x38,
-    ACTORID_T2_HEAT_PHAN_PHAN     = 0x39,
-    ACTORID_T2_NODDY              = 0x3A,
-    ACTORID_T2_CHILLY             = 0x3B,
-    ACTORID_T2_FLAPPY             = 0x3C,
-    ACTORID_T2_PLASMA_WISP        = 0x3D,
-    ACTORID_T2_GORDO              = 0x3E,
-    ACTORID_T2_BOMBER             = 0x3F,
-    ACTORID_T2_PICHIKURI          = 0x40,
-    ACTORID_T2_PICHIKURI_B        = 0x41,
-    ACTORID_T2_DAYL               = 0x42,
-    ACTORID_T2_DAYL_B             = 0x43,
-    ACTORID_T2_CALLER             = 0x44,
-    ACTORID_T2_WALKY              = 0x45,
-    ACTORID_T2_WADDLE_DEE_TRUCK   = 0x46,
-    ACTORID_T2_WADDLE_DEE         = 0x47,
+    ENEMYKIND_T2_BROOM_HATTER       = 0x30,
+    ENEMYKIND_T2_BROOM_HATTER_B     = 0x31,
+    ENEMYKIND_T2_BRONTO_BURT        = 0x32,
+    ENEMYKIND_T2_BRONTO_BURT_B      = 0x33,
+    ENEMYKIND_T2_SCARFY             = 0x34,
+    ENEMYKIND_T2_SWORD_KNIGHT       = 0x35,
+    ENEMYKIND_T2_CAPPY              = 0x36,
+    ENEMYKIND_T2_CAPPY_B            = 0x37,
+    ENEMYKIND_T2_WHEELIE            = 0x38,
+    ENEMYKIND_T2_HEAT_PHAN_PHAN     = 0x39,
+    ENEMYKIND_T2_NODDY              = 0x3A,
+    ENEMYKIND_T2_CHILLY             = 0x3B,
+    ENEMYKIND_T2_FLAPPY             = 0x3C,
+    ENEMYKIND_T2_PLASMA_WISP        = 0x3D,
+    ENEMYKIND_T2_GORDO              = 0x3E,
+    ENEMYKIND_T2_BOMBER             = 0x3F,
+    ENEMYKIND_T2_PICHIKURI          = 0x40,
+    ENEMYKIND_T2_PICHIKURI_B        = 0x41,
+    ENEMYKIND_T2_DAYL               = 0x42,
+    ENEMYKIND_T2_DAYL_B             = 0x43,
+    ENEMYKIND_T2_CALLER             = 0x44,
+    ENEMYKIND_T2_WALKY              = 0x45,
+    ENEMYKIND_T2_WADDLE_DEE_TRUCK   = 0x46,
+    ENEMYKIND_T2_WADDLE_DEE         = 0x47,
 
     // Special / Event actors
-    ACTORID_SP_BROOM_HATTER       = 0x48, // flags=2
-    ACTORID_SP_SWORD_KNIGHT       = 0x49, // flags=2
-    ACTORID_SP_WADDLE_DEE_TRUCK   = 0x4A, // flags=2
-    ACTORID_SP_GORDO              = 0x4B, // flags=3, event gordo
-    ACTORID_TAC                   = 0x4C,
-    ACTORID_DYNA_BLADE            = 0x4D,
-    ACTORID_METEOR                = 0x4E,
+    ENEMYKIND_SP_BROOM_HATTER       = 0x48, // flags=2
+    ENEMYKIND_SP_SWORD_KNIGHT       = 0x49, // flags=2
+    ENEMYKIND_SP_WADDLE_DEE_TRUCK   = 0x4A, // flags=2
+    ENEMYKIND_SP_GORDO              = 0x4B, // flags=3, event gordo
+    ENEMYKIND_TAC                   = 0x4C,
+    ENEMYKIND_DYNA_BLADE            = 0x4D,
+    ENEMYKIND_METEOR                = 0x4E,
 
-    ACTORID_NUM                   = 0x4F,
+    ENEMYKIND_NUM                   = 0x4F,
 
     // Tier boundaries
-    ACTORID_TIER0_START           = 0x00,
-    ACTORID_TIER0_END             = 0x18,
-    ACTORID_TIER1_START           = 0x18,
-    ACTORID_TIER1_END             = 0x30,
-    ACTORID_TIER2_START           = 0x30,
-    ACTORID_TIER2_END             = 0x48,
-    ACTORID_SPECIAL_START         = 0x48,
-    ACTORID_ENEMIES_PER_TIER      = 0x18, // 24 enemies per tier
-} ActorID;
+    ENEMYKIND_TIER0_START           = 0x00,
+    ENEMYKIND_TIER0_END             = 0x18,
+    ENEMYKIND_TIER1_START           = 0x18,
+    ENEMYKIND_TIER1_END             = 0x30,
+    ENEMYKIND_TIER2_START           = 0x30,
+    ENEMYKIND_TIER2_END             = 0x48,
+    ENEMYKIND_SPECIAL_START         = 0x48,
+    ENEMYKIND_ENEMIES_PER_TIER      = 0x18, // 24 enemies per tier
+} EnemyKind;
 
-// Descriptor struct passed to EventActor_Create. 0x60 bytes (24 fields).
-// Built on the stack by Enemy_SpawnActor and event start functions.
+// Descriptor passed to EventActor_Create, built on the stack by Enemy_SpawnActor
+// and the event start functions.
 typedef struct EventActorDesc
 {
-    int actor_id;           // 0x00: ActorID (0x00-0x4E)
+    EnemyKind kind;         // 0x00
     Vec3 position;          // 0x04: spawn world position
     Vec3 forward;           // 0x10: forward direction (unit vector)
     Vec3 up;                // 0x1C: up direction (unit vector)
     float scale;            // 0x28: model scale (typically abs of a spawn-data value, or 1.0)
     int spawn_index;        // 0x2C: spawn tracking counter. -1 for standalone (skips lifetime field)
     int spawn_slot;         // 0x30: spawn slot index. -1 for standalone
-    int x34;                // 0x34: (0 in Enemy_SpawnActor, 0 in event callers)
+    int x34;                // 0x34: 0 from every vanilla caller; copied to EnemyData.x24
     int lifetime;           // 0x38: lifetime in frames. Only written to EnemyData if spawn_index != -1
-    int x3C;                // 0x3C: parent GOBJ (child spawner sets child_ed[2] = parent_gobj). Also variant flag for special actors 0x48-0x4A.
-    int x40;                // 0x40: 1 from Enemy_SpawnActor, varies in event callers
-    Vec3 custom_bounds;     // 0x44: custom collision bounds (only used if bounds_flag != -1.0)
-    float bounds_flag;      // 0x50: -1.0 = use default bounds. Any other value = use custom_bounds
+    int variant;            // 0x3C: tier/variant flags -> EnemyData.tier_flags; for kinds 0x48-0x4A the parent GOBJ instead
+    int is_airborne;        // 0x40: initial EnemyData.is_airborne; 1 from Enemy_SpawnActor
+    Vec3 leash_center;      // 0x44: center of the horizontal leash circle
+    float leash_radius;     // 0x50: -1.0 = no leash; otherwise position is clamped to this radius of leash_center
     Vec3 ground_normal;     // 0x54: ground/surface normal at spawn point
 } EventActorDesc;
 
 // One entry of the per-actor animseq table. The table base is *(actor_data+0x0C);
-// EnemyStateChange resolves ed->anim_data = &table[anim_idx] (anim_idx is the
-// state-table entry's word0). 0x10 bytes per entry.
+// EventActor_ChangeState resolves ed->anim_data = &table[anim_index] (anim_index
+// is the state-table entry's word0).
 // EventActor_AnimDataInit (0x80200c04) feeds anim_joint/mat_anim_joint to
 // JObj_AddAnimAll to bind the joint and material animation to the model tree.
 typedef struct EnemyAnimSeqEntry
 {
     void *anim_joint;       // 0x00, HSD AnimJoint (joint/skeletal animation)
     void *mat_anim_joint;   // 0x04, HSD MatAnimJoint (material animation)
-    float end_frame;        // 0x08, animation end frame / playback flags
-    unsigned char flags;    // 0x0C, flag byte; bit 0x80 gates per-frame animation work
+    void *script;           // 0x08, anim-script bytecode, loaded into EnemyData.anim_command_ptr
+    unsigned char flags;    // 0x0C, bit 0x40 loops the animation; bit 0x80 gates per-frame animation work
     unsigned char padd;     // 0x0D
     unsigned char pade;     // 0x0E
     unsigned char padf;     // 0x0F
 } EnemyAnimSeqEntry; // 0x10 bytes
+
+// GObj proc priorities EventActor_Create registers.
+typedef enum EnemyPri
+{
+    ENEMYPRI_0,             // per-frame damage reset
+    ENEMYPRI_ANIM,          // anim advance, state machine, anim_cb
+    ENEMYPRI_PHYS = 4,      // phys_cb, vel += accel, pos += vel
+    ENEMYPRI_ENVCOLL,       // envcoll_cb
+    ENEMYPRI_6,             // shadow, pri6_cb, model matrix
+    ENEMYPRI_TRIGGER,       // trigger_cb, HurtData update
+    ENEMYPRI_8,             // no-op
+    ENEMYPRI_HITCOLL,
+    ENEMYPRI_DMGAPPLY,
+    ENEMYPRI_ENDOFFRAME = 21,
+} EnemyPri;
+
+typedef struct EnemyData EnemyData;
+
+// One state-table entry: the 14 common states at 0x804b2950 and each kind's own
+// table use this layout. Each callback is copied into EnemyData on a state change.
+typedef struct EnemyStateDesc
+{
+    int anim_index;                    // 0x00, animseq index, -1 = none
+    void (*anim_cb)(EnemyData *ed);    // 0x04
+    void (*phys_cb)(EnemyData *ed);    // 0x08
+    void (*envcoll_cb)(EnemyData *ed); // 0x0C
+    void (*pri6_cb)(EnemyData *ed);    // 0x10
+} EnemyStateDesc;
 
 typedef struct EnemyData
 {
     GOBJ *gobj;             // 0x0, this actor's own GOBJ
     GOBJ *child_gobj;       // 0x4, child/rider actor GOBJ (e.g., knight on mount). 0 if none.
     GOBJ *parent_gobj;      // 0x8, parent/target GOBJ. Used by state functions to follow/track another entity. Null crashes some states.
-    ActorID kind;           // 0xc
-    int x10;                // 0x10
+    EnemyKind kind;         // 0xc
+    void *model_desc;       // 0x10, JOBJDesc of the model, **(actor_data+0x08)
     void *actor_data;       // 0x14, tier-specific data from Enemy_GetActorData. Selects sub-entry based on tier flags (0=T0, 1=T1/T2, 2/3/4=special variants).
     int x18;                // 0x18
     int x1c;                // 0x1c
     int spawn_slot;         // 0x20, from desc. -1 for standalone actors.
-    int spawn_index;        // 0x24, from desc. -1 for standalone. Checked against -1 for lifetime logic.
-    int lifetime_base;      // 0x28, from desc (only if spawn_index != -1)
-    int lifetime_counter;   // 0x2c, decremented each frame in proc 21 for OOB enemies
-    int tier_flags;         // 0x30, variant selector (0=T0, 1=T1/T2, 2/3/4=special). From desc.x3C for actors < 0x48.
-    int state;              // 0x34, current state ID. Written by EnemyStateChange.
-    int per_type_threshold; // 0x38, constant 0x0E - the state-ID cutoff between common and per-type
-                            //       states. Informational; EnemyStateChange hardcodes 14.
-    int anim_idx;           // 0x3c, animation index from state table entry. -1 = no animation. Written by EnemyStateChange.
-    void *common_state_table; // 0x40, pointer to common states 0x00-0x0D (0x804b2950). EnemyStateChange reads this for state_id < 0x0E.
-    void *per_type_state_table; // 0x44, per-type state table for states >= 0x0E, from PTR_PTR_804b1d98[kind]
+    int x24;                // 0x24, desc.x34
+    int spawn_index;        // 0x28, from desc. -1 for standalone, which leaves lifetime at -1.
+    int lifetime;           // 0x2c, desc.lifetime; decremented each frame at ENEMYPRI_ENDOFFRAME for OOB enemies
+    int tier_flags;         // 0x30, variant selector (0=T0, 1=T1/T2, 2/3/4=special). desc.variant, 0 for kinds 0x48-0x4A.
+    int state;              // 0x34, current state ID. Written by EventActor_ChangeState.
+    int common_state_num;   // 0x38, 14; EventActor_ChangeState hardcodes the same cutoff
+    int anim_index;         // 0x3c, animation index from state table entry. -1 = no animation.
+    EnemyStateDesc *common_state_table; // 0x40, 0x804b2950, states below common_state_num
+    EnemyStateDesc *state_table;        // 0x44, the kind's own states, from the kind descriptor at 0x804b1d98
     EnemyAnimSeqEntry *anim_data; // 0x48, current animation entry, resolved as
-                                  //       *(actor_data+0x0C) + ed->anim_idx*0x10
+                                  //       *(actor_data+0x0C) + ed->anim_index*0x10
     float anim_timer;       // 0x4c, animation keyframe timer (decremented per frame by StateMachine)
     float anim_frame;       // 0x50, current animation frame accumulator (= x2a8 + x2ac each frame, written by EventActor_StateMachine)
     void *anim_command_ptr; // 0x54, animation script bytecode pointer
@@ -207,7 +235,7 @@ typedef struct EnemyData
     int xe0;                // 0xe0
     int xe4;                // 0xe4
     int xe8;                // 0xe8
-    int xec;                // 0xec, unused for enemy actors (always 0). For GrYaku stage hazards, holds HurtData pointer (see GrYaku_GetHurtData at 0x800f8248)
+    int xec;                // 0xec
     int xf0;                // 0xf0
     int xf4;                // 0xf4
     int xf8;                // 0xf8
@@ -343,19 +371,15 @@ typedef struct EnemyData
     int x330;               // 0x330
     Vec3 forward;           // 0x334, forward direction unit vector. Model facing.
     Vec3 up;                // 0x340, up direction unit vector. Surface normal for grounded.
-    Vec3 right;             // 0x34c, right direction (cross of up x forward)
-    int x358;               // 0x358
-    int x35c;               // 0x35c
-    int x360;               // 0x360
-    float param_pre_header; // 0x364, bulk-copied from *actor_data-0x04. Pre-header value.
-    float param_base_scale; // 0x368, from actor_data+0x00. Param block root (base scale; also -> tier_base_scale at 0x2D0).
-    float param_scale_2;    // 0x36c, from actor_data+0x04. Per-type secondary params.
-    int param_sentinel;     // 0x370, from actor_data+0x08. -1 sentinel word (param-header terminator/flag) - NOT joint/model data.
-    float param_374;        // 0x374, dual use: a param-header word and the base of the per-actor
-                            //        animseq table (*(actor_data+0x0C))
-    float param_detect_range; // 0x378, dead copy with 0 reads. The live detection range is the global
-                              //        param table +0x80, or actor_data root +0x10 for range classification.
-    float param_chase_range;  // 0x37c, from *actor_data+0x14. DEAD COPY - 0 reads. Live chase range is the actor_data root +0x14 (EnemyActor_ClassifyRange).
+    Vec3 spawn_forward;     // 0x34c, desc.forward as given
+    Vec3 spawn_up;          // 0x358, desc.up as given
+    float alpha;            // 0x364, model alpha; the fade-in proc steps it 0.1 -> 1.0, and hit collision waits for 1.0
+    float param_base_scale; // 0x368, from *actor_data+0x00. Base scale; also -> tier_base_scale at 0x2D0.
+    float param_scale_2;    // 0x36c, from *actor_data+0x04. Per-type secondary params.
+    int param_sentinel;     // 0x370, from *actor_data+0x08
+    float param_lod_radius; // 0x374, from *actor_data+0x0C. Sphere radius EventActorGObj_GetLOD projects.
+    float param_lod0_size;  // 0x378, from *actor_data+0x10. Screen size above which LOD 0 is used.
+    float param_lod1_size;  // 0x37c, from *actor_data+0x14. Screen size above which LOD 1 is used.
     float param_move_param; // 0x380, from *actor_data+0x18. Movement parameter.
     int x384;               // 0x384
     float param_path_speed; // 0x388, from *actor_data+0x20. Path speed.
@@ -368,11 +392,11 @@ typedef struct EnemyData
     float param_gravity;    // 0x3a4, from *actor_data+0x3C. Gravity/fall acceleration.
     float param_3a8;        // 0x3a8, from *actor_data+0x40.
     int param_frame_count;  // 0x3ac, from *actor_data+0x44. Frame count/duration.
-    float param_hp_threshold; // 0x3b0, from *actor_data+0x48. Compared against damage_accum_1 in priority 9 proc.
+    int param_hp;           // 0x3b0, from *actor_data+0x48. Hit collision stops once damage_accum_1 reaches it.
     int param_3b4;          // 0x3b4, from *actor_data+0x4C.
     int param_3b8;          // 0x3b8, from *actor_data+0x50. Ground check mode.
     int param_3bc;          // 0x3bc, from *actor_data+0x54.
-    float param_move_speed; // 0x3c0, from *actor_data+0x58. Movement speed (passed to GroundSnap).
+    float param_ground_clearance; // 0x3c0, from *actor_data+0x58. Height above the ground EventActor_GroundSnap places the actor.
     Vec3 param_turn_rate;   // 0x3c4, turn rate parameters for banking/turning.
     int x3d0;               // 0x3d0
     int x3d4;               // 0x3d4
@@ -389,8 +413,8 @@ typedef struct EnemyData
     int x400;               // 0x400
     int x404;               // 0x404
     int x408;               // 0x408
-    void *per_type_params;  // 0x40c, allocated buffer, receives 16 bytes from *(actor_data+4)
-    void *hurtdata;         // 0x410, HurtData pointer (hitbox/hurtbox collision)
+    void *per_type_params;  // 0x40c, copy of the kind's *(actor_data+4) block; sized by the per-kind table at 0x804b2558
+    HurtData *hurt_data;    // 0x410
     int x414;               // 0x414
     int x418;               // 0x418
     int x41c;               // 0x41c
@@ -409,34 +433,8 @@ typedef struct EnemyData
     int x450;               // 0x450
     int x454;               // 0x454
     int x458;               // 0x458
-    TriggerData trigger;    // 0x45c, per-frame attack-hitbox params (refreshed by EventActor_RefreshAttackParams 0x80201ba4)
-    int x4bc;               // 0x4bc
-    int x4c0;               // 0x4c0
-    int x4c4;               // 0x4c4
-    int x4c8;               // 0x4c8
-    int x4cc;               // 0x4cc
-    int x4d0;               // 0x4d0
-    int x4d4;               // 0x4d4
-    int x4d8;               // 0x4d8
-    int x4dc;               // 0x4dc
-    int x4e0;               // 0x4e0
-    int x4e4;               // 0x4e4
-    int x4e8;               // 0x4e8
-    int x4ec;               // 0x4ec
-    int x4f0;               // 0x4f0
-    int x4f4;               // 0x4f4
-    int x4f8;               // 0x4f8
-    int x4fc;               // 0x4fc
-    int x500;               // 0x500
-    int x504;               // 0x504
-    int x508;               // 0x508
-    int x50c;               // 0x50c
-    int x510;               // 0x510
-    int x514;               // 0x514
-    int x518;               // 0x518
-    int x51c;               // 0x51c
-    int x520;               // 0x520
-    int x524;               // 0x524
+    HitRegion hit_region;   // 0x45c, attack hitbox, refreshed by EventActor_RefreshAttackParams (0x80201ba4)
+    GOBJ *captor_gobj;      // 0x524, rider GObj that inhaled the actor (EventActor_OnCapture)
     int x528;               // 0x528
     int x52c;               // 0x52c
     int x530;               // 0x530
@@ -456,7 +454,7 @@ typedef struct EnemyData
     int x580;               // 0x580
     int x584;               // 0x584
     int x588;               // 0x588
-    int x58c;               // 0x58c
+    int captor_ply;         // 0x58c, captor_gobj's ply
     int x590;               // 0x590
     void *map_collision;    // 0x594, map collision object for ground detection (mpColl)
     int x598;               // 0x598
@@ -470,8 +468,8 @@ typedef struct EnemyData
     int x5b8;               // 0x5b8
     int x5bc;               // 0x5bc
     int x5c0;               // 0x5c0
-    float ground_height;    // 0x5c4, height from ground
-    Vec3 ground_normal;     // 0x5c8, ground surface normal
+    float gravity_strength; // 0x5c4, Gr_GetDownVector return, refreshed by EventActor_UpdateGravity
+    Vec3 gravity_dir;       // 0x5c8, unit gravity-down vector from Gr_GetDownVector
     void *spline_primary;   // 0x5d4, primary spline curve pointer (forward or backward depending on direction)
     void *spline_secondary; // 0x5d8, secondary spline curve pointer
     int spline_segment;     // 0x5dc, index into stage spline array
@@ -504,7 +502,7 @@ typedef struct EnemyData
     int x648;               // 0x648
     int x64c;               // 0x64c
     int x650;               // 0x650
-    int spline_path_ready;  // 0x654, set to 1 before EnemyPath_Init; copied to spline_direction
+    int spline_path_ready;  // 0x654, set to 1 before EventActor_PathInit; copied to spline_direction
     Vec3 saved_up_normal;   // 0x658, fallback up-normal for path following (used when move_direction is zero)
     Vec3 move_direction;    // 0x664, computed movement direction from path following
     int x670;               // 0x670
@@ -638,7 +636,7 @@ typedef struct EnemyData
     int x870;               // 0x870
     int x874;               // 0x874
     float kb_speed_mult;    // 0x878, knockback speed multiplier (scales knockback velocity)
-    int kb_active;           // 0x87c, set to 1 when entering knockback state (Enemy_ApplyKnockback)
+    int kb_active;           // 0x87c, set to 1 when entering knockback state (EventActor_ApplyKnockback)
     int ground_warmup;      // 0x880, 2-frame warmup counter for ground physics (skips first 2 frames after spawn)
     int x884;               // 0x884
     int recovery_timer;     // 0x888, recovery countdown during knockback state 0x0B
@@ -671,7 +669,7 @@ typedef struct EnemyData
     int x8fc;               // 0x8fc
     int x900;               // 0x900
     int x904;               // 0x904
-    int grounded_active;    // 0x908, 1 = grounded/active state (affects combat AI movement mode)
+    int is_airborne;        // 0x908, 1 when EventActor_GroundSnap found no ground; selects the combat AI movement mode
     int x90c;               // 0x90c
     int x910;               // 0x910
     int x914;               // 0x914
@@ -691,7 +689,7 @@ typedef struct EnemyData
     int x94c;               // 0x94c
     GOBJ *hit_source_gobj;  // 0x950, GObj of the entity that hit this enemy (for knockback direction)
     void *shadow;           // 0x954, shadow object pointer
-    void *shadow_2;         // 0x958, secondary shadow pointer
+    int shadow_visible;     // 0x958, EventActor_UpdateShadow sets the shadow-visibility render bit from it
     float slope_factor;     // 0x95c, accumulated slope factor for ground physics projection
     int x960;               // 0x960
     float movement_speed;   // 0x964, if 0.0, AI physics tick returns immediately (enemy stationary)
@@ -706,9 +704,9 @@ typedef struct EnemyData
     int x988;               // 0x988
     int x98c;               // 0x98c
     int x990;               // 0x990
-    int damage_accum_1;     // 0x994, damage accumulator (capped at 9999). Not used for death - cosmetic only.
+    int damage_accum_1;     // 0x994, damage accumulator (capped at 9999); gates hit collision against param_hp
     int damage_accum_2;     // 0x998, secondary damage accumulator (capped at 9999)
-    int kb_source_kind;      // 0x99c, damage source type for knockback (0=normal, 3=enemy-on-enemy, 5=special)
+    HurtKind attacker_kind; // 0x99c, HurtKind of the last hit's source, from the hit log
     int x9a0;               // 0x9a0
     int x9a4;               // 0x9a4
     int x9a8;               // 0x9a8
@@ -717,9 +715,9 @@ typedef struct EnemyData
     int x9b4;               // 0x9b4
     int x9b8;               // 0x9b8
     int x9bc;               // 0x9bc
-    int death_sfx_id;       // 0x9c0, SFX to play on death (-1 = none)
-    int death_vfx_id;       // 0x9c4, VFX to spawn on death (-1 = none)
-    int death_frame_counter; // 0x9c8, set to 600 on death entry and incremented each frame, destroyed
+    int death_effect_id;    // 0x9c0, effect spawned on death (-1 = none)
+    int death_sfx_id;       // 0x9c4, SFX played on death (-1 = none)
+    int death_frame_counter; // 0x9c8, incremented each frame of the death state; the actor is destroyed
                              //        above 120. Doubles as the stun spark frame counter.
     Vec3 kb_dir;            // 0x9cc, normalized knockback direction
     float kb_launch_speed;  // 0x9d8, launch speed from enemy param table per tier (+0x50)
@@ -731,20 +729,20 @@ typedef struct EnemyData
     int x9f8;               // 0x9f8
     int x9fc;               // 0x9fc
     Vec3 kb_velocity;       // 0xa00, randomized knockback velocity (sign bits from HSD_Randi(8))
-    GOBJ *kb_attacker_gobj; // 0xa0c, attacker's rider GObj (for direction computation)
-    int attraction_mode;    // 0xa10, inhale/attraction mode (0=normal/attracted, 1=captured, 5=skip)
-    int attraction_target;  // 0xa14, target player index for inhale attraction
-    int stun_frames;        // 0xa18, frames remaining in stun/knockback. Decrements each frame; death state at 0.
+    GOBJ *kb_attacker_gobj; // 0xa0c, attacker GObj, resolved to the rider for machines and rider-owned weapons
+    HurtKind kb_attacker_kind; // 0xa10, HurtKind of kb_attacker_gobj
+    int kb_attacker_ply;    // 0xa14, attacker ply, 5 = none
+    int stun_frames;        // 0xa18, hitstop frames left, counted down by CommonEnvColl; CommonPhys launches the actor at 0
     int knockback_tier;     // 0xa1c, response tier (0-3) based on per-hit damage thresholds (<10, <21, <32, >=32)
-    int xa20;               // 0xa20
-    int kb_attacker_entity;  // 0xa24, attacker entity pointer (for enemy-on-enemy knockback direction)
-    int death_timer;        // 0xa28, counts up during death processing. Used by func2 to track death frame count.
+    int special_hit_kind;   // 0xa20, EventActor_ResolveHit: 1 = Bomber or bomb hit with attacker_flags 1, 2 = rider hit with attacker_flags 7
+    GOBJ *special_hit_gobj; // 0xa24, attacker GObj of that hit; ApplyKnockback aims away from it for an HURTKIND_EVENTACTOR attacker
+    int death_timer;        // 0xa28, counts up during death processing. Used by phys_cb to track death frame count.
     float anim_speed_scale; // 0xa2c, animation speed scale factor (decays each frame toward minimum)
     int xa30;               // 0xa30
     int xa34;               // 0xa34
     int xa38;               // 0xa38
-    int vfx_handle_1;       // 0xa3c, effect handle. Cleaned by EventActor_CleanupVfxA3C (calls sound stop at 0x80236358). Despite the name, these are SFX handles.
-    int vfx_handle_2;       // 0xa40, second effect handle. Cleaned by EventActor_CleanupVfxA40.
+    int efgroup;            // 0xa3c, effect group killed by EventActor_KillEfGroup (-1 = none)
+    int efgroup2;           // 0xa40, effect group killed by EventActor_KillEfGroup2 (-1 = none)
     int xa44;               // 0xa44
     int xa48;               // 0xa48
     int xa4c;               // 0xa4c
@@ -758,12 +756,10 @@ typedef struct EnemyData
     int xa6c;               // 0xa6c
     int hit_vfx_1;          // 0xa70, impact VFX handle (stored by Meteor_HitTransition; also a particle effect handle for anim-script cmd 18)
     int hit_vfx_2;          // 0xa74, particle effect handle (anim-script cmd 18)
-    int damage_frame_counter; // 0xa78, damage state tracking counter (proc 21)
+    int damage_frame_counter; // 0xa78, damage state tracking counter (ENEMYPRI_ENDOFFRAME)
     int xa7c;               // 0xa7c
-    int xa80;               // 0xa80
-    int xa84;               // 0xa84
-    int xa88;               // 0xa88
-    float path_active_flag; // 0xa8c, -1.0 = path-following enabled; checked by movement update
+    Vec3 leash_center;      // 0xa80, desc.leash_center
+    float leash_radius;     // 0xa8c, desc.leash_radius; -1.0 = no leash, which also enables path following
     int xa90;               // 0xa90
     int xa94;               // 0xa94
     int xa98;               // 0xa98
@@ -774,22 +770,22 @@ typedef struct EnemyData
     int xaac;               // 0xaac
     int xab0;               // 0xab0
     int xab4;               // 0xab4
-    void *state_func1;      // 0xab8, per-state callback from priority 1 (ProcUpdate)
-    void *state_func2;      // 0xabc, per-state callback from priority 4 (pre-physics)
-    void *state_func3;      // 0xac0, per-state callback from priority 5 (state active)
-    void *state_func4;      // 0xac4, per-state callback from priority 6 (shared + model)
-    void *per_type_cb;      // 0xac8, per-type callback dispatched at priority 7. No vanilla enemy installs
-                            //        it and EnemyStateChange only zeroes it, which makes it the cleanest
+    void (*anim_cb)(EnemyData *ed);    // 0xab8, ENEMYPRI_ANIM, from the state entry
+    void (*phys_cb)(EnemyData *ed);    // 0xabc, ENEMYPRI_PHYS, from the state entry
+    void (*envcoll_cb)(EnemyData *ed); // 0xac0, ENEMYPRI_ENVCOLL, from the state entry
+    void (*pri6_cb)(EnemyData *ed);    // 0xac4, ENEMYPRI_6, from the state entry
+    void *trigger_cb;       // 0xac8, ENEMYPRI_TRIGGER. No vanilla enemy installs it and
+                            //        EventActor_ChangeState only zeroes it, which makes it the cleanest
                             //        custom-AI injection point - re-assert it after each state change.
     void *hit_reaction_cb1; // 0xacc, hit reaction callback. Set by init callback. Called from damage proc.
-    void *hit_reaction_cb2; // 0xad0, hit reaction callback. Called from priority 10 when damage > threshold. If null, default knockback handler runs.
+    void *hit_reaction_cb2; // 0xad0, hit reaction callback. Called at ENEMYPRI_DMGAPPLY when damage > threshold. If null, default knockback handler runs.
     int xad4;               // 0xad4, cleared on state change (unless flag 0x10)
     int xad8;               // 0xad8
     int xadc;               // 0xadc
     void *grounded_callback; // 0xae0, called when landing from knockback (states 0x0C/0x0D). If null, actor is destroyed instead.
     int xae4;               // 0xae4
     int xae8;               // 0xae8
-    void *custom_death_callback; // 0xaec, if set, replaces default death behavior in func2
+    void *custom_death_callback; // 0xaec, if set, replaces default death behavior in phys_cb
     int script_const_0;     // 0xaf0, anim-script constant slot (cmd 22)
     int script_const_1;     // 0xaf4, anim-script constant slot (cmd 22)
     int script_const_2;     // 0xaf8, anim-script constant slot (cmd 22)
@@ -807,24 +803,22 @@ typedef struct EnemyData
     int xb18;               // 0xb18
     int suction_active;     // 0xb1c, 1 = being sucked in by rider (state 0x0A)
     int inhale_timer;       // 0xb20, frames since inhale started. Actor destroyed when > 120.
-    short target_player_idx; // 0xb24, targeted player index (-1 = none). Set by EnemyActor_FindNearestPlayer.
+    short target_ply;       // 0xb24, targeted ply (-1 = none). Set by EventActor_FindNearestPlayer.
     short retarget_cooldown; // 0xb26, frames until re-evaluation
-    float chase_flag;       // 0xb28, 0.0 = chase active
-    int xb2c;               // 0xb2c
-    int xb30;               // 0xb30
-    int xb34;               // 0xb34
-    Vec3 chase_direction;   // 0xb38, normalized direction toward target player
+    float turn_timer;       // 0xb28, turn blend toward turn_to; counts down, 0 = no turn in progress
+    Vec3 turn_from;         // 0xb2c, forward when the turn started
+    Vec3 turn_to;           // 0xb38, turn target; EventActor_FindNearestPlayer sets it to pos - target pos
     int xb44;               // 0xb44
     short xb48;              // 0xb48
-    short frame_counter;     // 0xb4a, state frame counter (s16). Incremented by state func3. Used for timeouts.
-    short in_bounds_flag;    // 0xb4c, set to 1 when meteor enters map bounds (state 14)
+    short frame_counter;     // 0xb4a, state frame counter (s16). Incremented by envcoll_cb. Used for timeouts.
+    short in_bounds_flag;    // 0xb4c, set to 1 when meteor enters map bounds (state 15)
     short camera_flag;       // 0xb4e, set to 1 when camera effect triggered
     Vec3 initial_pos;       // 0xb50, saved by post-init callback (pos at creation time, before state transitions or spline snaps)
     float zone_offset;      // 0xb5c, height offset from zone table (meteor)
-    int landing_vfx_1;      // 0xb60, landing VFX handle (stored by Meteor_Landing, monitored by state 16 func3)
+    int landing_vfx_1;      // 0xb60, landing VFX handle (stored by Meteor_Landing, monitored by state 17 envcoll_cb)
     int landing_vfx_2;      // 0xb64
     Vec3 collision_radii;   // 0xb68, base collision sphere radii (from actor_data)
-    void *collision_sphere;  // 0xb74, xB74 collision sphere handle. Created by HitTransition/Meteor_Landing.
+    void *collision_sphere;  // 0xb74, collision sphere handle. Created by Meteor_HitTransition/Meteor_Landing.
     void *collision_sphere_2;// 0xb78
     int xb7c;               // 0xb7c
     int xb80;               // 0xb80
@@ -845,24 +839,39 @@ typedef struct EnemyData
     int xbbc;               // 0xbbc
 } EnemyData;
 
-// Enemy data table at 0x804b22b4 (stride 8). Maps enemy ID -> {data_index (int), flags (int)}.
-// Data index used by Enemy_LoadFile to load archive files.
+// Per-kind descriptor, one pointer per EnemyKind in stc_enemy_kind_desc_table.
+typedef struct EnemyKindDesc
+{
+    EnemyStateDesc *state_table;        // 0x00, -> EnemyData.state_table
+    void *x4;                           // 0x04
+    void (*init)(EnemyData *ed);        // 0x08, run by EventActor_Create
+    void (*copy_params)(EnemyData *ed); // 0x0C, run by EventActor_CopyParamBlock
+    void *x10;                          // 0x10
+    void (*on_destroy)(EnemyData *ed);  // 0x14, run by EventActor_Destructor
+    void *x18;                          // 0x18
+    void (*on_capture)(EnemyData *ed);  // 0x1C, run by EventActor_OnCapture
+} EnemyKindDesc;
 
-// Enemy manager functions
-// Iterates the stage enemy list, calling Enemy_CheckAndLoad per ID. Skipped only
+static EnemyStateDesc *stc_enemy_common_state_table = (EnemyStateDesc *)0x804b2950; // [14]
+static EnemyKindDesc **stc_enemy_kind_desc_table = (EnemyKindDesc **)0x804b1d98;   // [ENEMYKIND_NUM]
+static int *stc_enemy_kind_archive = (int *)0x804b22b4;       // [ENEMYKIND_NUM][2]: data_index, flags
+static char *stc_enemy_archive_loaded = (char *)0x8055a210;   // [22], by data_index, 1 = loaded
+static void **stc_enemy_archive_root = (void **)0x8055a228;   // [22], by data_index
+
+// Iterates the stage enemy list, calling Enemy_CheckAndLoad per kind. Skipped only
 // in City Trial Free Run; runs normally in timed City Trial.
 void Enemy_LoadStageEnemies(void); // 0x800f25b4
-short *Enemy_GetStagesEnemies(int stage_kind); // 0x80262808, returns short* array of enemy IDs for stage (terminated by -1)
+short *Enemy_GetStagesEnemies(int stage_kind); // 0x80262808, EnemyKind array for the stage, -1 terminated
 void Enemy_InitPositionData(void); // 0x800f2634, allocates enemy position slots, loads positions from stage data
 void Enemy_InitSpawner(void); // 0x800f2ee4, creates enemy manager GObj with Enemy_Think proc
 void Enemy_Think(void); // 0x800f3904, GObj proc callback for enemy manager (Air Ride)
 void Enemy_CityTrialThink(void); // 0x800f33c0, GObj proc callback for enemy manager (City Trial)
 
-// Archive loading - idempotent, safe to call multiple times
-void Enemy_CheckAndLoad(int actor_id); // 0x801fd060, validates actor ID, calls Enemy_LoadFile
-void Enemy_LoadFile(int actor_id); // 0x801fd348, loads enemy archive data from disc. No-ops if already loaded.
+// Idempotent. The event actors 0x4C-0x4E load only while Gm_IsEventsEnabled holds;
+// every other kind always loads.
+void Enemy_CheckAndLoad(EnemyKind kind); // 0x801fd060
+void Enemy_LoadFile(EnemyKind kind); // 0x801fd348, loads enemy archive data from disc. No-ops if already loaded.
 
-// Spawning
 // Spawn-slot wrapper for modes 1 and 3: builds a descriptor and calls
 // EventActor_Create. enemy_id_packed = (variant << 8) | enemy_id; -1 skips creation.
 void Enemy_SpawnActor(int spawn_slot, int enemy_id_packed, int position_index); // 0x800f13a8
@@ -873,179 +882,181 @@ void Enemy_SpawnActorMode2(int spawn_slot, int position_index); // 0x800f16c0
 // EnemyMgr.time_progress, then a concrete enemy from that category's weight
 // column. Writes the spawn-entry index and returns the enemy_id, -1 if none.
 int Enemy_SpawnerDecideMode2(int *out_entry_index); // 0x800f0efc
-// Universal actor factory for any ActorID (0x00-0x4E); 0 on failure.
-GOBJ *EventActor_Create(void *desc); // 0x801fbb50
+// Any EnemyKind; NULL on failure.
+GOBJ *EventActor_Create(EventActorDesc *desc); // 0x801fbb50
 // Proper actor destruction - recursively destroys children, clears inter-actor
 // references and runs cleanup before GObj_Destroy. Use instead of raw GObj_Destroy.
-void EventActor_Destroy(GOBJ *gobj); // 0x801fbf2c
-// Tail of EventActor_ProcHitColl: resolves the frame's hit log into the attacking
-// machine / rider / projectile, credits it through Ply_RecordEnemyDefeat, and leaves
-// the attacker and the knockback direction in the actor's hit-reaction fields.
+void EventActorGObj_Destroy(GOBJ *gobj); // 0x801fbf2c
+// Tail of EventActorGObj_ProcHitColl: resolves the frame's hit log into the attacking
+// machine / rider / weapon, credits it through Ply_RecordEnemyDefeat, and leaves
+// the attacker in kb_attacker_gobj / kb_attacker_kind / kb_attacker_ply.
 void EventActor_ResolveHit(EnemyData *ed); // 0x802021fc
 // Per-hit stadium KO credit from EventActor_ResolveHit: Ply_AddStadiumEnemyKO for an
-// actor passing ActorID_CountsAsKO. ply 5 = no player.
+// actor passing Enemy_KindCountsAsKO. ply 5 = no player.
 void EventActor_CreditStadiumKO(EnemyData *ed, int ply); // 0x802025dc
 // 0 for the Cappy B and Dayl B kinds of every tier, the special Broom Hatter / Sword
-// Knight / Waddle Dee Truck, and anything out of range; 1 for every other actor.
-int ActorID_CountsAsKO(ActorID actor_id); // 0x802049fc
+// Knight / Waddle Dee Truck, and anything out of range; 1 for every other kind.
+int Enemy_KindCountsAsKO(EnemyKind kind); // 0x802049fc
 // The same test on an actor GObj's EnemyData.kind; gates Ply_RecordEnemyDefeat and
 // Ply_RecordEnemySwallow.
-int EventActor_IsChecklistEnemy(GOBJ *enemy); // 0x80204a80
-void EventActor_CleanupCollisionSphere(EnemyData *ed); // 0x8021f1bc, destroys xB74 collision sphere if non-null and nulls it.
-void EventActor_CleanupVfxA3C(EnemyData *ed); // 0x8020c6e0, destroys VFX handle at xa3c if != -1.
-void EventActor_CleanupVfxA40(EnemyData *ed); // 0x8020c70c, destroys VFX handle at xa40 if != -1.
-void EventActor_Hide(EnemyData *ed); // 0x801fed40, sets bit 7 (invisible) of render_flags (+0xB08), then calls EventActor_DisableRendering. Full hide.
-// Clears the invisible bit of render_flags, then enables rendering for actor_id
+int EventActorGObj_IsChecklistEnemy(GOBJ *gobj); // 0x80204a80
+EnemyKind EventActorGObj_GetKind(GOBJ *gobj); // 0x8020409c, the actor's EnemyData.kind
+void EventActor_CleanupCollisionSphere(EnemyData *ed); // 0x8021f1bc, destroys collision_sphere if non-null and nulls it.
+void EventActor_KillEfGroup(EnemyData *ed);  // 0x8020c6e0, kills efgroup if != -1
+void EventActor_KillEfGroup2(EnemyData *ed); // 0x8020c70c, kills efgroup2 if != -1
+void EventActor_Hide(EnemyData *ed); // 0x801fed40, sets bit 7 (invisible) of render_flags (+0xB08), then calls EventActorGObj_DisableRendering. Full hide.
+// Clears the invisible bit of render_flags, then enables rendering for kinds
 // below 0x4C and disables it at or above - so it leaves a meteor (0x4E) hidden.
 void EventActor_SetVisibility(EnemyData *ed); // 0x801fed74
-void EventActor_EnableRendering(GOBJ *gobj); // 0x80204198, clears bit 4 of render_flags (+0xB08).
-void EventActor_DisableRendering(GOBJ *gobj); // 0x802041b0, sets bit 4 of render_flags (+0xB08).
-// Note: render_flags bits and JOBJ_HIDDEN are independent. For actors with id >= 0x4C,
-// clearing render_flags alone is insufficient - must also JObj_ClearFlagsAll(jobj, JOBJ_HIDDEN).
-double EventActor_GetParentAnimRate(GOBJ *parent_gobj); // 0x802049b8, reads parent_gobj->userdata + 0x2B0 (anim_rate). Crashes if parent_gobj is null.
-int Gm_CheckEnemyEnabled(void); // 0x8000a348, returns 1 if enemy spawning is enabled
+void EventActorGObj_EnableRendering(GOBJ *gobj); // 0x80204198, clears bit 4 of render_flags (+0xB08).
+void EventActorGObj_DisableRendering(GOBJ *gobj); // 0x802041b0, sets bit 4 of render_flags (+0xB08).
+// render_flags bits and JOBJ_HIDDEN are independent. For kinds >= 0x4C, clearing
+// render_flags alone is insufficient - also JObj_ClearFlagsAll(jobj, JOBJ_HIDDEN).
+// Sets JOBJ_HIDDEN on the actor's model and its child's, and clears shadow_visible.
+void EventActorGObj_HideModel(GOBJ *gobj); // 0x802042fc
+float EventActorGObj_GetAnimRate(GOBJ *gobj); // 0x802049b8, EnemyData.anim_rate. Crashes on NULL.
+int Gm_IsEventsEnabled(void); // 0x8000a348, GameData.is_enable_events
 
-// State machine
-// Common states 0x00-0x0D are shared by every actor type; 0x0E and up index the type's own table.
-#define ENEMYSTATE_DEATH     0x09 // EnemyState_DeathEnter (0x80203e60)
-#define ENEMYSTATE_INHALED   0x0A // EnemyState_InhaledExit (0x80203b28) destroys after 120 frames
+// Common states 0x00-0x0D are shared by every kind; 0x0E and up index the kind's own table.
+#define ENEMYSTATE_DEATH     0x09 // EventActor_DeathAnim (0x80203e60)
+#define ENEMYSTATE_INHALED   0x0A // EventActor_InhaledEnvColl (0x80203b28) destroys after 120 frames
 #define ENEMYSTATE_KNOCKBACK 0x0B
 #define ENEMYSTATE_LAUNCHED  0x0C
 #define ENEMYSTATE_SLIDING   0x0D
 #define ENEMYSTATE_PERTYPE   0x0E // first per-type state, entered on spawn
 
 // Transitions to a new behavioral state. flags: 0x01 skip anim setup, 0x02 skip
-// anim reset if same, 0x04 skip cleanup, 0x08 save/restore pos, 0x10 keep
-// per-type cb, 0x20 skip HurtData reset, 0x40 skip SFX cleanup.
-void EnemyStateChange(EnemyData *ed, int state_id, int flags, float anim_rate, float anim_end_frame); // 0x801fc398
+// anim reset if same, 0x04 skip StateCleanup, 0x08 keep anim_pos, 0x10 keep
+// xad4, 0x20 skip HurtData reset, 0x40 skip efgroup cleanup. trigger_cb is
+// zeroed regardless.
+void EventActor_ChangeState(EnemyData *ed, int state, int flags, float start_frame, float rate); // 0x801fc398
 
-// Meteor-specific
 // Disables rendering and sets JOBJ_HIDDEN, then zeros velocity, enters state 15
 // and seeds velocity from the zone/speed tables. Requires valid
 // stc_meteor_event_data, and the caller must re-enable rendering afterward.
 void Meteor_BehaviorInit(EnemyData *ed); // 0x8021e1a0
-// Do not call: transitions to state 17, which does not exist in the meteor state
-// table, so it reads out of bounds and corrupts memory. Dead in vanilla.
+// State 16 timeout: enters state 17 (the table's last entry), creates the landing
+// VFX and damage sphere and rumbles nearby players. State 17 destroys the actor
+// once the landing VFX ends.
 void Meteor_Landing(EnemyData *ed); // 0x8021ea5c
-// State 14 hit handler: normalizes velocity, computes impact speed, enters state
-// 16 and creates the impact VFX and audio fade. State 16 then destroys the actor.
+// State 15 hit handler: normalizes velocity, computes impact speed, enters state
+// 16 and creates the impact VFX and audio fade.
 void Meteor_HitTransition(EnemyData *ed); // 0x8021e7c4
 
-// Enemy-player interaction
-float EnemyActor_DistToPlayer(int player_idx, float *pos); // 0x801fffa4, returns 3D distance from pos to player player_idx. Result in f1.
-// Controller rumble only - not a damage function. Enemy damage flows through the
-// HitColl collision pipeline.
-void EnemyActor_RumblePlayer(int player_idx, int intensity, int duration); // 0x801ff80c
+float Enemy_DistToPlayer(int ply, Vec3 *pos); // 0x801fffa4, distance from pos to ply's rider; FLT_MAX with no rider
+// Rumbles ply's controller through Rider_TriggerRumble; returns 1 when ply has no
+// rider. Enemy damage flows through the HitColl pipeline instead.
+int Enemy_RumblePlayer(int ply, int intensity, int duration); // 0x801ff80c
 
-// Path-following initialization
 // Finds the nearest spline to ed->pos and assigns spline_primary/secondary plus
 // segment and arc param. Sets bit 2 of +0xB0A if no spline is found.
-void EnemyPath_Init(EnemyData *ed); // 0x80206e2c
+void EventActor_PathInit(EnemyData *ed); // 0x80206e2c
 
-// Actor data lookup
-// actor_data for a loaded archive, indexed by {data_index, flags} from the table
-// at 0x804b22b4. Returns 0 if the archive is not loaded.
-void *Enemy_GetActorData(int actor_id); // 0x801fd498
+// actor_data for a loaded archive, indexed by {data_index, flags} from
+// stc_enemy_kind_archive. Returns 0 if the archive is not loaded.
+void *Enemy_GetActorData(EnemyKind kind); // 0x801fd498
 
-// GObj procs, all 10 registered unconditionally by EventActor_Create at
-// priorities 0/1/4/5/6/7/8/9/10/21, plus a GXLink render callback at priority 9.
-void EventActor_ProcResetDamage(GOBJ *gobj); // 0x801fc670, priority 0: zeros per-frame damage via HurtData_ResetPerFrame
-void EventActor_ProcUpdate(GOBJ *gobj); // 0x801fc698, priority 1: HSD anim advance + state machine + state_func1 dispatch
-void EnemyPhysicsProc(GOBJ *gobj); // 0x801fc6fc, priority 4: state_func2 dispatch + vel += accel, pos += vel, OOB floor kill (skipped for actor_id >= 0x4C)
-void EventActor_ProcStateActive(GOBJ *gobj); // 0x801fc7c4, priority 5: state_func3 dispatch (main per-state AI logic)
-void EventActor_ProcSharedModel(GOBJ *gobj); // 0x801fc7f8, priority 6: shadow update + state_func4 dispatch + SharedUpdate
-void EventActor_ProcPerType(GOBJ *gobj); // 0x801fc848, priority 7: per_type_cb dispatch + HurtData update + position snap
-// Priority 8: EventActor_ProcHitCollInit (0x801fc8e8) - single blr, no-op stub
-void EventActor_ProcHitColl(GOBJ *gobj); // 0x801fc8ec, priority 9: HitColl processing + collision checks
-void EventActor_ProcDamage(GOBJ *gobj); // 0x801fc9f0, priority 10: reads HurtData output, calls giveEnemyDamage, dispatches hit_reaction_cb2
-void EventActor_ProcFinal(GOBJ *gobj); // 0x801fcabc, priority 21: pos -> pos_prev, ground state flags, lifetime/despawn, OOB destroy
+// GObj procs, all registered unconditionally by EventActor_Create at the EnemyPri
+// priorities, plus the Enemy_GX render callback on GX link 9 (GAMEGX_ENEMY).
+void EventActorGObj_ProcResetDamage(GOBJ *gobj); // 0x801fc670, ENEMYPRI_0: zeros per-frame damage via HurtData_ResetPerFrame
+void EventActorGObj_ProcAnim(GOBJ *gobj); // 0x801fc698, ENEMYPRI_ANIM: HSD anim advance + state machine + anim_cb
+void EventActorGObj_ProcPhys(GOBJ *gobj); // 0x801fc6fc, ENEMYPRI_PHYS: phys_cb + vel += accel, pos += vel, OOB floor kill (skipped for kinds >= 0x4C)
+void EventActorGObj_ProcEnvColl(GOBJ *gobj); // 0x801fc7c4, ENEMYPRI_ENVCOLL: envcoll_cb (main per-state AI logic)
+void EventActorGObj_ProcSharedModel(GOBJ *gobj); // 0x801fc7f8, ENEMYPRI_6: shadow update + pri6_cb + EventActor_SharedUpdate
+void EventActorGObj_ProcTrigger(GOBJ *gobj); // 0x801fc848, ENEMYPRI_TRIGGER: trigger_cb + HurtData update + position snap
+// ENEMYPRI_8: EventActorGObj_ProcHitCollInit (0x801fc8e8) - single blr, no-op stub
+// ENEMYPRI_HITCOLL: HitColl processing, skipped while alpha < 1.0 or damage_accum_1 >= param_hp.
+void EventActorGObj_ProcHitColl(GOBJ *gobj); // 0x801fc8ec
+void EventActorGObj_ProcDmgApply(GOBJ *gobj); // 0x801fc9f0, ENEMYPRI_DMGAPPLY: reads HurtData output, calls EventActor_GiveDamage, dispatches hit_reaction_cb2
+void EventActorGObj_ProcEndOfFrame(GOBJ *gobj); // 0x801fcabc, ENEMYPRI_ENDOFFRAME: pos -> pos_prev, ground state flags, lifetime/despawn, OOB destroy
 
-// Internal creation/destruction helpers
-void EventActor_InitFromDesc(EnemyData *ed, void *desc); // 0x801fb53c, copies EventActorDesc fields into EnemyData (0x4fc bytes)
+void EventActorGObj_InitFromDesc(GOBJ *gobj, EventActorDesc *desc); // 0x801fb53c, copies desc into the GObj's EnemyData
 void EventActor_SpawnChild(EnemyData *parent_ed); // 0x801fcda0, spawns child actor (rider/attached entity) and links parent<->child GOBJs
 void EventActor_StateCleanup(EnemyData *ed); // 0x801fe110, cleans up attach slots (ed+0x918), detaches/destroys orphaned child objects
-void EventActor_SharedUpdate(GOBJ *gobj); // 0x801fd780, updates JObj world matrix from position/orientation/scale
-void EventActor_UpdateFacing(EnemyData *ed); // 0x801fd7bc, recalculates forward/up/right axes from orientation
-void EventActor_ShadowInit(EnemyData *ed); // 0x80200208, shadow and 3D model initialization/update
-void EventActor_FinalizeInit(EnemyData *ed); // 0x802042fc, finalize init - sets up animation, collision, model visibility
-void EventActor_OnCapture(EnemyData *ed); // 0x802038c4, called when enemy is captured/inhaled by a rider
-void EventActor_HurtDataCreate(EnemyData *ed); // 0x80201ee8, creates HurtData for the actor (hitbox/hurtbox collision setup)
+void EventActor_SharedUpdate(EnemyData *ed); // 0x801fd780, rebuilds the model matrix from pos, forward, up and final_scale
+// When is_airborne and vel is within 90 degrees of gravity_dir, replaces vel's
+// gravity_dir component with param_3a8 if that component is below -param_3a8.
+void EventActor_ClampGravityVel(EnemyData *ed); // 0x801fd7bc
+void EventActor_UpdateShadow(EnemyData *ed); // 0x80200208, per-frame shadow update at ENEMYPRI_6
+// Runs when a rider inhales the actor: stores rider_gobj in captor_gobj, and arg2 at ed+0x52c.
+void EventActor_OnCapture(EnemyData *ed, GOBJ *rider_gobj, int arg2); // 0x802038c4
+void EventActor_InitHurtData(EnemyData *ed); // 0x80201ee8, creates hurt_data
 void EventActor_FollowParent(EnemyData *ed); // 0x80219eec, child actor state: syncs position/scale from parent_gobj
 void EventActor_CopyParentState(EnemyData *ed); // 0x80219fd4, copies parent's position/orientation/forward/up to child
-void EventActor_GObjDestroyHandler(GOBJ *gobj); // 0x801fcca0, GObj destructor callback (cleanup on GObj_Destroy)
+void EventActor_Destructor(EnemyData *ed); // 0x801fcca0, GObj userdata destructor
 void EventActor_StateMachine(EnemyData *ed); // 0x802017d0, animation script bytecode processor (commands 0-10 builtin, 11+ enemy-specific)
 void Enemy_UnregisterFromSpawnSlot(GOBJ *gobj); // 0x800f3b28, removes enemy from spawn slot tracking, decrements active count, sets respawn timer
-void Enemy_CopyParamBlock(EnemyData *ed); // 0x802006b4, bulk-copies 0xA4 bytes from *actor_data-4 into ed+0x364 through ed+0x408
+// Copies 0xA4 bytes from *actor_data into param_base_scale..+0x40B, then runs the
+// kind descriptor's copy_params.
+void EventActor_CopyParamBlock(EnemyData *ed); // 0x802006b4
 
-// Damage system
-void giveEnemyDamage(EnemyData *ed, float damage); // 0x8020b680, adds damage to accumulators (capped at 9999). Cosmetic only - does not cause death.
+void EventActor_GiveDamage(EnemyData *ed, float damage); // 0x8020b680, adds damage to both accumulators (capped at 9999)
 int Enemy_ClassifyDamageTier(float damage); // 0x8020b740, classifies damage into tier 0-3 based on global thresholds
 float Enemy_ScaleDamage(float damage); // 0x8020b71c, scales damage by global multiplier from enemy param table
 // Full knockback transition: sets stun_frames, computes velocity, enters the state.
-void Enemy_ApplyKnockback(EnemyData *ed, void *hurtdata, int mode); // 0x8020b784
+void EventActor_ApplyKnockback(EnemyData *ed, HurtData *hurt_data, int mode); // 0x8020b784
 
-// Ground physics
-void Enemy_GroundPhysicsVelocity(EnemyData *ed); // 0x80209104, velocity-based ground projection with raycast
-void Enemy_GroundPhysicsSurface(EnemyData *ed); // 0x802096b4, direct surface advancement with wall bounce
-void Enemy_GroundAttach(EnemyData *ed); // 0x8020a664, final ground attachment after path following
-int Enemy_CheckPathFollow(EnemyData *ed); // 0x8020b01c, checks if enemy should follow path (spline)
+void EventActor_GroundPhysicsVelocity(EnemyData *ed); // 0x80209104, velocity-based ground projection with raycast
+void EventActor_GroundPhysicsSurface(EnemyData *ed); // 0x802096b4, direct surface advancement with wall bounce
+void EventActor_GroundAttach(EnemyData *ed); // 0x8020a664, final ground attachment after path following
+int EventActor_CheckPathFollow(EnemyData *ed); // 0x8020b01c, checks if enemy should follow path (spline)
 // Sets the terrain-locked flag, bit 2 of ed+0xB0B, from the Broom Hatter and
 // Wheelie init callbacks. The unlocker at 0x8020ae68 clears the same bit.
-void Enemy_SetTerrainLocked(EnemyData *ed); // 0x8020ae54
-void EnemyPath_Advance(EnemyData *ed, Vec3 *input_pos, Vec3 *output_pos, float speed); // 0x8020a040, advances parametric position along spline path
+void EventActor_SetTerrainLocked(EnemyData *ed); // 0x8020ae54
+void EventActor_PathAdvance(EnemyData *ed, Vec3 *input_pos, Vec3 *output_pos, float speed); // 0x8020a040, advances parametric position along spline path
 
-// Common state callbacks (shared by states 0x00-0x0D)
-void EnemyState_AnimEnter(EnemyData *ed); // 0x8020bd68, func1 for states 0-8: animation rate scaling, stun freeze
-void EnemyState_AnimTick(EnemyData *ed); // 0x8020be1c, func2 for states 0-8: death processing, attraction physics, inhale follow
-void EnemyState_AnimExit(EnemyData *ed); // 0x8020c558, func3 for states 0-8: stun frame decrement, ground physics, stun spark VFX
-void EnemyState_DeathEnter(EnemyData *ed); // 0x80203e60, func1 for state 0x09: death effects, model hide, 600-frame timer -> destroy
-void EnemyState_KnockbackEnter(EnemyData *ed); // 0x8020ddb4, func1 for state 0x0B: compute knockback velocity, set launch trajectory
-void EnemyState_TransitionToLaunched(EnemyData *ed); // 0x8020e0bc, enters state 0x0C (launched/airborne)
-void EnemyState_TransitionToSliding(EnemyData *ed); // 0x8020e63c, enters state 0x0D (grounded/sliding)
+// Callbacks of the common state table.
+void EventActor_CommonAnim(EnemyData *ed); // 0x8020bd68, anim_cb of states 0-8: animation rate scaling, stun freeze
+void EventActor_CommonPhys(EnemyData *ed); // 0x8020be1c, phys_cb of states 0-8: hitstop hold and shake, launch at stun end, death once intangibility runs out
+void EventActor_CommonEnvColl(EnemyData *ed); // 0x8020c558, envcoll_cb of states 0-8: stun countdown, surface bounce once launched, spark every 5th frame
+// Refreshes map_collision at pos through mpColl_Update, mpColl_SetDefaultParams2 and
+// mpColl_UpdateShapeExtents. CommonEnvColl runs it while stun_frames is positive.
+void EventActor_RefreshCollision(EnemyData *ed); // 0x80204d30
+// Collides map_collision at pos; on a wall, floor or ceiling contact turns vel off the
+// surface normal, plays a random bump sound and rumbles a rider, machine or weapon
+// attacker within EnemyParamTable+0x84. CommonEnvColl runs it once the actor is launched.
+void EventActor_CollideAndBounce(EnemyData *ed); // 0x80205bb4
+// anim_cb of state 0x09: death effect and SFX, model hide, destroy once
+// death_frame_counter passes 120. Kinds 0x48-0x4A jump the counter to 600.
+void EventActor_DeathAnim(EnemyData *ed); // 0x80203e60
+void EventActor_KnockbackAnim(EnemyData *ed); // 0x8020ddb4, anim_cb of state 0x0B: compute knockback velocity, set launch trajectory
+void EventActor_EnterLaunched(EnemyData *ed); // 0x8020e0bc, enters state 0x0C (launched/airborne)
+void EventActor_EnterSliding(EnemyData *ed); // 0x8020e63c, enters state 0x0D (grounded/sliding)
 
-// Movement and physics
 void EventActor_ZeroVelocity(EnemyData *ed); // 0x801fd6b0, zeros accel (0x2E0) and vel (0x2EC)
-void EventActor_GroundSnap(EnemyData *ed, float scale); // 0x80204fac, raycasts downward, snaps to ground, updates ground_normal
-void EventActor_UpdateOrientation(EnemyData *ed); // 0x802054e4, recalculates facing/orientation vectors
-int Enemy_AIPhysicsTick(EnemyData *ed); // 0x802081ec, central ground-following movement. Returns 0=moved, 1=stationary.
-void EnemyPath_FollowUpdate(EnemyData *ed, int direction_mode); // 0x80209ce4, spline path-following movement update
+// Raycasts from pos + up*5 to pos - up*50. On a hit, places the actor clearance
+// above it (0.005 when clearance is 0), takes up from the surface and clears
+// is_airborne; on a miss sets is_airborne.
+void EventActor_GroundSnap(EnemyData *ed, float clearance); // 0x80204fac
+void EventActor_UpdateGravity(EnemyData *ed); // 0x802054e4, refreshes gravity_strength and gravity_dir at pos
+int EventActor_AIPhysicsTick(EnemyData *ed); // 0x802081ec, central ground-following movement. Returns 0=moved, 1=stationary.
+void EventActor_PathFollowUpdate(EnemyData *ed, int direction_mode); // 0x80209ce4, spline path-following movement update
 
-// Shared AI helpers (used by Sword Knight chase and other combat enemies)
-void EnemyActor_CombatMovement(EnemyData *ed); // 0x8020b490, combat movement: AIPhysicsTick when ed+0x908==0, accel-based chase when ed+0x908==1
-void EnemyActor_CombatAI(EnemyData *ed); // 0x802069e8, combat AI: targeting when ed+0x908==0, proximity/range checks when ed+0x908==1
+// Shared AI helpers, used by Sword Knight chase and other combat enemies.
+void EventActor_CombatMovement(EnemyData *ed); // 0x8020b490, AIPhysicsTick when is_airborne == 0, accel-based chase when 1
+void EventActor_CombatAI(EnemyData *ed); // 0x802069e8, targeting when is_airborne == 0, proximity/range checks when 1
 // Ground-following chase physics: orientation, speed, terrain raycast and
 // ground-snap. Returns 0 if it moved, 1 if stationary.
-int EnemyActor_GroundFollowMovement(EnemyData *ed); // 0x80208bd4
+int EventActor_GroundFollowMovement(EnemyData *ed); // 0x80208bd4
 
-// Player targeting
-// Nearest rider within the global detection range (50.0), on a 20-39 frame
-// retarget cooldown; sets target_player_idx and chase_direction.
-void EnemyActor_FindNearestPlayer(EnemyData *ed); // 0x801ffd78
-void EnemyActor_FindNearestPlayerFOV(EnemyData *ed); // 0x801ff8d8, targeting with forward-hemisphere angle check + bone-based melee aim
-// Writes the player's signed forward-axis distance; returns 1 if behind, 0 if in
-// front, -1 if the player has no rider.
-int EnemyActor_PlayerAheadDist(EnemyData *ed, int player_idx, float *out_forward_dist); // 0x801fea60
-// Buckets target distance against the actor_data detect/chase ranges, storing it
-// in ed+0xB09 bits 3-4 and returning it: 0 out, 1 detect, 2 attack.
-int EnemyActor_ClassifyRange(EnemyData *ed); // 0x80206cc0
+// Nearest rider within EnemyParamTable.detect_range, on a 20-39 frame retarget
+// cooldown; sets target_ply and turn_to.
+void EventActor_FindNearestPlayer(EnemyData *ed); // 0x801ffd78
+// Nearest rider within range / 0.114286, then aims joint jobj_tree[2] at it. Its
+// forward-angle gate only rejects angles above 180 degrees. Vanilla callers pass
+// EnemyParamTable.leash_range.
+void EventActor_FindNearestPlayerFOV(EnemyData *ed, float range); // 0x801ff8d8
+// Writes the ply's signed forward-axis distance; returns 1 if behind, 0 if in
+// front, -1 if the ply has no rider.
+int EventActor_PlayerAheadDist(EnemyData *ed, int ply, float *out_forward_dist); // 0x801fea60
+// Render LOD for Enemy_GX: the screen size of a param_lod_radius sphere at pos
+// gives 0 above param_lod0_size, 1 above param_lod1_size, else 2. Also stored in
+// ed+0xB09 bits 3-4.
+int EventActorGObj_GetLOD(GOBJ *gobj); // 0x80206cc0
 
-// Global enemy param table loader
-void Enemy_LoadCommonParams(void); // 0x801fd580, loads Enemy.dat (public emDataAll) and stores the param-table pointer to *0x805dd878.
-
-// Common state table data address (14 entries, 0x14 bytes each, states 0x00-0x0D)
-#define stc_common_state_table (*(void **)0x804b2950) // 0x804b2950
-
-// Per-type descriptor table (79 pointers indexed by ActorID)
-#define stc_per_type_descriptor_table ((void **)0x804b1d98) // 0x804b1d98
-
-// Actor data table: {data_index (int), flags (int)} per ActorID, stride 8
-#define stc_actor_data_table ((int *)0x804b22b4) // 0x804b22b4
-
-// Archive loaded flags: byte per data_index (22 entries), 1 = loaded
-#define stc_archive_loaded_flags ((char *)0x8055a210) // 0x8055a210
-
-// Archive root pointers: pointer per data_index (22 entries)
-#define stc_archive_root_pointers ((void **)0x8055a228) // 0x8055a228
+// Loads Enemy.dat (public emDataAll) into stc_enemy_param_table and clears the
+// archive loaded flags and roots.
+void Enemy_LoadCommonParams(void); // 0x801fd580
 
 // One entry of the per-stage spawn table (EnemySpawnData.spawn_entries), 0x38
 // bytes. Static data loaded verbatim from the stage .dat file - the game only
@@ -1059,7 +1070,7 @@ void Enemy_LoadCommonParams(void); // 0x801fd580, loads Enemy.dat (public emData
 //     and the mode-2 spawn helper (0x800f16c0)
 //   - ids/weights: Enemy_SpawnerDecide (0x800f1a14) and the mode-2 picker
 //     (0x800f0efc)
-// location_index indexes the stage enemy-position table (GrData+0x138, stride
+// location_index indexes the stage enemy-position table (GrObj+0x138, stride
 // 0x24 of three Vec3s) via loadEnemy_spawnXYLocation; the resulting position /
 // direction / ground-normal are stored into the runtime per-position extended
 // data, NOT into this entry.
@@ -1150,23 +1161,23 @@ static EnemySpawnData **stc_enemy_spawn_data = (EnemySpawnData **)(0x805dd0e0 + 
 // picks.
 typedef struct EnemyParamTable
 {
-    float x00;                  // 0x00, 1.0
+    float global_scale;         // 0x00, 1.0, copied to EnemyData.global_enemy_scale
     float damage_scale;         // 0x04, 0.4, Enemy_ScaleDamage
     float tier_threshold[3];    // 0x08, {10,21,32}, Enemy_ClassifyDamageTier
     int x14[4];                 // 0x14, {10,30,50,70}
     float x24;                  // 0x24, 4.0
     float x28;                  // 0x28, 5.0
     int x2c;                    // 0x2c, 50
-    int hit_iframes[4];         // 0x30, per tier {20,30,40,50}; post-hit intangibility (Enemy_ApplyKnockback)
-    float hit_iframes_scale[4]; // 0x40, {1,.8,.6,.5}, indexed by GameData+0xa95, not by tier
+    int hit_iframes[4];         // 0x30, per tier {20,30,40,50}; post-hit intangibility (EventActor_ApplyKnockback)
+    float hit_iframes_scale[4]; // 0x40, {1,.8,.6,.5}, indexed by GameData.player_num, not by tier
     float kb_launch[4];         // 0x50, per tier {2,3,4,5} -> EnemyData 0x9d8
     float stun_frames[4];       // 0x60, per tier {2,4,6,8} -> EnemyData 0xa18
-    float x70[3];               // 0x70, {1,1.1,1.2}
+    float mode_scale[3];        // 0x70, {1,1.1,1.2}, picked by game mode into EnemyData.mode_scale
     float x7c;                  // 0x7c, 15, EventActor_OnCapture
-    float detect_range;         // 0x80, 50, EnemyActor_FindNearestPlayer acquisition radius
+    float detect_range;         // 0x80, 50, EventActor_FindNearestPlayer acquisition radius
     float x84;                  // 0x84, 30
-    float x88;                  // 0x88, 30, EnemyState_AnimTick
-    float x8c;                  // 0x8c, 300, EnemyState_AnimTick attraction
+    float x88;                  // 0x88, 30, EventActor_CommonPhys
+    float x8c;                  // 0x8c, 300, EventActor_CommonPhys attraction
     float leash_range;          // 0x90, 500, read by most per-type AI states
     int retarget_min;           // 0x94, 20
     int retarget_max;           // 0x98, 40; cooldown = min + HSD_Randi(max - min)
@@ -1175,10 +1186,12 @@ typedef struct EnemyParamTable
 // Loaded by Enemy_LoadCommonParams on every 3D scene load; NULL until then.
 static EnemyParamTable **stc_enemy_param_table = (EnemyParamTable **)0x805dd878;
 
-// HSD spline functions - used by actor movement/path-following systems
-float splArcLengthGetParameter(void *spline); // 0x80415758, returns arc-length parameter in f1
-// Evaluates the spline at param. Crashes if spline is NULL.
+// HSD spline evaluation, used by actor path following.
+float splArcLengthGetParameter(void *spline, float s); // 0x80415758, spline parameter at arc length s
+// Evaluates the spline at param, which runs [0.0, 1.0] from the first to the last
+// control point. The spline struct has u8 type at +0x0 and s16 num_points at +0x2.
+// Crashes if spline is NULL.
 void splGetSplinePoint(Vec3 *output, void *spline, float param); // 0x80414fc0
-void splArcLengthPoint(Vec3 *output, void *spline); // 0x80415958, wrapper: calls splArcLengthGetParameter then splGetSplinePoint. Crashes if spline is null.
+void splArcLengthPoint(Vec3 *output, void *spline, float s); // 0x80415958, splGetSplinePoint at splArcLengthGetParameter(spline, s). Crashes if spline is NULL.
 
 #endif

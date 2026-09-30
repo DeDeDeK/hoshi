@@ -609,26 +609,7 @@ typedef enum GXAnisotropy
     GX_MAX_ANISOTROPY,
 } GXAnisotropy;
 
-struct VIUnknown
-{
-    u8 x0[0x1400];
-    struct
-    {
-        u8 x0[0x54];
-        int x54;
-        int x58;
-        int status;
-    } xfb[2]; // 0x1400
-    u8 x14c0[0x114];
-    int x15d4;
-    int x15d8;
-    int x15dc;
-    int x15e0;
-    int idx;
-};
-
 static volatile GXPipe *gx_pipe = (GXPipe *)0xCC008000;
-static VIUnknown *_p = (VIUnknown *)0x804c0980;
 
 void GXProject(float mx, float my, float mz, Mtx *mtx, float* p, float* vp,  float* sx, float* sy, float* sz); // 0x803d03f4
 void GXSetProjection(Mtx44 *mtx, GXProjectionType type); // 0x803d0568

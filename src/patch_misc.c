@@ -238,7 +238,7 @@ void Patches_Apply()
     CODEPATCH_REPLACEINSTRUCTION(0x8044ffa4, 0x38030000 | (17 + 1)); // add an extra byte for align command
     CODEPATCH_HOOKAPPLY(0x80450030);
     CODEPATCH_HOOKAPPLY(0x8045038c);
-    CODEPATCH_REPLACEFUNC(0x80450774, Text_SetScale);
+    CODEPATCH_REPLACEFUNC(0x80450774, Text_SetSubtextScale);
 
     // text background alignment
     CODEPATCH_HOOKAPPLY(0x80451aa8);

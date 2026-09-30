@@ -125,8 +125,8 @@ typedef struct TopRideCpuInputReader
     void *vtable;            // 0x00, 0x804d8710 (CPU); human readers use 0x804d25e0
     TopRideKirby *kirby;     // 0x04, back-pointer to the owning kirby
     Vec3 heading;            // 0x08, desired heading vector (crossed with the kirby facing to steer)
-    int  reaction_budget;    // 0x14, DAT_804d7f90[+0x18]; frames of reaction lag
-    int  x18;                // 0x18, index into DAT_804d7f90 (0 in observed races)
+    int  reaction_budget;    // 0x14, from the table at 0x804d7f90 (+0x18); frames of reaction lag
+    int  x18;                // 0x18, index into the table at 0x804d7f90
     int  difficulty;         // 0x1c, AI skill 0..4 (= handicap byte); indexes the per-level tables
     float steer_noise;       // 0x20, HSD_Randf-seeded steering jitter magnitude
     u8   x24[0x04];          // 0x24
@@ -167,7 +167,7 @@ int  TopRide_KirbyHistoryQuery(int *history);                  // 0x80312000, 0 
 // weights) for the four detectors, which run in order - the first to commit
 // short-circuits the rest and suppresses the route-followers. If none commit, a
 // route-follower steers the racing line. All write reader->heading plus a
-// press/charge flag. Signatures are approximate.
+// press/charge flag.
 int  TopRide_CpuPerceive(TopRideCpuInputReader *reader, void *blackboard);        // 0x802eb094
 int  TopRide_CpuDetectHazard(TopRideCpuInputReader *reader, void *blackboard);    // 0x802ed434, incoming projectiles -> dodge swerve
 int  TopRide_CpuDetectItem(TopRideCpuInputReader *reader, void *blackboard);      // 0x802ecc54, ItemMgr -> steer to good / away from bad
@@ -272,7 +272,7 @@ void TopRide_InitSelectData(void);                                   // 0x8002cf
 // State ID returned by state_handler->vt[+0x0C]() for the current Kirby state.
 typedef enum TopRideKirbyStateId
 {
-    TR_KSTATE_DAMAGE_BASE   = 0,   // KirbyDamage abstract base - should not be observed live
+    TR_KSTATE_DAMAGE_BASE   = 0,   // KirbyDamage abstract base
     TR_KSTATE_NORMAL        = 1,
     TR_KSTATE_PRESS         = 2,
     TR_KSTATE_CRUSH         = 3,
