@@ -183,13 +183,13 @@ typedef struct CollData
     int zone_hit_num;              // 0x98
     u8 moving_zone_hit[20][0x20];  // 0x9c, {zone_idx, sub_idx, ...} per moving zone hit
     int moving_zone_hit_num;       // 0x31c
-    int x320;                      // 0x320
-    int x324;                      // 0x324
-    int x328;                      // 0x328
-    int x32c;                      // 0x32c
-    int x330;                      // 0x330
-    int x334;                      // 0x334
-    u8 req_yaku_break_effect : 1;  // 0x338, 0x80
+    int rail_idx;                  // 0x320, rail found by the rail sweep, -1 = none
+    int x324;                      // 0x324, rail related
+    float x328;                    // 0x328, rail related
+    float x32c;                    // 0x32c, rail related
+    float x330;                    // 0x330, rail related, copied from x32c
+    float yaku_break_speed_cap;    // 0x334, speed cap after ramming a breakable prop
+    u8 req_yaku_break_effect : 1;  // 0x338, 0x80, set by GrYaku_TestImpactBreak; consumed by Machine_CollideWithBreakable
     CollShapeKind coll_shape_kind; // 0x33c
     struct CollShapeData           // 0x340
     {

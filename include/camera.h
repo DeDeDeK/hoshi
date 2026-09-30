@@ -55,7 +55,7 @@ typedef struct CamInterest
     u8 x20[0x86];       // 0x20
     u16 ply;            // 0xa6
     u8 xa8_c0 : 2;      // 0xa8
-    u8 is_airborne : 1; // 0xa8, 0x20
+    u8 is_grounded : 1; // 0xa8, 0x20, target machine or rider is on the ground
 } CamInterest;
 
 typedef struct CamData

@@ -180,7 +180,7 @@ static void AOBJ_GetFrame(AOBJ *a, float *out_frame)
 static inline float JObj_GetAOBJFrame(JOBJ *j)
 {
     float cur_frame = 1;
-    JObj_ForEachAnim(j, 6, 0xffff, AOBJ_GetFrame, 2, &cur_frame);
+    JObj_ForEachAnim(j, FOREACHANIM_OBJ_JOBJ, 0xffff, AOBJ_GetFrame, 2, &cur_frame);
 
     return cur_frame;
 }

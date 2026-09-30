@@ -35,39 +35,43 @@ typedef enum RiderPri
     RDPRI_15 = 15,
 } RiderPri;
 
+// RiderData.status. RiderStateChange (0x8018e580) takes states below
+// RDSTATE_COMMON_NUM from the common table and the rest from the rider kind's own
+// table. From RDSTATE_READY on the values are Kirby's: Dedede matches only through
+// RDSTATE_SPINTURNEND and Meta Knight is shifted by two from RDSTATE_PUSHSTART.
 typedef enum RiderStatus
 {
-    // RDSTATE_WAIT,
-    // RDSTATE_BOARD,
-    // RDSTATE_BOARDEND,
-    // RDSTATE_SLEEPSTART,
-    // RDSTATE_SLEEP,
-    // RDSTATE_SLEEPEND,
-    // RDSTATE_DAMAGE,
-    // RDSTATE_DAMAGEFIRE,
-    // RDSTATE_DAMAGECUTUP,
-    // RDSTATE_DAMAGESPIN,
-    // RDSTATE_DAMAGEELEC,
-    // RDSTATE_DAMAGENUMB,
-    // RDSTATE_DAMAGEICE,
-    // RDSTATE_GETOFF_DAMAGE,
-    // RDSTATE_GETOFF_DAMAGEFIRE,
-    // RDSTATE_GETOFF_DAMAGECUTUP,
-    // RDSTATE_GETOFF_DAMAGESPIN,
-    // RDSTATE_GETOFF_DAMAGEELEC,
-    // RDSTATE_GETOFF_DAMAGENUMB,
-    // RDSTATE_GETOFF_DAMAGEICE,
-    // RDSTATE_GETOFF_DAMAGEFALL,
-    // RDSTATE_GETOFF_DOWNBOUND,
-    // RDSTATE_GETOFF_DOWNWAIT,
-    // RDSTATE_GETOFF_DOWNMOVE,
-    // RDSTATE_GETOFF_FALLDEATH,
-    // RDSTATE_GETOFF_FALLDEATHWAIT,
-    // RDSTATE_FREEMOVE,
-    // RDSTATE_SELECT,
-    // RDSTATE_DEATHRETURN,
-    // RDSTATE_NUM,
-    RDSTATE_READY,
+    RDSTATE_WAIT,
+    RDSTATE_BOARD,
+    RDSTATE_BOARDEND,
+    RDSTATE_SLEEPSTART,
+    RDSTATE_SLEEP,
+    RDSTATE_SLEEPEND,
+    RDSTATE_DAMAGE,
+    RDSTATE_DAMAGEFIRE,
+    RDSTATE_DAMAGECUTUP,
+    RDSTATE_DAMAGESPIN,
+    RDSTATE_DAMAGEELEC,
+    RDSTATE_DAMAGENUMB,
+    RDSTATE_DAMAGEICE,
+    RDSTATE_GETOFF_DAMAGE,
+    RDSTATE_GETOFF_DAMAGEFIRE,
+    RDSTATE_GETOFF_DAMAGECUTUP,
+    RDSTATE_GETOFF_DAMAGESPIN,
+    RDSTATE_GETOFF_DAMAGEELEC,
+    RDSTATE_GETOFF_DAMAGENUMB,
+    RDSTATE_GETOFF_DAMAGEICE,
+    RDSTATE_GETOFF_DAMAGEFALL,
+    RDSTATE_GETOFF_DOWNBOUND,
+    RDSTATE_GETOFF_DOWNWAIT,
+    RDSTATE_GETOFF_DOWNMOVE,
+    RDSTATE_GETOFF_FALLDEATH,
+    RDSTATE_GETOFF_FALLDEATHWAIT,
+    RDSTATE_FREEMOVE,
+    RDSTATE_SELECT,
+    RDSTATE_DEATHRETURN,
+    RDSTATE_COMMON_NUM,
+    RDSTATE_READY = RDSTATE_COMMON_NUM,
     RDSTATE_READYPUSHSTART,
     RDSTATE_READYPUSH,
     RDSTATE_READYPUSHEND,
@@ -110,29 +114,53 @@ typedef enum RiderStatus
     RDSTATE_CRACKERPUSHSTART,
     RDSTATE_CRACKERPUSH,
     RDSTATE_CRACKERPUSHEND,
-    RDSTATE_TIMEBOMBGET,
-    RDSTATE_TIMEBOMBRUN,
-    RDSTATE_TIMEBOMBPUSHSTART,
-    RDSTATE_TIMEBOMBPUSH,
+    RDSTATE_SENSORBOMBGET,
+    RDSTATE_SENSORBOMBRUN,
+    RDSTATE_SENSORBOMBPUSHSTART,
+    RDSTATE_SENSORBOMBPUSH,
     RDSTATE_GORDOGET,
     RDSTATE_GORDORUN,
     RDSTATE_GORDOPUSHSTART,
     RDSTATE_GORDOPUSH,
-    RDSTATE_MININADOSTART,
-    RDSTATE_MININADOLOOP,
-    RDSTATE_MININADOEND,
-    RDSTATE_NUM = 101,
+    RDSTATE_PANICSPINSTART,
+    RDSTATE_PANICSPINLOOP,
+    RDSTATE_PANICSPINEND,
+    RDSTATE_MIKESING = 97,          // singing blast from ability_Mic (Effect 0x5a5a2 / SFX 0x2006b)
+    RDSTATE_MIKEEND,
+    RDSTATE_LOSEABILITY = 104,
+    RDSTATE_LANDOK,
+    RDSTATE_LANDGREAT,
+    RDSTATE_LANDBAD,
+    RDSTATE_EXITSTAR = 110,
+    RDSTATE_LAND,
+    RDSTATE_FALL,
+    RDSTATE_WALKWAIT,
+    RDSTATE_DASH,
+    RDSTATE_GETONSTAR,
+    RDSTATE_RUNBRAKE,
+    RDSTATE_DASHTURN,
+    RDSTATE_JUMPSQUAT,
+    RDSTATE_JUMP,
+    RDSTATE_DASHINIT,
+    RDSTATE_SWIMWAIT,
+    RDSTATE_SWIMMOVE,
+    RDSTATE_SWIMTURN,
+    RDSTATE_JUMP2,
+    RDSTATE_STANDUP,
+    RDSTATE_LEGENDARYASSEMBLY = 130,
+    RDSTATE_NUM,
 } RiderStatus;
 
+// RiderData.mstatus, the motion (animation) id a state's action resolves to. Values are
+// base Kirby's; ability bits at RiderData+0xa30 remap them.
 typedef enum RiderMotionStatus
 {
-    RD_MSTATUS_PUSHSTART,
+    RD_MSTATUS_PUSHSTART = 100,
     RD_MSTATUS_PUSH,
     RD_MSTATUS_PUSHTURNL,
     RD_MSTATUS_PUSHTURNR,
     RD_MSTATUS_PUSHEND,
     RD_MSTATUS_PUSHFORWARD,
-    RD_MSTATUS_NUM = 101,
 } RiderMotionStatus;
 
 typedef enum CopyKind
@@ -526,10 +554,10 @@ typedef struct RiderData
     int x10;                              // 0x10
     int x14;                              // 0x14
     rdDataKirby *rdDataKirby;             // 0x18
-    int state_idx;                        // 0x1c
-    int x20;                              // 0x20, count of shared states (RIDER_COMMON_STATE_NUM)
+    RiderStatus status;                   // 0x1c
+    int x20;                              // 0x20, count of shared states (RDSTATE_COMMON_NUM)
     int state_frame;                      // 0x24
-    int x28;                              // 0x28
+    RiderMotionStatus mstatus;            // 0x28, -1 = none
     int x2c;                              // 0x2c, RiderStateDesc * for the shared states
     int x30;                              // 0x30, RiderStateDesc * for the character's states from x20
     int x34;                              // 0x34
@@ -566,7 +594,7 @@ typedef struct RiderData
                                           //        write, and what the recolor path drives MatAnim AObjs through.
     int x2c4;                             // 0x2c4
     int x2c8;                             // 0x2c8
-    int is_airborne;                      // 0x2cc
+    int is_airborne;                      // 0x2cc, off the machine: the ground probe missed
     int x2d0;                             // 0x2d0
     int x2d4;                             // 0x2d4
     int x2d8;                             // 0x2d8
@@ -789,7 +817,7 @@ typedef struct RiderData
     int x634;                  // 0x634
     int x638;                  // 0x638
     int x63c;                  // 0x63c
-    int cur_ground_tri;        // 0x640
+    int cur_ground_tri;        // 0x640, triangle id under the walking rider; +0x644 holds its ground type (29 = water)
     int x644;                  // 0x644
     int x648;                  // 0x648
     int x64c;                  // 0x64c
@@ -856,14 +884,7 @@ typedef struct RiderData
     int x788;                  // 0x788
     int x78c;                  // 0x78c
     int x790;                  // 0x790
-    int x794;                  // 0x794, attack word hits are credited through, from RiderStateDesc.attack_log
-    int x798;                  // 0x798
-    int x79c;                  // 0x79c
-    int x7a0;                  // 0x7a0
-    int x7a4;                  // 0x7a4
-    int x7a8;                  // 0x7a8
-    int x7ac;                  // 0x7ac
-    int x7b0;                  // 0x7b0
+    DmgLog dmg_log;            // 0x794, attack_data from RiderStateDesc.attack_log
     struct                     //
     {                          //
         void (*anim)(GOBJ *);  // 0x7b4
@@ -910,9 +931,14 @@ typedef struct RiderData
     u8 x821;                            // 0x821
     u8 x822;                            // 0x822
     u8 x823;                            // 0x823
-    u8 x824_80 : 1;                     // 0x824, 0x80
-    u8 x824_20 : 1;                     // 0x824, 0x40
-    u8 is_walk_after_dismount : 1;      // 0x824, 0x20
+    u8 x824_80 : 1;                     // 0x824, 0x80, set by ice damage
+    u8 x824_40 : 1;                     // 0x824, 0x40, set by spin damage
+    u8 is_dismounting : 1;              // 0x824, 0x20, set on dismount and KO eject, cleared by every RiderStateChange
+    u8 x824_10 : 1;                     // 0x824, 0x10
+    u8 x824_08 : 1;                     // 0x824, 0x08
+    u8 x824_04 : 1;                     // 0x824, 0x04
+    u8 x824_02 : 1;                     // 0x824, 0x02
+    u8 x824_01 : 1;                     // 0x824, 0x01
     u8 x825;                            // 0x825
     u8 x826_80 : 1;                     // 0x826
     u8 x826_40 : 1;                     // 0x826
@@ -1044,7 +1070,7 @@ typedef struct RiderData
     u8 x9cf;                            // 0x9cf
     int x9d0;                           // 0x9d0
     int x9d4;                           // 0x9d4
-    int jumps_remaining;                // 0x9d8
+    int x9d8;                           // 0x9d8, per-state scratch: AS_Jump effect timer, AS_Dash speed tier
     int x9dc;                           // 0x9dc
     int x9e0;                           // 0x9e0
     int x9e4;                           // 0x9e4
@@ -1073,7 +1099,24 @@ typedef struct RiderData
     int xa34;                           // 0xa34
     int xa38;                           // 0xa38, quick-spin scratch, cleared on Rider_QuickSpin_Enter
     int xa3c;                           // 0xa3c
-    int xa40;                           // 0xa40, quick-spin accumulators: byte +0xa40 = CW frames, +0xa41 = CCW
+    union                               // 0xa40, walk flags off the machine, quick-spin accumulators on it
+    {
+        struct
+        {
+            u8 is_jump : 1;             // 0xa40, 0x80
+            u8 is_grounded : 1;         // 0xa40, 0x40
+            u8 is_fall : 1;             // 0xa40, 0x20, walked off a ledge
+            u8 is_fly : 1;              // 0xa40, 0x10
+            u8 is_fly2 : 1;             // 0xa40, 0x08, air jump (AS_Jump2), checked by CheckIfKirbyJumps
+            u8 is_swim : 1;             // 0xa40, 0x04
+        };
+        struct
+        {
+            u8 quickspin_cw;            // 0xa40, CW frames (Rider_UpdateQuickSpinTimers)
+            u8 quickspin_ccw;           // 0xa41, CCW frames
+        };
+        int xa40;
+    };
     int xa44;                           // 0xa44
     int xa48;                           // 0xa48
     int xa4c;                           // 0xa4c
@@ -1088,8 +1131,8 @@ typedef struct RiderData
     int xa70;                           // 0xa70
     int xa74;                           // 0xa74
     int xa78;                           // 0xa78
-    void (*WaterEnter)(RiderData *);    // 0xa7c
-    void (*WaterExit)(RiderData *);     // 0xa80
+    void (*WaterEnter)(RiderData *);    // 0xa7c, walking states: ground type turned to water
+    void (*WaterExit)(RiderData *);     // 0xa80, swim states: ground type left water
     int xa84;                           // 0xa84
     int xa88;                           // 0xa88
     int xa8c;                           // 0xa8c
@@ -1126,9 +1169,8 @@ typedef struct RiderStateDesc
     int attack_log;    // 0x04, 0 on states whose hitboxes credit no player
     void *callback[6]; // 0x08, anim, iasa, phys, coll, x7c4, x7c8
 } RiderStateDesc; // 0x20
-#define RIDER_COMMON_STATE_NUM 29
-static RiderStateDesc *stc_rider_common_states = (RiderStateDesc *)0x804adc08; // [RIDER_COMMON_STATE_NUM]
-// Kirby's states from RIDER_COMMON_STATE_NUM. 30 (AS_RaceStartGo) and 40
+static RiderStateDesc *stc_rider_common_states = (RiderStateDesc *)0x804adc08; // [RDSTATE_COMMON_NUM]
+// Kirby's states from RDSTATE_COMMON_NUM. 30 (AS_RaceStartGo) and 40
 // (AS_StarBeginCharge) play action 100, which arms a 1-frame, 2-damage hitbox against
 // event actors, items, projectiles and stage objects that credits no player.
 static RiderStateDesc *stc_rider_kirby_states = (RiderStateDesc *)0x804ae428;
@@ -1296,9 +1338,10 @@ int RiderGObj_GetPly(GOBJ *gobj); // 0x8019203c, returns player index from a rid
 // The list at rd+0x4c4 of projectile homing trackers locked onto this rider.
 void Rider_AddHomingTracker(GOBJ *rider, void *tracker, void *cb); // 0x801922b0
 void Rider_RemoveHomingTracker(GOBJ *rider, void *tracker);        // 0x801922e4
-// The rider counterpart of Projectile_AssignStateFlags, on the attack block at rd+0x794.
+// The rider counterpart of Weapon_AssignStateFlags, on the attack block at rd+0x794.
 void Rider_AssignAttackLog(RiderData *rd, int attack_log); // 0x801a2048
 int Rider_IsOnMachine(RiderData *); // 0x80191680
+int Rider_IsMachineAirborne(RiderData *);   // 0x80194120, Machine_IsAirborne of the ridden machine; no NULL check
 int Rider_IsMachineDead(RiderData *);       // 0x801943e4, can only be called between the RDPRI_HITCOLL and RDPRI_DMGAPPLY priority.
 // Enqueues a stat-patch drop event; Rider_TickDropPatches drains it per frame.
 // drop_mode 0 = forward, small fixed count, probabilistic all-up; 1 = behind,
@@ -1320,11 +1363,6 @@ void Rider_RecordCopyAbility(int ply, int copy_kind); // 0x8022ee00
 // paths call it, so the bit means "the wheel gave it".
 void Rider_MarkCopyAbilityObtained(int ply, int copy_kind); // 0x8022f150
 
-// Action states ability_Mic (0x801b3dac) drives: the held pose, the singing blast
-// (spawns Effect 0x5a5a2 / SFX 0x2006b), and the recovery the blast ends in.
-#define RIDERSTATE_MIC_HOLD 0x3e
-#define RIDERSTATE_MIC_SING 0x61
-#define RIDERSTATE_MIC_END  0x62
 int randomAbility_giveAbility(RiderData *, int kind); // 0x801a61d4, gives copy ability from copy chance wheel (no unable/queue check)
 // Initializes the copy wheel at a starting ability, setting copy_wheel_ability_list and index.
 void Rider_StartCopyWheel(RiderData *rd, int copy_kind); // 0x801ae550
@@ -1455,8 +1493,8 @@ int  Rider_ApplyColAnim(RiderData *rd, int anim_index, int param); // 0x8019bfb4
 
 // Reads the machine's projectile inherit velocity via the rider's
 // machine_gobj, into *out. Thin wrapper around
-// MachineGObj_GetProjectileBaseVelocity.
-void Rider_GetProjectileBaseVelocity(RiderData *rd, Vec3 *out); // 0x8019407c
+// MachineGObj_GetWeaponBaseVelocity.
+void Rider_GetWeaponBaseVelocity(RiderData *rd, Vec3 *out); // 0x8019407c
 
 // 8-instruction Vec3 readers - `gobj` is the rider GObj, `out` is filled with
 // the corresponding RiderData field. The "hand bone" naming for rd+0x318

@@ -49,6 +49,76 @@ typedef enum MachineKind
 #define VCSTAR_NUM  19
 #define VCWHEEL_NUM 7
 
+// MachineData.status. MachineStateChange (0x801c59a4) takes 0-7 from the common table
+// (0x804b0830, names unknown) and the rest from the class table, so these values hold
+// for stars only; bikes use MachineWheelStatus.
+typedef enum MachineStatus
+{
+    VCSTATE_WAITSTOP = 8,
+    VCSTATE_WAITRUN,
+    VCSTATE_WAITFLY,
+    VCSTATE_ADHERE,
+    VCSTATE_READY,
+    VCSTATE_READYPUSH,
+    VCSTATE_RUN,
+    VCSTATE_RUNPUSH,
+    VCSTATE_RUNPUSHFORWARD,
+    VCSTATE_FLY,
+    VCSTATE_FLYPUSH,
+    VCSTATE_LANDING,
+    VCSTATE_DROP,
+    VCSTATE_SUPERJUMP,
+    VCSTATE_RAILRUN,
+    VCSTATE_RAILRUNPUSH,
+    VCSTATE_RAILCHANGE,
+    VCSTATE_GONDOLA,
+    VCSTATE_CANNON,
+    VCSTATE_FALLDEATH,
+    VCSTATE_REBIRTH,
+    VCSTATE_BREAKDOWN,
+    VCSTATE_NUM,
+} MachineStatus;
+
+typedef enum MachineWheelStatus
+{
+    VCWHEELSTATE_WAITSTOP = 8,
+    VCWHEELSTATE_WAITRUN,
+    VCWHEELSTATE_WAITJUMP,
+    VCWHEELSTATE_ADHERE,
+    VCWHEELSTATE_READY,
+    VCWHEELSTATE_READYPUSHSTART,
+    VCWHEELSTATE_READYPUSH,
+    VCWHEELSTATE_READYPUSHEND,
+    VCWHEELSTATE_RUN,
+    VCWHEELSTATE_RUNPUSHSTART,
+    VCWHEELSTATE_RUNPUSH,
+    VCWHEELSTATE_RUNPUSHFORWARD,
+    VCWHEELSTATE_RUNPUSHEND,
+    VCWHEELSTATE_JUMP,
+    VCWHEELSTATE_JUMPPUSH,
+    VCWHEELSTATE_LANDING,
+    VCWHEELSTATE_DROP,
+    VCWHEELSTATE_SUPERJUMP,
+    VCWHEELSTATE_RAILRUN,
+    VCWHEELSTATE_RAILRUNPUSHSTART,
+    VCWHEELSTATE_RAILRUNPUSH,
+    VCWHEELSTATE_RAILRUNPUSHEND,
+    VCWHEELSTATE_RAILCHANGE,
+    VCWHEELSTATE_GONDOLA,
+    VCWHEELSTATE_CANNON,
+    VCWHEELSTATE_FALLDEATH,
+    VCWHEELSTATE_REBIRTH,
+    VCWHEELSTATE_BREAKDOWN,
+    VCWHEELSTATE_NUM,
+} MachineWheelStatus;
+
+// Motion (animation) id resolved from a state's action.
+typedef enum MachineMotionStatus
+{
+    VC_MSTATUS_0,
+    VC_MSTATUS_NUM,
+} MachineMotionStatus;
+
 static inline int MachineKind_IsBike(MachineKind kind)
 {
     return kind >= VCKIND_WHEELNORMAL && kind <= VCKIND_WHEELVSDEDEDE;
@@ -512,10 +582,10 @@ typedef struct MachineData
                                           //       is_bike half of vcDataLookup, so it equals the VCKIND only for stars
     int x28;                              // 0x28
     vcData *vcData;                       // 0x2c
-    MachineStatus status;                 // 0x30
+    MachineStatus status;                 // 0x30, see MachineStatus / MachineWheelStatus
     int x34;                              // 0x34
     int x38;                              // 0x38
-    MachineMotionStatus mstatus;          // 0x3c
+    MachineMotionStatus mstatus;          // 0x3c, start of the 0x40-byte motion block (0x3c-0x7b)
     int x40;                              // 0x40
     int x44;                              // 0x44
     int x48;                              // 0x48
@@ -526,7 +596,7 @@ typedef struct MachineData
     int x5c;                              // 0x5c
     int x60;                              // 0x60
     int x64;                              // 0x64
-    float frame;                          // 0x68
+    float frame;                          // 0x68, current anim frame
     int x6c;                              // 0x6c
     int x70;                              // 0x70
     int x74;                              // 0x74
@@ -534,10 +604,10 @@ typedef struct MachineData
     u8  x79;                              // 0x79
     u8  x7a;                              // 0x7a
     u8  x7b;                              // 0x7b
-    int x7c;                              // 0x7c, current sub-state
+    int status2;                          // 0x7c, current sub-state, not a MachineStatus
     int x80;                              // 0x80, MachineSubStateDesc * for sub-states 0-13
     int x84;                              // 0x84, MachineSubStateDesc * for the class's sub-states from 14
-    int x88;                              // 0x88
+    MachineMotionStatus mstatus2;         // 0x88, sub-state motion block
     int x8c;                              // 0x8c
     int x90;                              // 0x90
     int x94;                              // 0x94
@@ -548,7 +618,7 @@ typedef struct MachineData
     int xa8;                              // 0xa8
     int xac;                              // 0xac
     int xb0;                              // 0xb0
-    float frame2;                         // 0xb4
+    float frame2;                         // 0xb4, sub-state anim frame
     int xb8;                              // 0xb8
     int xbc;                              // 0xbc
     int xc0;                              // 0xc0
@@ -718,7 +788,7 @@ typedef struct MachineData
     Vec3 world_velocity;                  // 0x354, measured displacement this frame (pos - prev_pos, by
                                           //        Machine_ShadowThink). Ground truth rather than commanded
                                           //        motion, so collisions and slope drag are already folded in.
-                                          //        Rider-spawned projectiles inherit it.
+                                          //        Its magnitude is the current speed. Rider-spawned weapons inherit it.
     int x360;                             // 0x360
     int x364;                             // 0x364
     int x368;                             // 0x368
@@ -823,7 +893,7 @@ typedef struct MachineData
     int x4dc;                             // 0x4dc
     int x4e0;                             // 0x4e0
     int x4e4;                             // 0x4e4
-    float projectile_charge_scale;        // 0x4e8, projectile-velocity multiplier, likely tied to charge/boost state
+    float weapon_charge_scale;        // 0x4e8, projectile-velocity multiplier, likely tied to charge/boost state
     int x4ec;                             // 0x4ec
     float top_speed_ground;               // 0x4f0, grounded cruise cap per frame; vcData->attr+0x90 scaled by the
                                           //        accel and top-speed stat ratios
@@ -874,7 +944,7 @@ typedef struct MachineData
     int x5a4;                             // 0x5a4
     int x5a8;                             // 0x5a8
     float top_speed_air;                  // 0x5ac, airborne cruise cap per frame; vcData->attr+0x14c. Copied into
-                                          //        top_speed_current whenever action_state_class != 0
+                                          //        top_speed_current whenever is_airborne != 0
     int x5b0;                             // 0x5b0
     int x5b4;                             // 0x5b4
     int x5b8;                             // 0x5b8
@@ -976,7 +1046,7 @@ typedef struct MachineData
                                           //        frame by Machine_ProcessEnvColl. Sphere radius lives at
                                           //        coll_data->radius and coll_data->shape_data->radius/radius2.
     int x6fc;                             // 0x6fc
-    CollData *coll_data_unk;              // 0x700
+    CollData *coll_data_unk;              // 0x700, second mpColl, only when vcData's coll attr +0x34 is set
     int x704;                             // 0x704
     int x708;                             // 0x708
     int x70c;                             // 0x70c
@@ -997,7 +1067,7 @@ typedef struct MachineData
     int x748;                             // 0x748
     int x74c;                             // 0x74c
     int x750;                             // 0x750
-    int action_state_class;               // 0x754, 0 = grounded states, 1 = launched/airborne; splits PlayerStats drive-time & distance buckets
+    int is_airborne;                      // 0x754, air physics (rail change, gondola and cannon count as air); splits PlayerStats time & distance
     int x758;                             // 0x758
     int x75c;                             // 0x75c
     int x760;                             // 0x760
@@ -1022,7 +1092,7 @@ typedef struct MachineData
     int x7ac;                             // 0x7ac
     int x7b0;                             // 0x7b0
     int x7b4;                             // 0x7b4
-    int boost_zone_idx;                   // 0x7b8, compared @ 801cf688 to see if we just entered a boost zone
+    int boost_zone_idx;                   // 0x7b8, dash zone/gate occupied, -1 = none; compared @ 801cf688 to fire once on entry
     int x7bc;                             // 0x7bc
     int x7c0;                             // 0x7c0
     int x7c4;                             // 0x7c4
@@ -1098,8 +1168,8 @@ typedef struct MachineData
     int x8e0;                             // 0x8e0
     int x8e4;                             // 0x8e4
     int x8e8;                             // 0x8e8
-    int rail_idx_cur;                     // 0x8ec
-    int rail_idx_prev;                    // 0x8f0
+    int rail_regrab_timer;                // 0x8ec, 60 while riding a rail, counts down after; blocks re-grabbing rail_last_group
+    int rail_last_group;                  // 0x8f0, rail[id]+0x30 of the rail being or last ridden
     int x8f4;                             // 0x8f4
     int x8f8;                             // 0x8f8
     int x8fc;                             // 0x8fc
@@ -1248,8 +1318,8 @@ typedef struct MachineData
     int xbfc;                             // 0xbfc
     int xc00;                             // 0xc00
     int xc04;                             // 0xc04
-    void (*onTakeDamage1)(GOBJ *m);       // 0xc08
-    void (*onTakeDamage2)(GOBJ *m);       // 0xc0c
+    void (*cb_interrupt)(struct MachineData *md); // 0xc08, runs on a landed hit and in Machine_Destroy; cleared by MachineStateChange
+    void (*cb_interrupt_persist)(struct MachineData *md); // 0xc0c, as cb_interrupt but survives state changes
     int xc10;                             // 0xc10
     int xc14;                             // 0xc14
     int xc18;                             // 0xc18
@@ -1261,13 +1331,22 @@ typedef struct MachineData
     u8 charge_is_playing_skid_sfx : 1;    // 0xc30, 0x80
     u8 charge_is_grounded : 1;            // 0xc30, 0x40. gates charge gain while holding A; appears to track
                                           //        ground contact, though bikes seem to hold it raised
-    u8 xc30_20 : 1;                       // 0xc30, 0x20
+    u8 unk_is_grounded : 1;               // 0xc30, 0x20, floor contact from the ground probe; gates the landing-angle check
     u8 xc30_10 : 1;                       // 0xc30, 0x10
     u8 xc30_08 : 1;                       // 0xc30, 0x08
     u8 xc30_04 : 1;                       // 0xc30, 0x04
     u8 xc30_02 : 1;                       // 0xc30, 0x02
     u8 xc30_01 : 1;                       // 0xc30, 0x01
-    u8 pad_c31[3];                        // 0xc31, padding to 0xc34
+    u8 xc31;                              // 0xc31, flags; MachineStateChange clears 0x80/0x40/0x08/0x04
+    u8 xc32;                              // 0xc32, flags; MachineStateChange clears 0x01, 0x02 feeds PlayerStats.x5f0
+    u8 is_flying : 1;                     // 0xc33, 0x80, Star Fly/FlyPush
+    u8 is_ok_land : 1;                    // 0xc33, 0x40, Landing state: the floor failed the smooth-landing test
+    u8 is_perfect_land : 1;               // 0xc33, 0x20, nice landing (Ply_IncrementNiceLanding)
+    u8 is_bad_land : 1;                   // 0xc33, 0x10, hit a surface without a landable floor
+    u8 is_superjump_path : 1;             // 0xc33, 0x08, on a jump/super-jump zone path
+    u8 xc33_04 : 1;                       // 0xc33, 0x04, jump-path variant
+    u8 is_on_rail : 1;                    // 0xc33, 0x02
+    u8 is_charging : 1;                   // 0xc33, 0x01, in a push/charge (A-held) state
     u8 xc34;                              // 0xc34
     u8 is_fall_dead : 1;                   // 0xc35, 0x80, set by Machine_SetFallDead
     u8 xc35_40 : 1;                       // 0xc35, 0x40
@@ -1447,7 +1526,7 @@ void Machine_AddCharge(double rate, MachineData *md);   // 0x801ca334, used by S
 void Machine_AddChargeEx(double rate, MachineData *md); // 0x801cc378
 // Per-vehicle "push" charge callbacks, each reached from the matching
 // VehicleStatTableFuncCallbacks entries. The *ChargeUpdate pair forwards to
-// Machine_IncrementCharge; the Star one first tests MachineData.xc30_20 and does
+// Machine_IncrementCharge; the Star one first tests MachineData.unk_is_grounded and does
 // nothing when it is clear. The *AddCharge pair forwards f1 straight through.
 void Machine_Star_PushChargeUpdate(MachineData *md);           // 0x801ef338, from Star ReadyPush / RunPushForward
 void Machine_Wheel_PushChargeUpdate(MachineData *md);          // 0x801fa1c8, from Wheel RunPushForward
@@ -1550,6 +1629,7 @@ void Machine_GivePatch(MachineData *, PatchKind, int num); // 0x801cacf4
 void Machine_GiveAllUp(MachineData *, int num); // 0x801cad40
 void Machine_OnTouchItem(MachineData *, ItemData *); // 0x801db34c
 int Machine_IsDead(MachineData *); // 0x801c856c
+int Machine_IsAirborne(GOBJ *machine_gobj); // 0x801c7c70, MachineData.is_airborne
 // Triggers fall-off-course death, storing ground_handle at md+0x1B48,
 // respawn_pos[3] at md+0x1B4C and a timestamp at md+0x1B58. respawn_pos is
 // mpColl spline params, not world XYZ.
@@ -1602,8 +1682,9 @@ void Machine_GiveDamage(MachineData *md, float damage, int *hit); // 0x801e1ee8
 // deflect direction it derives from `hit` is discarded downstream.
 void Machine_DropPatchesOnDamage(MachineData *md, int *hit, float stat_array[9], int damage); // 0x801e09ac
 void Machine_CalcDeflectDir(int *hit, Vec3 *fallback, Vec3 *out); // 0x801e0a44, Hit_CalcDeflectDir
-// Enters hit-reaction (state 5) and its "bounce up" animation, no-op if already
-// there. Set HurtData.kb_mag first for knockback physics.
+// No-op unless the machine holds an event formation slot: releases the slot, then
+// runs Machine_RegisterHitReaction and Machine_OnEnterHitReaction. Set
+// HurtData.kb_mag first for knockback physics.
 void Machine_EnterHitReaction(MachineData *md);        // 0x801e05bc
 // Machine-vs-machine bumps. A real bump calls Machine_EnterHitReaction on the other
 // machine (bl at 0x801dacb8) and then on this one (0x801dacc0).
@@ -1612,8 +1693,8 @@ void Machine_CheckMachineBumpCollision(MachineData *md); // 0x801daac4
 // Ply_PlayRailFireHitSFX (bl at 0x801d741c).
 void Machine_ActOnHitCollision(MachineData *md);         // 0x801d7308
 // Destroys a machine: captures the rider ply into md+0x1b48 (sentinel 5 when
-// unridden), sets is_dead, disables hit-collision and enters BreakDown (state
-// 29). The BreakDown proc (Star 0x801f0234, Wheel 0x801fb3d0) calls
+// unridden), sets is_dead, disables hit-collision and enters BreakDown (Star state
+// 29, Wheel 35). The BreakDown proc (Star 0x801f0234, Wheel 0x801fb3d0) calls
 // Machine_KOExplode - explosion VFX, break SFX, GObj_Destroy - only when x78 bit
 // 0x40 is set, and Machine_OnKO never sets it, so a forced break must OR it in
 // first. Rider-safe on a parked machine - every rider deref guards on the sentinel.
@@ -1655,7 +1736,7 @@ void Machine_PlayQuickSpinSFX(MachineData *md);        // 0x801e383c
 // HurtData.kb_mag is 0; otherwise takes the strongest log entry and dispatches by
 // attacker kind into the damage / knockback / state handlers, consuming the hit.
 void Machine_ActOnHitCollision(MachineData *md);       // 0x801d7308
-// HurtData_Create(HURTKIND_MACHINE), callback at HurtData+0x8C, hurt descriptors from itData.
+// HurtData_Create(HURTKIND_MACHINE_EMPTY), callback at HurtData+0x8C, hurt descriptors from itData.
 void Machine_InitHurtData(MachineData *md);            // 0x801d6e84
 HurtData *MachineGObj_GetHurtData(GOBJ *machine_gobj); // 0x801c8660. Returns *(MachineData+0x660) from GOBJ userdata
 // Returns &MachineData.dmg_log. Its first word is the attack word hits are credited
@@ -1701,13 +1782,13 @@ void Machine_DispatchHitReaction(MachineData *md, void *hit); // 0x801e2620
 // Reads the machine's world_velocity Vec3 (md+0x354) into *out.
 // Used by the rider-level projectile spawners (spawnBomb/spawnGordo/...) to
 // seed the projectile's initial velocity before adding rider self_vel.
-void MachineGObj_GetProjectileBaseVelocity(GOBJ *machine_gobj, Vec3 *out); // 0x801c7628
+void MachineGObj_GetWeaponBaseVelocity(GOBJ *machine_gobj, Vec3 *out); // 0x801c7628
 
-// Returns the machine's projectile_charge_scale (md+0x4e8), multiplied by a
+// Returns the machine's weapon_charge_scale (md+0x4e8), multiplied by a
 // constant 1.0. Used by the rider-level projectile spawners to populate
-// ProjectileDesc.charge.
-float Machine_GetProjectileChargeScale(MachineData *md);                   // 0x801d7e28
-float MachineGObj_GetProjectileChargeScale(GOBJ *machine_gobj);            // 0x801c868c, unwraps gobj->userdata
+// WeaponDesc.charge.
+float Machine_GetWeaponChargeScale(MachineData *md);                   // 0x801d7e28
+float MachineGObj_GetWeaponChargeScale(GOBJ *machine_gobj);            // 0x801c868c, unwraps gobj->userdata
 
 AudioEmitter Machine_AllocAudioEmitter(int index); // 0x8005dc5c
 #endif
