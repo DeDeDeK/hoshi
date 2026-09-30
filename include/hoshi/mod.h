@@ -30,7 +30,9 @@ typedef struct ModDesc
     void (*OnPlayerSelectLoad)();
     void (*OnFrameStart)();
     void (*OnFrameEnd)();
-    void (*OnTopRideLoadEnd)();             // after Top Ride gameplay init. Mirrors On3DLoadEnd, which
+    void (*OnShowHUD)();
+    void (*OnHideHUD)();
+    void (*OnTopRideLoadEnd)();            // after Top Ride gameplay init. Mirrors On3DLoadEnd, which
                                             // does not fire for Top Ride's minor 19.
 } ModDesc;
 

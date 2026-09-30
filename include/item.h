@@ -175,8 +175,8 @@ static const char *const ItemKind_Names[ITKIND_NUM] = {
     [ITKIND_COPYPLASMA]      = "Plasma",
     [ITKIND_COPYTORNADO]     = "Tornado",
     [ITKIND_COPYSWORD]       = "Sword",
-    [ITKIND_COPYSPIKE]       = "Needle",
-    [ITKIND_COPYMIC]         = "Mic",
+    [ITKIND_COPYNEEDLE]      = "Needle",
+    [ITKIND_COPYMIKE]        = "Mic",
     [ITKIND_FOODMAXIMTOMATO] = "Maxim Tomato",
     [ITKIND_FOODENERGYDRINK] = "Energy Drink",
     [ITKIND_FOODICECREAM]    = "Ice Cream",
@@ -325,8 +325,8 @@ typedef union ItemUniqueAttr
         float x04;              // 0x04, copied to buffer (no readers found)
         float rotation_rate;    // 0x08, applied to ItemData.x394 in box rotation update (0x80257a20)
         float x0c;              // 0x0c, copied to buffer (no readers found)
-        int   timer_min;        // 0x10, used DIRECT in box pre_init for ItemData.x364 seed
-        int   timer_max;        // 0x14, used DIRECT in box pre_init
+        int   hp_min;           // 0x10, ItemData.hp is seeded in [hp_min, hp_max) (zz_80256ce4_)
+        int   hp_max;           // 0x14
         float wrap_accumulator; // 0x18, summed into ItemData.x15c at 0x802576ac
         float x1c;              // 0x1c
         float x20;              // 0x20
@@ -626,7 +626,7 @@ typedef struct ItemData
     int x210;                   // 0x210
     int x214;                   // 0x214
     int x218;                   // 0x218
-    int dmg;                    // 0x21c
+    int dmg;                    // 0x21c, damage taken, accumulated from HurtData.dmg_taken and capped at 9999 (setBoxDamage)
     int x220;                   // 0x220
     int damage_processed;       // 0x224, "damage taken this frame" latch - cleared at end of CityItem_ApplyDamageFromHurtData (proc priority 10)
     float anim_start_frame;     // 0x228, frame the next CityItem_StateChange starts its animation on;
@@ -711,7 +711,7 @@ typedef struct ItemData
 
     int forced_item;            // 0x35c, predetermined ItemKind for box contents. -1 = random, -2 = no items
     int break_timer;            // 0x360, set to 8 on Box_Break
-    int x364;                   // 0x364
+    int hp;                     // 0x364, boxes: break threshold, breaks once dmg >= hp (Box_OnTakeDamage)
     int x368;                   // 0x368
     int x36c;                   // 0x36c
     int x370;                   // 0x370

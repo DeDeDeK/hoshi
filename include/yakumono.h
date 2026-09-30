@@ -72,12 +72,14 @@ typedef struct YakuBreakEntry
     int x0c;
 } YakuBreakEntry;    // 0x10
 
-// The table of placed props a multi-instance break family owns. Its index space
-// matches YakumonoData.region_audio_arr, the family's parallel record array.
+// The table of placed props a multi-instance break family owns (hitWeakObject's
+// param). Its index space matches YakumonoData.region_audio_arr, the family's
+// parallel record array.
 typedef struct YakuBreakPlacement
 {
     YakuBreakEntry *entries; // 0x00
-    int count;               // 0x04 - props this family places
+    int target_num;          // 0x04 - props this family places
+    float *hp;               // 0x08 - passed to GrYaku_TestImpactBreak
 } YakuBreakPlacement;
 
 // Per-instance parameter block. Layout is kind-specific - each arm below is a
@@ -105,10 +107,7 @@ typedef union YakumonoParam
     // family: rock +0x24, coral +0x28, house +0x30. NULL means no drop.
 
     // Multi-instance break families (rocks, trees, coral, houses).
-    struct
-    {
-        YakuBreakPlacement *placement; // 0x00
-    } *break_family;
+    YakuBreakPlacement *break_family;
 
     // Common gating fields read by the Create init pipeline. A zero field takes
     // the "no JObj / no model / no audio" branch of its consumer.
@@ -148,11 +147,11 @@ typedef struct YakumonoData
                             //        props (their geometry lives in the stage model by joint
                             //        index), so it is not a usable move handle for them.
     int state;              // 0x74 - state-machine state (-1 initially)
-    int prev_anim;          // 0x78
-    int prev_joint;         // 0x7c
-    int x80;
-    void *state_table;      // 0x84 - per-kind state table, array of 16-byte entries indexed
-                            //        by state. All-zero for passive kinds (zones).
+    int state_split;        // 0x78 - states below it index common_state_table, the rest state_table
+    int anim_idx;           // 0x7c - current anim_idx from Gr_StateChange, -1 initially
+    void *common_state_table; // 0x80 - 16-byte entries indexed by state
+    void *state_table;      // 0x84 - per-kind state table, 16-byte entries indexed by
+                            //        state - state_split. All-zero for passive kinds (zones).
     Vec3 axis_right;        // 0x88 - init (0,0,1)
     Vec3 axis_up;           // 0x94 - init (0,0,1)
     int xa0;                // 0xa0

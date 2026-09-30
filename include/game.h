@@ -2288,16 +2288,21 @@ typedef struct gmDataAll
 #define COPY_HISTORY_NUM(st) ((st)->copy_history_num >> 3)
 
 // Per-player gameplay-stat record that drives checklist completion. Embedded in
-// PlayerData at +0xB0 (PlayerData.stat_record); Ply_GetItemCollectArray(ply)
+// PlayerData at +0xB0 (PlayerData.stat_record); Ply_GetStats(ply)
 // returns &stc_playerdata[ply].stat_record. Offsets here are record-relative
 // (the doc's "stat+0xNNN").
 typedef struct PlayerStats
 {
-    u8 x000[0x74 - 0x0];
+    int attack_use_num;                           // 0x0, states entered with a new nonzero attack cause < 27 (Ply_RecordAttackUsed)
+    int attack_num[27];                           // 0x4, by AttackKind (Ply_RecordAttackUsed)
+    int rival_hit_num;                            // 0x70, incremented by Machine_StoreAttacker
     int rival_hit_by_method[0x1b];                // 0x74, AR rival-hit-by-method; [0x10]=Quick Spin
     int enemies_defeated;                         // 0xe0, AR enemies defeated (non-swallow)
     int enemy_defeat_by_method[0x1b];             // 0xe4, AR; [0xf]/[0x15]=exhaled star, [0x10]=Quick Spin
-    u8 x150[0x331 - 0x150];
+    u8 x150[0x1d8 - 0x150];
+    int attack_num_ext[13];                       // 0x1d8, attack causes 27+, indexed by cause - 27
+    u8 x20c[0x330 - 0x20c];
+    u8 x330;                                      // 0x330, set by attacks whose AttackData byte 2 has 0x10 (charge/push states)
     u8 rivals_damaged_mask;                       // 0x331, per-rival "damaged this game" bits 0-4 (cell 0x4e)
     u8 x332[0x334 - 0x332];
     int copy_obtain_count[COPYKIND_NUM];          // 0x334, times each CopyKind was granted this game (Rider_RecordCopyAbility)
@@ -2305,7 +2310,7 @@ typedef struct PlayerStats
     u8 copy_history_num;                          // 0x378, low 3 bits = ability-sequence flags, high 5 = copy_history entries
     u8 x379[0x37a - 0x379];
     u16 copy_chance_mask;                         // 0x37a, MSB-first bit(15-CopyKind) set when the Copy Chance Wheel granted it (cells 0x46/0x47)
-    int machine_change_count[0x1a];               // 0x37c, per-MachineKind; sum = AR machine changes (cell 0x06)
+    int machine_mount_kind_num[0x1a];             // 0x37c, per-MachineKind; sum = AR machine changes (cell 0x06)
     int kills_by_machine[0x1a];                   // 0x3e4, on the attacker's record: KOs dealt, indexed by the victim's MachineKind; sum = the Destruction Derby score
     int deaths_by_machine[0x1a];                  // 0x44c, on the victim's record: KO'd, by MachineKind ridden. Written by Ply_AddDeath, read by nothing
     int ko_cpu_machine_broken;                    // 0x4b4, KO-by-cause (cell 0x4d)
@@ -2316,21 +2321,26 @@ typedef struct PlayerStats
     u8 x4c6[0x4c8 - 0x4c6];
     int item_collect[0x45];                       // 0x4c8, by ItemKind (ITKIND_NUM); 0..2 boxes, 3.. items
     u8 x5dc[0x5e4 - 0x5dc];
-    int drive_time_grounded;                      // 0x5e4, frames (+ airborne = drive time)
-    int drive_time_airborne;                      // 0x5e8, frames; AR reads as "glide time"
-    u8 x5ec[0x5f4 - 0x5ec];
-    int airborne_time;                            // 0x5f4, 60fps frames (cells 0x18/0x1C/0x22)
-    int airborne_streak;                          // 0x5f8, consecutive airborne frames; feeds airborne_time max
-    u8 x5fc[0x604 - 0x5fc];
+    int total_time_spent_grounded;                // 0x5e4, moving frames (speed >= 0.02) while grounded (Ply_TickTimeStats)
+    int total_time_spent_airborne;                // 0x5e8, moving frames while airborne; AR reads as "glide time"
+    int total_time_spent_rail;                    // 0x5ec, moving frames in a rail state (MachineData+0xbae & 0x20)
+    int x5f0;                                     // 0x5f0, moving frames with MachineData+0xc32 & 0x02
+    int max_time_spent_airborne;                  // 0x5f4, longest airborne streak in frames (cells 0x18/0x1C/0x22)
+    int current_time_spent_airborne;              // 0x5f8, current airborne streak, reset on grounded frames
+    int max_time_spent_moving;                    // 0x5fc, longest streak of nonzero speed
+    int current_time_spent_moving;                // 0x600
     int timer_20s;                                // 0x604, round countdown, seeded 1200 (cell 0x48 guard)
     int timer_10s;                                // 0x608, round countdown, seeded 600 (cell 0x49 window)
-    float distance_grounded;                      // 0x60c, split by MachineData.action_state_class
-    float distance_airborne;                      // 0x610
-    float distance_while_hit;                     // 0x614, not summed by any getter
-    u8 x618[0x62b - 0x618];
-    u8 yakumono_break[0x29];                      // 0x62b, by descriptor stat-index; valid [0x15..0x28]; [0x28] also pillar-timer-valid flag
-    u8 volcano_rail_mask[0xd];                    // 0x654, AR Magma rails used (cell 0x6e)
-    u8 boost_panel_mask[0x3f];                    // 0x661, AR Magma boost panels used (cell 0x70)
+    float total_distance_grounded;                // 0x60c, split by MachineData.is_airborne
+    float total_distance_airborne;                // 0x610
+    float total_distance_rail;                    // 0x614, rail states (MachineData+0xbae & 0x20); not summed by any getter
+    float max_speed;                              // 0x618
+    float x61c;                                   // 0x61c, written by zz_8022fc60_
+    float x620;                                   // 0x620, written by zz_8022fc60_
+    float x624[7];                                // 0x624, zeroed by Ply_ResetGameStats
+    u8 yakumono_break[0x14];                      // 0x640, by desc_id - 0x15 (desc_id 0x15..0x28); [0x13] also pillar-timer-valid flag
+    u8 rail_bits[0xd];                            // 0x654, bit per rail id grabbed, any stage (AR Magma cell 0x6e)
+    u8 zone_bits[0x3f];                           // 0x661, bit per dash/dash-gate/jump/super-jump zone touched (AR Magma boost panels, cell 0x70)
     int enemies_swallowed;                        // 0x6a0, AR (cells 0x0e, 0x04/0x05)
     u8 x6a4[0x6a8 - 0x6a4];
     u8 swallow_by_actor[0x120];                   // 0x6a8, AR per-ACTORID swallow counter, stride 0x18
@@ -2345,8 +2355,8 @@ typedef struct PlayerStats
     int spin_panel_uses;                          // 0x7f4, AR Checker Knights (cell 0x63)
     u8 x7f8[0x7fc - 0x7f8];
     int trapdoor_opens;                           // 0x7fc, AR Sky Sands (cell 0x6a)
-    u32 objects_destroyed_num;                    // 0x800, breakables destroyed (star pole, coral, rocks,
-                                                  //        houses, trees); AR walls broken (cell 0x64)
+    u32 objects_destroyed_num;                    // 0x800, props broken by ramming with the machine
+                                                  //        (Machine_CollideWithBreakable); AR walls broken (cell 0x64)
     u8 x804[0x808 - 0x804];
     int tac_stolen_items;                         // 0x808, CT (cell 0x34)
     u8 x80c[0x810 - 0x80c];
@@ -2358,14 +2368,14 @@ typedef struct PlayerStats
     int lap_rank_prev2;                           // 0x824, AR rank at boundary before final lap
     int lap_rank_final_start;                     // 0x828, AR rank at final-lap-start boundary
     int final_lap_comeback;                       // 0x82c, AR = lap_rank_prev2 - lap_rank_final_start (cell 0x55)
-    int fastest_pillar_break;                     // 0x830, CT frames; valid iff yakumono_break[0x28] (cell 0x33)
+    int fastest_pillar_break;                     // 0x830, CT frames; valid iff yakumono_break[0x13] (cell 0x33)
     int highplains_hole_entries;                  // 0x834, CT (cell 0x40)
     int superjump_building_landings;              // 0x838, CT (cell 0x43)
     int all_off_machines_run;                     // 0x83c, live consecutive-frame counter
     int all_off_machines_min;                     // 0x840, min all-off run; init -1 (cell 0x4a)
     int cannon_simul_launch;                      // 0x844, AR Machine Passage (cell 0x6b)
     int king_dedede_ko_frame;                     // 0x848, CT; 0 = not yet (cell 0x2f)
-    u8 flags_84c;                                 // 0x84c, CT bit0 dmg Dyna Blade, bit1 trampled, bit7 rival-dmg<10s
+    u8 flags_84c;                                 // 0x84c, CT bit0 dmg Dyna Blade, bit1 trampled, bit6 touched a wall, bit7 rival-dmg<10s
     u8 flags_84d;                                 // 0x84d, CT bit1 sky garden, bit2 Dragoon, bit3 Hydra, bit4 castle, bit5 restoration
     u8 x84e[0x850 - 0x84e];
     int grindrail_crater_flag;                    // 0x850, CT (cell 0x42)
@@ -2434,8 +2444,8 @@ typedef struct PlayerData
     u8 player_color;           // 0x8C, plGetPlayerColor/plSetPlayerColor
     u8 controller_index;       // 0x8D, Ply_GetControllerIndex. Setter (8022c6e4) also maintains the controller->slot reverse map at 0x805dd898 (port 4 -> excluded)
     u8 is_bike;                // 0x8E, Ply_GetMachineIsBike/Ply_SetMachineIsBike
-    MachineKind machine_kind;  // 0x8F, u8, class-relative: indexes the is_bike half of vcDataLookup, so it
-                               //       equals the VCKIND only for stars. Ply_GetMachineKindAbs resolves it.
+    MachineKind machine_kind : 8; // 0x8F, class-relative: indexes the is_bike half of vcDataLookup, so
+                                  //       it equals the VCKIND only for stars. Ply_GetMachineKindAbs resolves it.
     u8 x90;                    // 0x90, set to this slot's own player index at spawn (8022c960)
     u8 x91;                    // 0x91, viewport/split-screen layout flag: (player_count >= 3) ? 1 : 0 (8022c990)
     u8 x92;                    // 0x92, viewport/split-screen layout tier: 0/1/2 for 1/2/3+ players (8022c9c0)
@@ -2446,7 +2456,7 @@ typedef struct PlayerData
     int all_up_collected;      // 0xA8, Ply_GetAllUpCollected/Ply_SetAllUpCollected
     int cpu_level;             // 0xAC, signed CPU difficulty: -1 = not a CPU, else 0..8. Copied from
                                //       ply_desc[slot].cpu_level_eff; indexes the CT stat-growth tables.
-    PlayerStats stat_record;   // 0xB0, per-player gameplay-stat record; Ply_GetItemCollectArray returns &this
+    PlayerStats stat_record;   // 0xB0, per-player gameplay-stat record; Ply_GetStats returns &this
 } PlayerData;
 
 typedef struct VehicleBustEntry // 0x804B4C68, 10 entries; drives vehicle-bust cells 0x6f-0x76
@@ -2937,6 +2947,7 @@ GOBJ *Ply_GetRiderGObj(int ply); // 0x8022cb74
 void Ply_GetPosition(int ply, Vec3 *pos); // 0x8022c568
 GOBJ *Ply_GetMachineGObj(int ply); // 0x8022d230
 int Ply_GetColor(int ply); // 0x800095c0
+int Ply_GetControllerIndex(int ply); // 0x8022c6ac, PlayerData.controller_index
 int Ply_CheckIfCPU(int ply); // 0x8000948c
 int Ply_IsViewOn(int ply); // 0x800098c0
 int Ply_GetViewIndex(int ply); // 0x80009908
@@ -2980,7 +2991,7 @@ void Ply_SetDamagedDynaBlade(int ply);     // 0x80231160, PlayerStats +0x84c bit
 void Ply_SetTrampledByDynaBlade(int ply);  // 0x80231120, PlayerStats +0x84c bit 0x02
 // Sets the attacker's PlayerStats +0x84c bit 0x80 while timer_10s still runs.
 void Ply_RecordRivalDamage10Sec(int attacker, int victim); // 0x8022ec84
-// Run by Projectile_SetState on an attack-cause change: bumps the attacker's
+// Run by Weapon_StateChange on an attack-cause change: bumps the attacker's
 // attacks-used counts. Causes 1..0x1a index a bounded array; causes >= 0x1b land at
 // PlayerStats +0x16c + cause*4 unchecked, which from 0x29 up overwrites the
 // per-actor defeat counters.
@@ -3098,8 +3109,8 @@ void TopRide_SetExtraUnlocks(int unlock0, int unlock1, int unlock2);     // 0x80
 TopRideMode TopRide_GetMode(void);                                       // 0x8003ea9c, returns Top Ride mode (0=Race, 1=Time, 2=Free)
 int TopRide_GetTimeAttackPlayerSlot(void);                               // 0x8003eaf0, returns active player slot for Top Ride Time Attack
 TopRideStats *TopRide_GetStats(void);                                    // 0x80287040, returns TopRideStats pointer (via gmGetClearcheckerType1_2Ptr)
-PlayerStats *Ply_GetItemCollectArray(int ply);                           // 0x8022d248, returns &stc_playerdata[ply].stat_record
-PlayerStats *Ply_GetStatRecordBase(int ply);                             // 0x8022d260, same base as Ply_GetItemCollectArray
+PlayerStats *Ply_GetStats(int ply);                                      // 0x8022d248, returns &stc_playerdata[ply].stat_record
+PlayerStats *Ply_GetStatRecordBase(int ply);                             // 0x8022d260, same base as Ply_GetStats
 // Single producer of PlayerStats.item_collect[]. Called from one site, on the
 // common collect path inside Machine_OnTouchItem, with the instance kind already
 // clamped to its base kind. Also maintains the Tac aggregate (src_tag 4) and the

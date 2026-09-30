@@ -149,9 +149,9 @@
             this_jobj = JObj_GetIndex(jobj, child_index);                     \
         else                                                                  \
             this_jobj = jobj;                                                 \
-        JObj_ForEachAnim(this_jobj, 6, flags, AOBJ_ReqAnim, 1, (float)frame); \
+        JObj_ForEachAnim(this_jobj, FOREACHANIM_OBJ_JOBJ, flags, AOBJ_ReqAnim, 1, (float)frame); \
         JObj_AnimAll(this_jobj);                                              \
-        JObj_ForEachAnim(this_jobj, 6, flags, AOBJ_StopAnim, 6, 0, 0);        \
+        JObj_ForEachAnim(this_jobj, FOREACHANIM_OBJ_JOBJ, flags, AOBJ_StopAnim, 6, 0, 0);        \
     }
 #define JObj_PlayOnFrame(jobj, child_index, flags, frame)                     \
     {                                                                         \
@@ -160,7 +160,7 @@
             this_jobj = JObj_GetIndex(jobj, child_index);                     \
         else                                                                  \
             this_jobj = jobj;                                                 \
-        JObj_ForEachAnim(this_jobj, 6, flags, AOBJ_ReqAnim, 1, (float)frame); \
+        JObj_ForEachAnim(this_jobj, FOREACHANIM_OBJ_JOBJ, flags, AOBJ_ReqAnim, 1, (float)frame); \
         JObj_AnimAll(this_jobj);                                              \
     }
 #define JObj_GetChildPosition(jobj, child_index, pos)      \
@@ -175,8 +175,8 @@
 typedef enum ForEachAnimFlag //  (used for JObj_ForEachAnim)
 {
     FOREACHANIM_FLAG_JOBJ = 0x20,
-    FOREACHANIM_FLAG_MOBJ = 0x4,
-    FOREACHANIM_FLAG_TOBJ = 0x10,
+    FOREACHANIM_FLAG_MOBJ = 0x80,
+    FOREACHANIM_FLAG_TOBJ = 0x400,
     FOREACHANIM_FLAG_ALL = 0x7FF,
 } ForEachAnimFlag;
 
@@ -862,10 +862,10 @@ typedef struct HSD_GObjInitData {
 
 /*** Static Variables ***/
 static GOBJ ***stc_gobj_lookup = (GOBJ ***)(0x805de334);                        //
-static u8 *stc_gobj_proc_num = (u8 *)0x8058c190;                                // number of elements in the below array
-static GOBJProc ***stc_gobjproc_lookup = (GOBJProc ***)0x805de348;              // array of gobj procs ptrs
-static GOBJProc **stc_gobjproc_cur = (GOBJProc **)0x0;                          // current gobj proc being processed
-static u32 *stc_gobjproc_updateidx_cur = (u32 *)0x804d783c;                     // update index of the current gobj proc being processed. this is compared to
+static u8 *stc_gobj_proc_num = (u8 *)0x8058c192;                                // HSD_GObjInitData.proc_pri_max, highest s_link in the below array
+static GOBJProc ***stc_gobjproc_lookup = (GOBJProc ***)0x805de348;              // array of gobj procs ptrs, indexed by s_link
+static GOBJProc **stc_gobjproc_cur = (GOBJProc **)0x805de340;                   // current gobj proc being processed
+static u32 *stc_gobjproc_updateidx_cur = (u32 *)0x805de344;                     // update index of the current gobj proc being processed. this is compared to
 static HSD_GObjInitData *stc_gobj_init_data = (HSD_GObjInitData *)0x8058c190;
 static float *stc_cobj_aspect = (float *)0x805deb20;
 
@@ -897,7 +897,7 @@ void JObj_ClearFlags(JOBJ *joint, int flags); // 0x8040c0d8
 void JObj_ClearFlagsAll(JOBJ *joint, int flags); // 0x8040c174
 void HSD_JObjMakePositionMtx(JOBJ *jobj, Mtx *vmtx, Mtx *pmtx); // 0x8040f00c - vmtx x joint matrix into pmtx, billboarded per the joint's billboard flags
 void JObj_SetFrameAndRate(JOBJ *j, int frame, float rate); // 0x80138ba4
-void JObj_ForEachAnim(JOBJ *joint, int unk, ForEachAnimFlag flags, void *cb, int argkind, ...); // 0x803fcdb8 - argkind specifies how to pop args off the va_list
+void JObj_ForEachAnim(void *obj, ForEachAnimObjKind obj_kind, ForEachAnimFlag flags, void *cb, int arg_kind, ...); // 0x803fcdb8 - arg_kind specifies how to pop args off the va_list
 void JObj_Anim(JOBJ *joint); // 0x8040a1a0
 void JObj_AnimAll(JOBJ *joint); // 0x8040a304
 void JObj_AddAnim(JOBJ *joint, void *animjoint, void *matanimjoint, void *shapeanimjoint); // 0x80409340
@@ -1005,6 +1005,7 @@ void LObj_ReqAnimAll(LOBJ *lobj, float frame); // 0x803fdf28
 void LObj_AnimAll(LOBJ *lobj); // 0x803fde54
 void LObj_DeleteCurrentAll(int unk); // 0x803ff318
 void LObj_RemoveAll(LOBJ *lobj); // 0x803ffa40
+GXLightID HSD_LObjGetLightMaskDiffuse(); // 0x803fdb14
 HSD_Fog *Fog_LoadDesc(HSD_FogDesc *fogdesc); // 0x8041b3c0
 void FogRelease(HSD_Fog *fog); // 0x8041b850 - class release: drops fog_adj and the AObj, does not free fog
 

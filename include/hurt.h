@@ -4,50 +4,43 @@
 #include "datatypes.h"
 #include "obj.h"
 
-/*
-    Damage pipeline goes:
-        static HitCollData -> gobj's HurtData (8018d974) -> gobj data (when applicable, DmgLog for MachineData)
-
-
-    - HitColl_Init @ 8018cf64 - resets all static HitCollData data to prep for this object's collision update
-    - GObj's unique proc checks against each gobj type for collisions
-    - HitColl_ActOnCollision? @ 8018d878 
-*/
-
 typedef enum HurtKind
 {
+    HURTKIND_NONE = -1,     // the static dummy attacker Machine_ApplyHurt uses (zz_8018c0ec_)
     HURTKIND_RIDER,
-    HURTKIND_1,       // a ridden machine; mounting switches HurtData.kind from HURTKIND_MACHINE
-    HURTKIND_MACHINE, // an empty machine
-    HURTKIND_3,       // event actor (enemy, Dyna Blade)
-    HURTKIND_POWERUP,
-    HURTKIND_5,       // projectile
-    HURTKIND_STAGE,
+    HURTKIND_MACHINE,       // a ridden machine; mounting switches HurtData.kind from HURTKIND_MACHINE_EMPTY
+    HURTKIND_MACHINE_EMPTY,
+    HURTKIND_EVENTACTOR,    // enemy, Dyna Blade
+    HURTKIND_ITEM,          // every city item, boxes included
+    HURTKIND_WEAPON,
+    HURTKIND_MAP,
 } HurtKind;
 
+// Attack cause, AttackData.kind. PlayerStats.attack_num counts causes below 27.
 typedef enum AttackKind
-{   
+{
     ATK_0,
-    ATK_FIREGET,
-    ATK_FIRESHOOT,
+    ATK_FIREGET,        // fire aura
+    ATK_FIRESHOOT,      // fire bullet
     ATK_3,
     ATK_SLEEP,
     ATK_SWORD1,
     ATK_SWORD2,
-    ATK_7,
+    ATK_SWORD3,
     ATK_BOMB,
     ATK_PLASMA,
     ATK_NEEDLEEND,
     ATK_NEEDLEHOLD,
     ATK_MIKE,
-    ATK_13,
+    ATK_ICE,            // ice aura
     ATK_TORNADO,
-    ATK_15,
-    ATK_SPIN,
-    ATK_17,
-    ATK_TIMEBOMB,
+    ATK_SPITSTAR,       // small exhaled star
+    ATK_SPIN,           // quick spin
+    ATK_FIREWORKS,
+    ATK_SENSORBOMB,
     ATK_GORDO,
-    ATK_MININADO,
+    ATK_PANICSPIN,
+    ATK_SPITSTAR_LARGE,
     ATK_NUM = 36,
 } AttackKind;
 
@@ -62,7 +55,7 @@ typedef struct HurtDesc
 typedef struct HurtData
 {
     HurtKind kind;       // 0x0
-    HurtDesc *desc;      // 0x4
+    GOBJ *gobj;          // 0x4, owner, the attacker identity when this HurtData deals a hit
     int region_count;    // 0x8, collision region tier: stages=2, riders/machines=4, enemies=2 (Dyna Blade=8)
     void *regions;       // 0xc, collision region array (allocated from object pool, stride 0xC8)
     int sub_region_count; // 0x10, sub-region count tier
@@ -101,11 +94,11 @@ typedef struct HurtData
 
 typedef struct HitCollLog
 {
-    HurtData *attacker;         // 0xc
-    void *x10;                  // 0x10
-    void *x14;                  // 0x14
-    Vec3 coll_pos;              // 0x18
-    float dmg;                  // 0x24
+    HurtData *attacker;     // 0x0
+    void *attacker_region;  // 0x4, attacker's hit region
+    void *victim_region;    // 0x8, victim's hurt sub-region
+    Vec3 coll_pos;          // 0xc, copied from the victim region
+    float knockback;        // 0x18, computed knockback magnitude for this hit
 } HitCollLog;
 
 typedef struct HitCollData
@@ -116,33 +109,41 @@ typedef struct HitCollData
     u8 x9;  // 0x9
     u8 xa;  // 0xa
     u8 xb;  // 0xb
-    struct
-    {
-        void *victim_coll_data;     // 0x0, victim's collision context
-        void *attacker_trigger;     // 0x4, attacker's trigger/param data
-        void *attacker_hurt_entry;  // 0x8, attacker's hurt entry
-        Vec3 attacker_pos;          // 0xc, attacker position at collision
-        float knockback;            // 0x18, computed knockback magnitude for this hit
-    } log[20];
+    HitCollLog log[20];  // 0xc
     int coll_num;        // 0x23c. amount of collisions found against this hurtbox
     HurtData *hurt_data; // 0x240. hurt data we are checking for hit collisions against
 } HitCollData;
 
-// The first word doubles as the machine's own attack word when it is the attacker. The
-// credited_* fields and attacker_ply are written together by Machine_StoreAttacker
+// An attack word. The machine rebuilds its own from the state table on every state change.
+typedef struct AttackData
+{
+    int x0 : 8;                     // 0x0
+    int x1 : 8;                     // 0x1
+    int x2 : 8;                     // 0x2, flags: 0x01 active, 0x10 charge/push state, 0x20 rail state, 0x80 machine credit gate
+    AttackKind kind : 8;            // 0x3
+} AttackData;
+
+typedef struct DmgHitRecord
+{
+    int x0;                         // 0x0
+    u16 x4;                         // 0x4
+    u16 x6_fe00 : 7;                // 0x6
+    u16 victim_mask : 8;            // 0x6, 0x1fe, bit per ply this attack hit (Machine_StoreAttacker)
+    u16 x6_0001 : 1;                // 0x6, 0x0001
+} DmgHitRecord;
+
+// The credited_* fields and attacker_ply are written together by Machine_StoreAttacker
 // (0x80231d90) for each new attack instance, so they always name the same attack.
-typedef struct DmgLog       //
-{                           //
-    int xbac;               // 0xbac, 0x0
-    int credited_attack;    // 0xbb0, 0x4: the credited attack's word; low byte = attack cause
-    int xbb4;               // 0xbb4, 0x8
-    int xbb8;               // 0xbb8, 0xC
-    int xbbc;               // 0xbbc, 0x10
-    int xbc0;               // 0xbc0, 0x14
-    u16 xbc4;               // 0xbc4, 0x18
-    u16 credited_attack_id; // 0xbc6, 0x1a: its attack instance, so one attack credits once
-    int attacker_ply;       // 0xbc8, 0x1c
-} DmgLog;                   //
+typedef struct DmgLog
+{
+    AttackData attack_data;         // 0xbac, 0x0, own attack word when this object is the attacker
+    int credited_attack;            // 0xbb0, 0x4, the credited attack's word; low byte = attack cause
+    DmgHitRecord hits;              // 0xbb4, 0x8
+    DmgHitRecord credited_hits;     // 0xbbc, 0x10, the attacker's hits, copied by Machine_StoreAttacker
+    u16 attack_id;                  // 0xbc4, 0x18, own attack instance, minted when the attack kind changes
+    u16 credited_attack_id;         // 0xbc6, 0x1a, its attack instance, so one attack credits once
+    int attacker_ply;               // 0xbc8, 0x1c
+} DmgLog;
 
 // Damage configuration used by Machine_ApplyHurt and Machine_OnTouchItem.
 // Zeroed by Trigger_ClearParameterStruct, filled in, then handed to
@@ -172,12 +173,12 @@ static HitCollData *stc_hitcolldata = (HitCollData *)0x80559bf4;
 //   2. Machine_Check*Collision - Various collision checks call HitColl_SetDamageLog
 //      (Machine_ApplyHurt also calls HitColl_SetDamageLog for item-based damage)
 //   3. HitColl_ActOnCollision - Processes collision log, sets HurtData.kb_mag from max knockback
-//   4. Machine_ActOnHitCollision - If kb_mag != 0, calls Machine_EnterHitReaction (state 5)
+//   4. Machine_ActOnHitCollision - If kb_mag != 0, calls Machine_EnterHitReaction
 //
 // To apply damage with knockback from OUTSIDE this pipeline:
 //   1. Machine_GiveDamage(md, damage, &md->hurt_data->hitcoll_log_idx) - subtract HP
 //   2. md->hurt_data->kb_mag = magnitude    - set knockback (optional, for physics)
-//   3. Machine_EnterHitReaction(md)         - enter bounce/hit reaction state 5
+//   3. Machine_EnterHitReaction(md)         - enter the bounce/hit reaction
 
 // `hit` is a HurtData's hit record (&hitcoll_log_idx). Normalizes its knockback_dir
 // (+0x20 from the record) and mirrors it off the ground plane, or returns the
@@ -186,7 +187,7 @@ void Hit_CalcDeflectDir(int *hit, Vec3 *fallback, Vec3 *out); // 0x80194ca4
 
 void HitColl_Init(HurtData *hurt);                     // 0x8018cf64. Clears global collision log counter, sets victim hurt_data pointer
 void Trigger_ClearParameterStruct(HurtParams *params);  // 0x8018a0c0. memset(params, 0, 0x34). Zeroes a HurtParams struct.
-HurtData *HurtData_Create(HurtDesc *desc, HurtKind kind, int obj1_kind, int obj2_kind, int obj3_kind); // 0x8018c1c8
+HurtData *HurtData_Create(GOBJ *gobj, HurtKind kind, int obj1_kind, int obj2_kind, int obj3_kind); // 0x8018c1c8
 // Sets intangibility for at least `timer` frames, only extending the current
 // value, and sets vuln.kind = 2.
 void HurtData_GiveIntangibility(HurtData *hurt, int timer); // 0x8018cb5c
@@ -196,7 +197,7 @@ void HurtData_UpdateAttackRegions(HurtData *hurt);     // 0x8018c998, Trigger_Up
 HurtData *RiderGObj_GetHurtData(GOBJ *rider_gobj);     // 0x80192788. Returns HurtData from rider GOBJ userdata
 // Calculates damage via HitColl_GetDamageDealt, logs it (up to 20 entries),
 // applies knockback and fires on_damage_callback if set.
-void HitColl_SetDamageLog(HurtData *hurt_data, void *hurt_entry, HitCollData *hitcoll_data, void *trigger_params); // 0x8018cf94
+void HitColl_SetDamageLog(HurtData *victim, void *victim_region, HurtData *attacker, void *attacker_region); // 0x8018cf94
 // Processes the global collision log, taking the max knockback into
 // HurtData.kb_mag along with the collision position.
 void HitColl_ActOnCollision(HurtData *hurt);           // 0x8018d878
