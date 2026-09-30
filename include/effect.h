@@ -41,9 +41,8 @@ struct Effect
     GOBJ *gobj;       // 0x00 owning GObj
     int   kind;       // 0x04 effect kind/ID (group*10000+entry)
     void *list_node;  // 0x08 per-group active-list node
-    s32   life;       // 0x0c lifetime counter (init -1 = unset/infinite). NOTE this also drives
-                      //      the effect's animation playback - pinning it every frame freezes the
-                      //      anim, so it can't be used to extend a finite effect; re-spawn instead.
+    s32   life;       // 0x0c lifetime counter (init -1 = unset/infinite). It also drives the
+                      //      animation, so pinning it freezes the anim.
     u8    _pad10[8];  // 0x10
     u8    flags;      // 0x18 state bits (a bit is set when scene mode in [7,11))
     u8    _pad19[15]; // 0x19
@@ -56,58 +55,36 @@ struct Effect
 // id (group*10000+entry) -> per-kind model descriptor.
 EffectModelDesc *Effect_GetModelData(int id); // 0x80235190
 
-// Universal effect spawn. Only the low word of the {r3, r4} handle is declared -
-// it is enough to tell success (0 on failure) and every vanilla caller discards
-// it. Returns 0 while effects are globally suppressed (*(u32*)0x805dd8b8 != 0)
-// or the create gate rejects the scene.
-//
-//   parent      - owning GObj. May be NULL: the owner block is then skipped and
-//                 the owner-player index preseeds to 5 ("none").
-//   id          - group*10000 + entry.
-//   efgroup     - EfGroup bucket. Asserts on -1, so pass a live one; a rider's
-//                 RiderData.efgroup works.
-//   anchor_mode - selects which varargs the placement resolver reads. It fills
-//                 its descriptor purely from the varargs, never from `parent`.
-//
-// Mode 1 takes one vararg, a `void (*)(void *node)` post-spawn callback invoked
-// with the spawn node. It skips the joint-attach path, so no follow proc is
-// installed and the model root's SRT is the caller's to write. This is the
-// world-anchored path; no variant takes a raw Vec3.
-//
-// Modes 200..220 are joint-follow. 218 is the mouth anchor Rider_StartInhale
-// uses: Effect_SpawnSync(rd->gobj, 0x3a982, rd->efgroup, 218, jobj, jobj, ply).
-//
-// A joint-followed effect gets priority-11 procs that rewrite the root's SRT
-// from the target joint each frame (defeat by zeroing the anchor flags at
-// Effect+0x1e) and arm the anim loop after the intro. Mode 1 installs neither,
-// so a mod-spawned effect must arm its own looping
-// (JObj_SetAllAOBJLoopByFlags(root, 0xffff) + Effect.life = 1) or the animation
-// stalls on the intro's last frame.
+// Universal effect spawn. Returns the low word of an {r3, r4} handle, 0 on failure,
+// while effects are suppressed (*(u32*)0x805dd8b8 != 0) or when the create gate
+// rejects the scene. parent may be NULL. efgroup asserts on -1; a rider's
+// RiderData.efgroup works. anchor_mode picks which varargs place it: mode 1 takes a
+// `void (*)(void *node)` post-spawn callback and installs no follow or anim-loop proc,
+// so the caller writes the root SRT and arms its own loop
+// (JObj_SetAllAOBJLoopByFlags(root, 0xffff) + Effect.life = 1). Modes 200..220 follow
+// a joint (218 is the mouth anchor Rider_StartInhale uses).
 u32 Effect_SpawnSync(GOBJ *parent, int id, int efgroup, int anchor_mode, ...); // 0x80236c40
 
 // Spawn-node fields the anchor-mode-1 callback needs.
 #define EFFECT_NODE_GOBJ 0x5c  // node -> the effect GObj
 
-// NEVER GObj_Destroy a spawned effect. The spawn node keeps pointing at the GObj
-// and the per-node kill destroys node+0x5c unconditionally when the group is
-// retired, double-freeing it - the GObj returns to the free list, gets handed
-// out again, and trips an unrelated GObj_AddUserData assert. To retire a mode-1
-// effect, hide its model tree (JObj_SetFlagsAll(root, JOBJ_HIDDEN)) and let the
-// engine own the lifetime.
+// Never GObj_Destroy a spawned effect: the per-node kill destroys node+0x5c again
+// when the group is retired. Hide its model tree (JObj_SetFlagsAll(root, JOBJ_HIDDEN))
+// instead.
 
 // EfGroup buckets. A particle generator created while a group is current (a
-// projectile's state animation runs under proj+0x114) belongs to that group.
+// weapon's state animation runs under weapon+0x114) belongs to that group.
 int  Effect_AllocEfGroup(void);             // 0x802364e0
 void Effect_SetCurrentEfGroup(int efgroup); // 0x802369e0
 void Effect_ClearCurrentEfGroup(void);      // 0x802369f0
 
 // Effect-instance manager. The per-group EffectModelDesc* table at +0x24 is the
 // only source for model-effect descriptor lookup.
-static void **const gEffectMgr = (void **)0x8055D7A0;
+static void **const stc_effect_mgr = (void **)0x8055D7A0;
 
 // Bank-install registry (4x u32[64] + generator-template count/array), written by
 // psInitDataBanks. Consumed only by the point-particle path, independent of the
-// gEffectMgr+0x24 model-descriptor table.
-static void **const efGlobal = (void **)0x8058C208;
+// stc_effect_mgr+0x24 model-descriptor table.
+static void **const stc_ef_global = (void **)0x8058C208;
 
 #endif // KAR_H_EFFECT

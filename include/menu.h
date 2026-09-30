@@ -57,7 +57,7 @@ typedef struct CharacterDesc
 {
     u8 rider_kind;      // RiderKind
     u8 is_bike;         // bool
-    u8 machine_kind;    // MachineKind
+    u8 machine_kind;    // MachineKind within the is_bike class; CharacterDesc_GetMachineKind resolves it
 } CharacterDesc;
 
 typedef struct MainMenuData

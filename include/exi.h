@@ -35,7 +35,7 @@ typedef void (*EXICallback)(s32 chan, OSContext* context);
 s32 EXIInit(void); // 0x803eb1ac - Initialization
 s32 EXISelect(s32 chan, s32 device, s32 frequency); // 0x803eabc0 - Select a device on an EXI chan
 s32 EXIDeselect(s32 chan); // 0x803eacec - Deselect the currently selected device
-s32 EXILock(s32 chan, s32 lockTimeout); // 0x803eb380 - Lock access to an EXI channel
+s32 EXILock(s32 chan, s32 device, EXICallback unlocked_cb); // 0x803eb380 - Lock access to an EXI channel; unlocked_cb runs once a busy lock frees
 s32 EXIUnlock(s32 chan); // 0x803eb474 - Unlock access to an EXI channel
 s32 EXIDma(s32 chan, void *buffer, s32 length, EXIMode direction, EXICallback cb); // 0x803ea354 - Start a DMA transfer
 s32 EXIImm(s32 chan, void *buffer, s32 length, EXIMode direction, EXICallback cb); // 0x803ea058 - Immediate transfer (no DMA)

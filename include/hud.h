@@ -16,10 +16,10 @@ typedef enum HUDKind
     HUDKIND_HUDCAM = 19,
     HUDKIND_ITEMINDICATOR = 25,
     HUDKIND_PLYHUDPOS = 35,
-    HUDKIND_LEGENDARYPIECE = 59, // 0x3b, attached by the piece-icon creators at 0x8012ac44 / 0x8012af14 (li r4,59)
-    HUDKIND_CITYPAUSE = 65,   // 0x41, attached by HUD_PauseCreate at 0x80128690 (li r4,65)
-    HUDKIND_CITYSTATBG = 66,  // 0x42, attached by CityHUD_CreateStatChart at 0x80128c70 (li r4,66)
-    HUDKIND_CITYSTATBAR = 67, // 0x43, attached by CityHUD_CreateStatBar at 0x801291e0 (li r4,67; bl HUD_AddElementData)
+    HUDKIND_LEGENDARYPIECE = 59, // 0x3b, attached by the piece-icon creators at 0x8012ac44 / 0x8012af14
+    HUDKIND_CITYPAUSE = 65,   // 0x41, attached by HUD_PauseCreate
+    HUDKIND_CITYSTATBG = 66,  // 0x42, attached by CityHUD_CreateStatChart
+    HUDKIND_CITYSTATBAR = 67, // 0x43, attached by CityHUD_CreateStatBar
 } HUDKind;
 
 typedef struct HudMapIconData
@@ -30,20 +30,17 @@ typedef struct HudMapIconData
     int xc;  // 0x0c
     int x10; // 0x10
     int x14; // 0x14
-    int x18; // 0x1c
+    int x18; // 0x18
     int x1c; // 0x1c
     int ply; // 0x20
 } HudMapIconData;
 
-typedef struct HUDElementData // created by 80114e24
+typedef struct HUDElementData // created by HUD_AddElementData
 {
     int x0;            // 0x0
     HUDKind kind;      // 0x4
-    u8 x8_80 : 1;      // 0x8, 0x80
-    u8 x8_40 : 1;      // 0x8, 0x40
-    u8 x8_20 : 1;      // 0x8, 0x20
-    u8 x8_10 : 1;      // 0x8, 0x10
-    u8 ply : 2;        // 0x8, 0x0c
+    u8 ply : 4;        // 0x8, 0xf0, HUD_AddElementData's ply
+    u8 ply2 : 2;       // 0x8, 0x0c, HUD_AddElementData's ply2
     u8 is_visible : 1; // 0x8, 0x02
     u8 x8_01 : 1;      // 0x8, 0x01
     int xc;            //
@@ -66,20 +63,20 @@ typedef struct HUDElementData // created by 80114e24
         } plicon;
         struct
         {
-            int x14;          // 0x1c
-            int x18;          // 0x1c
+            int x14;          // 0x14
+            int x18;          // 0x18
             int x1c;          // 0x1c
-            int x20;          // 0x2c
-            int x24;          // 0x2c
-            int x28;          // 0x2c
+            int x20;          // 0x20
+            int x24;          // 0x24
+            int x28;          // 0x28
             int x2c;          // 0x2c
-            int x30;          // 0x3c
-            int x34;          // 0x3c
-            int x38;          // 0x3c
+            int x30;          // 0x30
+            int x34;          // 0x34
+            int x38;          // 0x38
             int x3c;          // 0x3c
-            int x40;          // 0x4c
-            int x44;          // 0x4c
-            int x48;          // 0x4c
+            int x40;          // 0x40
+            int x44;          // 0x44
+            int x48;          // 0x48
             JOBJ *kirby_jobj; // 0x4c
         } hp_bar;
         struct
@@ -108,12 +105,12 @@ typedef struct HUDElementData // created by 80114e24
         struct
         {   
             Vec3 pos[4];           // 0x14
-            JOBJ *j[4];            // 0x34
+            JOBJ *j[4];            // 0x44
         } ply_hud;
         struct
         {   
             int x14;           // 0x14
-            int x18;           // 0x1c
+            int x18;           // 0x18
             int x1c;           // 0x1c
             int ply;           // 0x20
             JOBJ *bar_j;       // 0x24

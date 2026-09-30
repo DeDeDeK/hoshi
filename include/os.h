@@ -24,7 +24,6 @@ char *strrchr(const char *, int); // 0x803b7df8
 #define BytesToKB(bytes) ((float)(bytes) / 1000.0)
 #define BytesToMB(bytes) ((float)(bytes) / 1000000.0)
 #define BitCheck(num, bit) !!((num) & (1 << (bit))) // returns 0 or 1
-#define BitCheck(num, bit) !!((num) & (1 << (bit))) // returns 0 or 1
 #define __FILENAME__ (strrchr(__FILE__, '\\') ? strrchr(__FILE__, '\\') + 1 : __FILE__)
 #define assert(msg) __assert(__FILENAME__, __LINE__, msg)
 #define divide_roundup(dividend, divisor) (ceil((float)dividend / (float)divisor))
@@ -325,13 +324,16 @@ struct OSContext
     u32 lr;                  // 0x84
     u32 ctr;                 // 0x88
     u32 xer;                 // 0x8c
-    u64 fprs[0x20];          // f0-f31
-    u64 fpscr;               // 0x190
+    f64 fprs[0x20];          // 0x90, f0-f31
+    u32 fpscr_pad;           // 0x190
+    u32 fpscr;               // 0x194
     u32 srr0;                // 0x198 - saved PC
     u32 srr1;                // 0x19c - saved MSR
+    u16 mode;                // 0x1a0
     u16 state;               // 0x1a2; last bit means OSSaveFPUContext was called, second last bit means the GPRs were saved by the exception handler
-    u64 gqrs[4];             // 0x1a4
-    u64 pairedSingles[0x20]; // starting at 0x1c8
+    u32 gqr[8];              // 0x1a4
+    u32 psf_pad;             // 0x1c4
+    f64 psf[0x20];           // 0x1c8, paired-single halves of f0-f31
 };
 struct OSHeapCell
 {
@@ -439,111 +441,6 @@ struct RGB565
     unsigned short g : 6;
     unsigned short b : 5;
 };
-struct MTHPlayParam
-{
-    int on_frame; // frame to apply the below frame rate (offset from last frame rate change)
-    int rate;     // in game frames per mth frame
-};
-struct MTHHeader
-{
-    char magic[4];      // 0x0, idk why they call this magic
-    int x4;             //
-    int version;        // 0x8
-    int bufSize;        // 0xc
-    int xSize;          // 0x10
-    int ySize;          // 0x14
-    int framerate;      // 0x18
-    int numFrames;      // 0x1c
-    int firstFrame;     // 0x20
-    int frameOffsets;   // 0x24
-    int firstFrameSize; // 0x28
-    void *x2c;          // 0x2c
-    void *x30;          // 0x30
-    void *x34;          // 0x34
-    void *x38;          // 0x38
-    void *x3c;          // 0x3c
-};
-struct MTHPlayback
-{
-    MTHHeader header;
-    int numFrames;            // 0x40
-    int xSize;                // 0x44
-    int ySize;                // 0x48
-    void **jpeg_lookup;       // 0x4c
-    void *decoded_bright;     // 0x50
-    void *decoded_chromeb;    // 0x54
-    void *decoded_chromer;    // 0x58
-    void *x5c;                // 0x5c
-    void *x60;                // 0x60
-    void *x64;                // 0x64
-    int loop;                 // 0x68
-    void *x6c;                // 0x6c
-    void *x70;                // 0x70
-    void *x74;                // 0x74
-    int x78;                  // 0x78
-    void *x7c;                // 0x7c
-    int x80;                  // 0x80
-    void *x84;                // 0x84
-    void *x88;                // 0x88
-    void *x8c;                // 0x8c
-    void *x90;                // 0x90
-    void *x94;                // 0x94
-    void *x98;                // 0x98
-    void *x9c;                // 0x9c
-    void *xa0;                // 0xa0
-    void *xa4;                // 0xa4
-    void *xa8;                // 0xa8
-    void *xac;                // 0xac
-    void *xb0;                // 0xb0
-    void *xb4;                // 0xb4
-    void *xb8;                // 0xb8
-    void *xbc;                // 0xbc
-    void *xc0;                // 0xc0
-    void *xc4;                // 0xc4
-    void *xc8;                // 0xc8
-    void *xcc;                // 0xcc
-    void *xd0;                // 0xd0
-    void *xd4;                // 0xd4
-    void *xd8;                // 0xd8
-    void *xdc;                // 0xdc
-    void *xe0;                // 0xe0
-    void *xe4;                // 0xe4
-    void *xe8;                // 0xe8
-    void *xec;                // 0xec
-    void *xf0;                // 0xf0
-    void *xf4;                // 0xf4
-    void *xf8;                // 0xf8
-    void *xfc;                // 0xfc
-    int bufSize;              // 0x100
-    int jpeg_cache_num;       // 0x104
-    void *x108;               // 0x108
-    void *x10c;               // 0x10c
-    void *is_loading_frame;   // 0x110
-    void *x114;               // 0x114
-    void *x118;               // 0x118
-    int x11c;                 // 0x11c
-    int next_jpeg_offset;     // 0x120, next offset to read on disc
-    void *x124;               // 0x124
-    int entrynum;             // 0x128
-    MTHPlayParam *play_param; // 0x12c
-    void *x130;               // 0x130
-    void *x134;               // 0x134
-    void *x138;               // 0x138
-    void *x13c;               // 0x13c
-    void *x140;               // 0x140
-    void *x144;               // 0x144
-    void *x148;               // 0x148
-    int power;                // 0x14C
-    OSAlarm alarm;            // 0x150
-};
-struct JPEGHeader
-{
-    int nextSize;  // 0x0
-    int prevSize;  // 0x4
-    int imageSize; // 0x8
-    int audioSize; // 0xc
-};
-
 struct FSTEntry
 {
     unsigned int is_dir : 8;           // 0x0
@@ -628,7 +525,7 @@ struct FileReadParam
 {
     u8 xc0 : 2; // 0xc0
     u8 x38 : 3; // 0x38
-    u8 x07 : 3; // 0x07, 0 = unk, 1 = using dram address, 2 = unk, 3 = using aram address, evidenced by 80016708
+    u8 x07 : 3; // 0x07, 0 = unk, 1 = using dram address, 2 = unk, 3 = using aram address
 };
 
 typedef struct SIXYLookup
@@ -657,14 +554,16 @@ static OSHeap **__OSHeapTable = (OSHeap **)0x805ddeb0;
 static int *stc_fst_totalentrynum = (int *)0x805ddd94;
 static FSTEntry **stc_fst_entries = (FSTEntry **)0x805ddd8c; // indexed by entrynum (0 is always the root directory)
 static char **stc_fst_filenames = (char **)0x805ddd90;       // use FSTEntry.filename_offset to find an entrynums name
-static int *stc_si_sampling_rate = (int *)0x804D740C;
-static SIXYLookup *stc_si_xy = (SIXYLookup *)0x80402ca0;
+static int *stc_si_sampling_rate = (int *)0x805de060;
+static SIXYLookup *stc_si_xy = (SIXYLookup *)0x804fccf8; // [12] per msec for NTSC/MPAL/EURGB60; the PAL table follows at [12]
 static OSReportData *osreport_data = (OSReportData *)0x8058d198;
 
 /*** OS Library ***/
 typedef void *(*OSThreadStartFunction)(void *param);
 typedef void (*DVDReadCallback)(int result, DVDFileInfo *fileInfo);
-typedef void (*FileReadCallback)(int result, void *arg);
+// staging is the 16 KB bounce buffer for reads that go through one, else 0.
+// error is nonzero when the read was cancelled.
+typedef void (*FileReadCallback)(int request_id, void *arg, void *staging, int error);
 
 int OSGetTick(); // 0x803db530
 u64 OSGetTime(); // 0x803db518
@@ -709,7 +608,7 @@ int File_Read(int entrynum, int file_offset, void *buffer, int read_size, int fl
 // that the read reported no error. Clear the flag before the read and spin on
 // File_Wait afterwards to turn File_Read into a blocking one - buffer and read_size
 // must be 32-byte aligned, file_offset a multiple of 32.
-void File_ReadDone(int r3, void *arg); // 0x80058e1c
+void File_ReadDone(int request_id, void *arg, void *staging, int error); // 0x80058e1c
 // Pumps the file task queue (DoTasks) and returns *stc_file_read_done, so a
 // `while (File_Wait() == 0);` loop both drives and waits for an outstanding read.
 int File_Wait(); // 0x80058e60
@@ -753,7 +652,6 @@ s32 CARDRead(CARDFileInfo *fileInfo, void *buf, s32 length, s32 offset); // 0x80
 s32 CARDReadAsync(CARDFileInfo *fileInfo, void *buf, s32 length, s32 offset, void *callback); // 0x803e7940
 s32 CARDWrite(CARDFileInfo *fileInfo, void *buf, s32 length, s32 offset); // 0x803e7e04
 s32 CARDWriteAsync(CARDFileInfo *fileInfo, void *buf, s32 length, s32 offset, void *callback); // 0x803e7cf0
-s32 CARDGetXferredBytes(s32 chan); // 0x803126b4
 u32 PADRead(PADStatus *status); // 0x803dc8e8
 u32 PADReset(u32 mask); // 0x803dc4cc, use PAD_CHANX_BIT
 u32 SISetXY(u16 line, u8 cnt); // 0x803e93c0, returns the new XY register value
@@ -811,7 +709,6 @@ float sqrtf(float num); // 0x803bd490
 void MTXRotRad(Mtx m, char axis, f32 rad); // 0x803d1738
 void Vec3_RotateAboutUnitAxis(Vec3 *v, Vec3 *axis, float angle); // 0x800638f8
 
-/* GameCube SDK math library */
 float VECMag(Vec3 *v);                          // 0x803d2158, |v|
 float VECSquareMag(Vec3 *v);                    // 0x803d2140, |v|^2 (no sqrt)
 float VECDistance(Vec3 *a, Vec3 *b);            // 0x803d22f4, |a-b|

@@ -126,9 +126,9 @@
 #define LOBJ_SPEC_DIRTY (1 << 8)
 
 // COBJ flags
-#define COBJ_UP_VECTOR_UNK (1 << 0) // 0x00000001, related to initing the up vector on cobj load (8036a440)
-#define COBJ_MTX_DIRTY (1 << 1)     // 0x00000002, updates the view mtx when this flag is lowered during COBJSetCurrent @ 80368564
-#define COBJ_40000000 (1 << 30)     // 0x40000000, is checked during CObjMtxIsDirty (8036959c)
+#define COBJ_UP_VECTOR_UNK (1 << 0) // 0x00000001, related to initing the up vector on cobj load
+#define COBJ_MTX_DIRTY (1 << 1)     // 0x00000002, updates the view mtx when this flag is lowered during COBJSetCurrent
+#define COBJ_40000000 (1 << 30)     // 0x40000000, is checked during CObjMtxIsDirty
 #define COBJ_80000000 (1 << 31)     // 0x80000000, is raised when the COBJSetCurrent returns
 
 #define PROJ_PERSPECTIVE 1
@@ -248,7 +248,6 @@ struct GOBJProc
 
 struct GXList
 {
-    // pointed to @ -0x3e80(r13)
     GOBJ *gx_render[63]; // pointer to 63 gobjs
     GOBJ *gx_camera;     // pointer to the highest priority cobj gobj. they are linked together via the next member.
 };
@@ -352,7 +351,7 @@ struct JOBJDesc
     Vec3 rotation;                  // 0x14 - 0x1C
     Vec3 scale;                     // 0x20 - 0x28
     Vec3 position;                  // 0x2C - 0x34
-    Mtx mtx;                        // 0x38
+    Mtx *mtx;                       // 0x38, JObjLoad copies it into a fresh JOBJ.MTX when non-NULL
     struct _HSD_RObjDesc *robjdesc; // 0x3C
 };
 
@@ -557,8 +556,8 @@ struct COBJ
     WOBJ *interest;      // 0x28
     union
     {
-        f32 roll; // 0x28
-        Vec3 up;  // 0x28 - 0x34
+        f32 roll; // 0x2C
+        Vec3 up;  // 0x2C - 0x34
     } u;
     f32 near; // 0x38
     f32 far;  // 0x3C
@@ -634,7 +633,7 @@ struct _HSD_TObjTev
     u8 color_clamp;  // 0x06
     u8 alpha_clamp;  // 0x07
 
-    u8 color_a;      // 0x08 color combiner input selectors (see header comment)
+    u8 color_a;      // 0x08 color combiner input selectors
     u8 color_b;      // 0x09
     u8 color_c;      // 0x0A
     u8 color_d;      // 0x0B
@@ -646,8 +645,8 @@ struct _HSD_TObjTev
 
     GXColor constant; // 0x10 primary KColor (recolor target; RGB only - opacity is MObj.mat->alpha)
     GXColor tev0;     // 0x14 secondary blend color (color_a)
-    GXColor tev1;     // 0x18 tertiary register (unused by the inhale model)
-    uint flags;       // 0x1C color/alpha-tree enable bits (inhale model = 0xC000007F)
+    GXColor tev1;     // 0x18 tertiary register
+    uint flags;       // 0x1C color/alpha-tree enable bits
 };
 
 struct _HSD_LightPoint
@@ -749,9 +748,9 @@ struct LOBJ
     Vec3 lvec;
     AOBJ *aobj; // 0x48
     u32 id;     // 0x4c, GXLightID
-    // GXLightObj lightobj;      //0x50
-    u32 spec_id; // 0x90 GXLightID
-    // GXLightObj spec_lightobj; //0x94
+    u8 lightobj[0x40];      // 0x50, GXLightObj
+    u32 spec_id;            // 0x90, GXLightID
+    u8 spec_lightobj[0x40]; // 0x94, GXLightObj
 };
 
 // GXFogType values written to HSD_Fog.type / HSD_FogDesc.type and passed
@@ -803,12 +802,12 @@ typedef struct AreaLightData
 
 // Live AreaLight runtime object built by AreaLight_Create. One per stage,
 // stored at GrObj+0x718. Per-frame lerp target for sky-preset color/direction.
-// Bit 0x80 of byte +0x38 is the visibility bit toggled by the preset's
-// light_vis_flag (preset+0x44 bit 0).
+// Every AreaLight is on one list headed at 0x538(r13); AreaLight_RegistryWalk
+// dispatches each visible one by kind through a 12-byte handler table at 0x8049ac60.
 struct AreaLight
 {
-    HSD_ClassInfo *parent;  // 0x00 vtable, from class-table 1336(r13)
-    void *class_ptr;        // 0x04 the class param passed to AreaLight_Create
+    struct AreaLight *next; // 0x00 registry list
+    int kind;               // 0x04 the kind passed to AreaLight_Create
     u32 header;             // 0x08 copied from src+0x00
     u8 unk_0C;              // 0x0C copied from src+0x04
     u8 flags;               // 0x0D copied from src+0x05
@@ -822,7 +821,9 @@ struct AreaLight
     u32 attn_param_1;       // 0x2C from src+0x24
     u32 attn_param_2;       // 0x30 from src+0x28
     u32 extra;              // 0x34 r5 to AreaLight_Create (=0 from stage init)
-    u32 x38;      // 0x38 bit 0x80 = visibility (set by light_vis_flag)
+    u8 is_visible : 1;      // 0x38, 0x80, set on create; AreaLight_BroadcastVisFlag copies light_vis_flag (preset+0x44 bit 0) here
+    u8 x38_7f : 7;          // 0x38
+    u8 x39[3];              // 0x39
 };
 typedef struct AreaLight AreaLight;
 
@@ -856,16 +857,15 @@ typedef struct HSD_GObjInitData {
     u8 p_link_max;
     u8 gx_link_max;
     u8 proc_pri_max;
-    void* funcs; 
-    u64* unk;
+    void* funcs;
+    u64* plink_blacklist; // HSD_Update.plink_blacklist, the p_links GObj_UpdateAll skips
 } HSD_GObjInitData;
 
 /*** Static Variables ***/
 static GOBJ ***stc_gobj_lookup = (GOBJ ***)(0x805de334);                        //
-static u8 *stc_gobj_proc_num = (u8 *)0x8058c192;                                // HSD_GObjInitData.proc_pri_max, highest s_link in the below array
-static GOBJProc ***stc_gobjproc_lookup = (GOBJProc ***)0x805de348;              // array of gobj procs ptrs, indexed by s_link
+static GOBJProc ***stc_gobjproc_lookup = (GOBJProc ***)0x805de348;              // array of gobj procs ptrs, indexed by s_link (stc_gobj_init_data->proc_pri_max of them)
 static GOBJProc **stc_gobjproc_cur = (GOBJProc **)0x805de340;                   // current gobj proc being processed
-static u32 *stc_gobjproc_updateidx_cur = (u32 *)0x805de344;                     // update index of the current gobj proc being processed. this is compared to
+static u32 *stc_gobjproc_updateidx_cur = (u32 *)0x805de344;                     // cycles 0..2 per GObj_UpdateAll; a proc whose update_idx matches is skipped that pass
 static HSD_GObjInitData *stc_gobj_init_data = (HSD_GObjInitData *)0x8058c190;
 static float *stc_cobj_aspect = (float *)0x805deb20;
 
@@ -899,14 +899,14 @@ void HSD_JObjMakePositionMtx(JOBJ *jobj, Mtx *vmtx, Mtx *pmtx); // 0x8040f00c - 
 void JObj_SetFrameAndRate(JOBJ *j, int frame, float rate); // 0x80138ba4
 void JObj_ForEachAnim(void *obj, ForEachAnimObjKind obj_kind, ForEachAnimFlag flags, void *cb, int arg_kind, ...); // 0x803fcdb8 - arg_kind specifies how to pop args off the va_list
 void JObj_Anim(JOBJ *joint); // 0x8040a1a0
-void JObj_AnimAll(JOBJ *joint); // 0x8040a304
+void JObj_AnimAll(JOBJ *joint); // 0x8040a64c, runs the AObj end callbacks around the recursive walk (0x8040a304)
 void JObj_AddAnim(JOBJ *joint, void *animjoint, void *matanimjoint, void *shapeanimjoint); // 0x80409340
 void JObj_AddAnimAll(JOBJ *joint, void *animjoint, void *matanimjoint, void *shapeanimjoint); // 0x80409480
 void JObj_RemoveAnim(JOBJ *joint); // 0x80408e74
 void JObj_RemoveAnimAll(JOBJ *joint); // 0x80408edc
 void JObj_ReqAnim(JOBJ *joint, float frame); // 0x80409250
 void JObj_ReqAnimByFlags(JOBJ *joint, int flags, float frame); // 0x80408f00
-void JObj_ReqAnimAll(JOBJ *joint, float unk); // 0x80409274
+void JObj_ReqAnimAll(JOBJ *joint, float frame); // 0x80409274
 void JObj_ReqAnimAllByFlags(JOBJ *joint, int flags, float frame); // 0x80408f88
 void JObj_SetAllMOBJFlags(JOBJ *joint, int flags); // 0x80052fb8
 int JObj_CheckAObjPlaying(JOBJ *joint); // 0x800547e0
@@ -917,10 +917,10 @@ void JObj_SetAllAOBJRateByFlags(JOBJ *j, int flags, float rate); // 0x800550bc
 // The end frame at +0x08 becomes every AObj's.
 void JObj_AddFigaTreeAnim(JOBJ *joint, void *figatree);  // 0x8006e2c0
 float FigaTree_GetEndFrame(void *figatree);              // 0x8006e58c, +0x08, or 0 when NULL
-// Despite the name, the engine's general "place a JObj in the world": builds a
-// TRS matrix from an orthonormal basis (right = forward x up, normalized) scaled
-// by scale, translates it to pos and stamps it on the joint.
-void gmLanMenu_Scale3DObject(f32 scale, JOBJ *joint, Vec3 *forward, Vec3 *up, Vec3 *pos); // 0x80054414
+// The engine's general "place a JObj in the world": builds a TRS matrix from an
+// orthonormal basis (right = forward x up, normalized) scaled by scale, translates
+// it to pos and stamps it on the joint.
+void JObj_SetFromBasis(f32 scale, JOBJ *joint, Vec3 *forward, Vec3 *up, Vec3 *pos); // 0x80054414
 void JObj_SetAllAOBJLoopByFlags(JOBJ *j, int flags); // 0x800550f4
 void JObj_DispAll(JOBJ *joint, Mtx *vmtx, int rendermode, int mobj_flags); // 0x8040a7b8
 void JObj_AttachPosition(JOBJ *to_attach, JOBJ *attach_to); // 0x80055c14
@@ -957,7 +957,7 @@ void CObj_EraseScreen(COBJ *cobj, GXBool color_update_enable, GXBool alpha_updat
 void CObj_RenderGXLinks(GOBJ *gobj, int render_mode); // 0x8042a0b4
 void CObj_EndCurrent(); // 0x804016c4
 void CObj_SetOrtho(COBJ *cobj, float top, float bottom, float left, float right); // 0x80402f08
-void CObj_SetViewport(COBJ *cobj, float left, float right, float top, float bottom); // 0x80402de8
+void CObj_SetViewport(COBJ *cobj, s16 *viewport); // 0x80402de8, viewport is {left, right, top, bottom}
 void CObj_SetScissor(COBJ *cobj, u16 left, u16 right, u16 top, u16 bottom); // 0x80402d3c
 void CObj_SetEyePosition(COBJ *cobj, Vec3 *eye_pos); // 0x804018ac, writes the eye WObj (+0x24) position
 void COBJ_GetEyePosition(COBJ *cobj, Vec3 *eye_pos); // 0x80401840
@@ -1015,10 +1015,10 @@ void HSD_FogSet(HSD_Fog *fog); // 0x8041b0fc
 void HSD_FogSetCurrent(HSD_Fog *fog); // 0x8041b0d0 - records fog as the current fog, then HSD_FogSet
 HSD_Fog *HSD_FogGetCurrent(void); // 0x8041b0f4 - the fog last passed to HSD_FogSetCurrent
 
-AreaLight *AreaLight_Create(void *class_ptr, AreaLightData *src, u32 extra);  // 0x80079428
-AreaLight *AreaLight_Create_Default(AreaLightData *src);                       // 0x8007a4d0 - class=0, extra=0
+AreaLight *AreaLight_Create(int kind, AreaLightData *src, u32 extra);         // 0x80079428
+AreaLight *AreaLight_Create_Default(AreaLightData *src);                       // 0x8007a4d0 - kind=0, extra=0
 void AreaLight_Lerp(AreaLight *start, AreaLightData *target, AreaLight *dest, float ratio); // 0x800797a8
-void AreaLight_BroadcastVisFlag(void *class_ptr, u8 vis_flag);                 // 0x80079948 - preset+0x44 bit 0 -> +0x38 bit 0x80
+void AreaLight_BroadcastVisFlag(int kind, u8 vis_flag);                        // 0x80079948 - sets is_visible on every AreaLight of that kind
 void AreaLight_StageInit(GOBJ *grobj_or_gobj);                                 // 0x800ef618 - stack-builds default, stores at +0x718
 void AreaLight_LerpToLive(GOBJ *grobj, AreaLight *start, AreaLightData *target, float ratio); // 0x800ef864 - Sky_Update adapter
 

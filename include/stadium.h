@@ -78,7 +78,7 @@ typedef enum StadiumGroup
 //
 // The loop runs p = 0..3 unconditionally - CPU racers are latched too, and
 // Stadium_ComputeRank* rank them alongside humans. It is skipped entirely when
-// Gm_IsReplay() (GameData.is_replay) or 3DHud_GetUnkFromPKind()
+// Gm_IsReplay() (GameData.is_replay) or Gm_IsTitleMajor()
 // (major_cur == MJRKIND_TITLE) holds, leaving the previous round's values in
 // place - check is_replay before reading.
 //
@@ -90,7 +90,7 @@ typedef struct StadiumResults
     u8 ply_placement[4];   // 0xbc8, from GameData.player_finish_rank; 0 = 1st
     u8 ply_finished[4];    // 0xbcc, from GameData.player_finished_flag; crossed the goal
     int ply_race_time[4];  // 0xbd0, from GameData.player_finish_time; frames @60fps, 0 = DNF
-    int ply_freerun_time[4]; // 0xbe0, from GameData+0x8cc (Free Run's own time slot)
+    int ply_freerun_time[4]; // 0xbe0, from GameData.player_free_run_time
     int ply_lap_count[4];  // 0xbf0, from GameData.player_lap_count
     u8 xc00[4];            // 0xc00, from GameData+0xa30; validity gate - must be 0 to record
     int ply_points[4];     // 0xc04, from GameData.destruction_derby_ko_num; polymorphic
@@ -105,10 +105,10 @@ StadiumGroup Gm_GetCurrentStadiumGroup(); // 0x8000ae74
 int Gm_StadiumIsDefaultUnlocked(StadiumKind kind);  // 0x8000C148
 int Gm_StadiumIsUnlocked(StadiumKind kind);        // 0x8000C17C, maps StadiumKind 3-22 -> reward indices 37-42
 int Gm_StadiumIsAvailable(StadiumKind kind);        // 0x8000C228 - composite check (default + checklist + bitfield)
-int Gm_StadiumCheckUnlocked(StadiumKind kind);     // 0x80007EE4 - reads unlock bitfield (handles cache)
-void Gm_StadiumWriteUnlocked(StadiumKind kind, int unlock); // 0x80007F6C - writes unlock bitfield (handles cache)
-int Gm_StadiumCheckNewLabel(StadiumKind kind);      // 0x80008038 - reads new-label bitfield (handles cache)
-void Gm_StadiumWriteNewLabel(StadiumKind kind, int set);  // 0x800080C0 - writes new-label bitfield (handles cache)
+int Gm_StadiumCheckUnlocked(StadiumKind kind);     // 0x80007EE4 - reads unlock bitfield (session copy while Net_IsSessionActive)
+void Gm_StadiumWriteUnlocked(StadiumKind kind, int unlock); // 0x80007F6C - writes unlock bitfield (session copy while Net_IsSessionActive)
+int Gm_StadiumCheckNewLabel(StadiumKind kind);      // 0x80008038 - reads new-label bitfield (session copy while Net_IsSessionActive)
+void Gm_StadiumWriteNewLabel(StadiumKind kind, int set);  // 0x800080C0 - writes new-label bitfield (session copy while Net_IsSessionActive)
 // StadiumResults accessors. All take the player index and index the results
 // block directly, so they carry CPU entries and stay valid until the next
 // stadium overwrites them.
@@ -117,15 +117,16 @@ int Ply_GetStadiumRaceTime(int ply);     // 0x8000B6AC - frames @60fps, 0 = DNF
 int Ply_GetStadiumPoints(int ply);       // 0x8000B75C
 float Ply_GetStadiumDistance(int ply);   // 0x8000B798 - metres
 
-// Increments GameData.city.stadium_round (stb r0,0x5af(r31) at 0x800406FC)
-// before returning - calling it to read the round corrupts the counter.
-int Gm_StadiumRoundNum(); // 0x800406dc
+// Increments GameData.city.stadium_round (stb r0,0x5af(r31) at 0x800406FC), then
+// returns 1 when the stadium is over: once the count reaches 2 for city_kind 9 and
+// 11, immediately for every other kind. Calling it only to read corrupts the counter.
+int Gm_AdvanceStadiumRound(); // 0x800406dc
 u8 Gm_GetStadiumRound(); // 0x8000AE08 - the pure read of GameData.city.stadium_round
 
 // The two StadiumKind-indexed bitfields the Write/Check functions above front.
-// Touching them directly bypasses the temporary cache those route through while
-// the checklist menu is open - whose writes are discarded when it closes - so a
-// permanent unlock has to be written here.
+// During a LAN session (Net_IsSessionActive) those functions use a session copy in
+// GameData.unlock_cache instead, whose writes never reach the save, so a permanent
+// unlock has to be written here.
 static volatile u32 *stc_stadium_unlocked = (volatile u32 *)0x80536EE8;
 static volatile u32 *stc_stadium_new_label = (volatile u32 *)0x80536EEC;
 

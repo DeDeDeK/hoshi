@@ -43,7 +43,7 @@ typedef struct cmMainParamCommon
     float x344;                 // 0x344
     float zoom_dist_min;        // 0x348, most negative zoom_amt (camera pulled in)
     float zoom_dist_max;        // 0x34c, largest zoom_amt (camera pushed out)
-    float x350;                 // 0x350, interest raise at full zoom_amt
+    float zoom_interest_raise;  // 0x350, interest raise at full zoom_amt
 } cmMainParamCommon;
 
 typedef struct CamInterest
@@ -68,13 +68,13 @@ typedef struct CamData
     CameraParam x14;        // 0x14  (copied from x138)
     u8 x3c[0x38];           // 0x3c
     u8 x74[0x10];           // 0x74
-    u8 x84_80 : 1;          // 0x84, enables PlyCam_MachineZoomAdjust; raised while a kind feeds rotation_amt/zoom_amt
+    u8 zoom_enabled : 1;    // 0x84, 0x80, enables PlyCam_MachineZoomAdjust; raised while a kind feeds rotation_amt/zoom_amt
     float rotation_amt;     // 0x88, C-Stick X orbit angle, radians
     float zoom_amt;         // 0x8c, C-Stick Y eye distance offset, clamped to cmMainParamCommon zoom_dist_min..max
-    float x90;              // 0x90, interest raise along up, scaled from zoom_amt by cmMainParamCommon x350
+    float interest_raise;   // 0x90, interest raise along up, scaled from zoom_amt by cmMainParamCommon.zoom_interest_raise
     CamInterest *target;    // 0x94, camera target. is 0x450 of riderdata?
     u8 x98[0x28];           // 0x98
-    CameraParam xc0;        // 0xc0, solved this frame by the kind's per-frame callback. bp this one to find what game code affects the camera! fov is set @ 800c2000
+    CameraParam xc0;        // 0xc0, solved this frame by the kind's per-frame callback
     CameraParam xe8;        // 0xe8, xc0 smoothed toward over time; gets copied directly from the cobj eye position @ 800b783c
     CameraParam x110;       // 0x110, xe8 after PlyCam_MachineZoomAdjust applies rotation_amt/zoom_amt
     CameraParam x138;       // 0x138,
@@ -89,7 +89,7 @@ typedef struct CamData
     float x2c8;             // 0x2c8,
 } CamData;
 
-// Per-view eye-offset record. PlyCam_Think builds the camera's right/up basis and
+// Per-view eye-offset record. PlyCamGObj_Think builds the camera's right/up basis and
 // then, gated on gate > 0, offsets the eye it hands the COBJ by
 // right * eye_right * scale_right + up * eye_up * scale_up. The scales initialise
 // to 1.0, so writing the two offsets in world units and raising the gate is the
@@ -150,8 +150,8 @@ typedef struct PlayerCamLookup
 static PlayerCamLookup *stc_plycam_lookup = (PlayerCamLookup *)0x80557248; // array of 32, this is actually part of a larger struct
 
 COBJ *PlyCam_GetCObj(int cam_index);                            // 0x800b8054
-void PlyCam_Think();                                            // 0x800b3540, per-frame drive for one player camera
-void PlyCam_MachineZoomAdjust(CamData *cam);                    // 0x800b61f4, folds rotation_amt/zoom_amt into x110; no-op unless x84_80
+void PlyCamGObj_Think(GOBJ *cam_gobj);                          // 0x800b3540, per-frame drive for one player camera
+void PlyCam_MachineZoomAdjust(CamData *cam);                    // 0x800b61f4, folds rotation_amt/zoom_amt into x110; no-op unless zoom_enabled
 // C-Stick to rotation_amt / zoom_amt. p = {rot_scale, zoom_min, zoom_max, interest_raise}.
 void cameraControlThink(CamData *cam, int pad_index, float *p); // 0x800b67cc
 int PlyCam_OnMachineThink(CamData *cam, int pad_index);         // 0x800c04b0, kind 1 input think

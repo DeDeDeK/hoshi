@@ -8,7 +8,7 @@
 
 #define LBAUDIO_TRACK_AUTO_START     34 // evidenced @ 8005d684
 #define LBAUDIO_TRACK_AUTO_END      383 // evidenced @ 8005d684
-#define LBAUDIO_TRACK_AUTO_NUM      (LBAUDIO_TRACK_AUTO_END - LBAUDIO_TRACK_AUTO_START)
+#define LBAUDIO_TRACK_AUTO_NUM      (LBAUDIO_TRACK_AUTO_END - LBAUDIO_TRACK_AUTO_START + 1) // 350, Audio_AllocTrack scans them all
 
 #define USERVOL_NUM 2                   // evidenced @ 80449c28
 
@@ -33,15 +33,6 @@ typedef enum BGMKind
     BGM_NUM = 69,
 } BGMKind;
 
-typedef enum FGMGroup
-{
-    FGMGROUP_PERSIST,   // main, pokemon, nr_name, end
-    FGMGROUP_ANNOUNCER, // nr_title, nr_select, nr_1p, nr_vs
-    FGMGROUP_CHARACTER, // character ssms + null.ssm
-    FGMGROUP_STAGE,     // stage ssms + last.ssm
-    FGMGROUP_1P,        // ending, 1pend
-} FGMGroup;
-
 typedef enum FGM_Menu
 {
     FGMMENU_CS_CANCEL = 0x10000,
@@ -53,81 +44,6 @@ typedef enum FGM_Menu
     FGMMENU_CS_DOOR_CLOSE,
     FGMMENU_CS_START_OK,
 } FGM_Menu;
-
-typedef enum FGM_Main
-{
-    FGMMAIN_START = 0x20000,
-    FGMMAIN_INFO_TIMECOUNT1 = 0x20011,
-    FGMMAIN_INFO_TIMECOUNT2,
-} FGM_Main;
-
-typedef enum FGM_Narrator_Select
-{
-
-    FGMNRSELECT_MULTIMAN = 30000,
-    FGMNRSELECT_CHOOSECHAR = 30004,
-    FGMNRSELECT_MELEE,
-} FGM_Narrator_Select;
-
-enum FGMID
-{
-    FGM_MAIN,
-    FGM_POKEMON,
-    FGM_NR_TITLE,
-    FGM_NR_SELECT,
-    FGM_NR_1P,
-    FGM_NR_VS,
-    FGM_CAPTAIN,
-    FGM_CLINK,
-    FGM_DK,
-    FGM_DRMARIO,
-    FGM_FALCO,
-    FGM_FOX,
-    FGM_GKOOPA,
-    FGM_ICE,
-    FGM_KIRBY,
-    FGM_KOOPA,
-    FGM_LINK,
-    FGM_LUIGI,
-    FGM_MARIO,
-    FGM_MARS,
-    FGM_MEWTWO,
-    FGM_NESS,
-    FGM_PEACH,
-    FGM_PICHU,
-    FGM_PIKACHU,
-    FGM_PURIN,
-    FGM_SAMUS,
-    FGM_ZS,
-    FGM_YOSHI,
-    FGM_GW,
-    FGM_GANON,
-    FGM_EMBLEM,
-    FGM_MHANDS,
-    FGM_KIRBYTM,
-    FGM_CASTLE,
-    FGM_CORNERIA,
-    FGM_GREATBAY,
-    FGM_KONGO,
-    FGM_MUTECITY,
-    FGM_ONETT,
-    FGM_ZEBES,
-    FGM_GARDEN,
-    FGM_KLAID,
-    FGM_GREEN,
-    FGM_VENOM,
-    FGM_BIGBLUE,
-    FGM_FOURSIDE,
-    FGM_PUPUPU,
-    FGM_PSTADIUM,
-    FGM_1PADV,
-    FGM_ENDING,
-    FGM_NR_NAME,
-    FGM_1PEND,
-    FGM_LAST,
-    FGM_END,
-    FGM_NULL,
-};
 
 typedef enum AudioEmitterKind
 {
@@ -662,7 +578,7 @@ typedef struct Audio3D
     int largest_ssm_sizes[9];       // 0x10, ARAM carved per SSM slot. FGM_IndexLargestSSMSize
                                     //       (0x8005b8d8) writes it unbounded, so past slot 8 it
                                     //       corrupts `volume`
-    struct
+    struct __attribute__((packed))
     {
         // 0 is min, 255 is max.
         s16 x34;                    // 0x34
@@ -678,30 +594,28 @@ typedef struct Audio3D
         u8 x42_20 : 1;              // 
         u8 x42_10 : 1;              // playing a secondary song raises this. BGM stop lowers this flag
         u8 x42_08 : 1;              // BGM stop lowers this flag
-    } volume;
+    } volume;                       // 0x34, unpadded: tracks follows at 0x43
     struct
     {
-        u8 status[LBAUDIO_TRACK_AUTO_NUM];      // 0x43, 0 = F, free?. 1 = R, released?. 2 = S, stay?. 3 = M, mixing? used by riders and machines. 4 = O, off? seems everything up to LBAUDIO_TRACK_AUTO_START is reserved
-        u8 x1a0;                                // 
-        u8 owner[LBAUDIO_TRACK_AUTO_NUM];       // AudioTrackOwner
-        u8 x2f3[0x8];                           // unk
+        u8 status[LBAUDIO_TRACK_AUTO_NUM];      // 0x43, [track - LBAUDIO_TRACK_AUTO_START]; 0 = F, free?. 1 = R, released?. 2 = S, stay?. 3 = M, mixing? used by riders and machines. 4 = O, off? seems everything up to LBAUDIO_TRACK_AUTO_START is reserved
+        u8 owner[LBAUDIO_TRACK_AUTO_NUM];       // 0x1a1, AudioTrackOwner
     } tracks;
-    u8 sg_status[64];                   // 0x2fb, 0x80538383. 0 = free, 1 in use. 0-2 are reserved. index to this is stored to 0x42 of AudioEmitterData its looped through @ 8005d720
+    u8 sg_status[60];                   // 0x2ff, 0x80538387, [sg - 4]; 0 = free, 1 in use. sg 0-3 are reserved and have no entry. sg is stored to 0x42 of AudioEmitterData
     AudioEmitterData emitters[512];     // 0x33c, 0x805383c4. indexed by audio_3d
     u8 x1733C[0x6D4];                   // 8054F3C4
     int x17a10;                         // 8054fa98
     int x17a14;                         // 8054fa9c
-    int x17a18;                         // 8054fba0
-    int x17a1c;                         // 8054fba4, is limited to 300 @ 800614f8
-    int x17a20;                         // 8054fba8
-    int tick_num;                       // 8054fbac, increments every time 800614a8 runs
+    int x17a18;                         // 8054faa0
+    int x17a1c;                         // 8054faa4, is limited to 300 @ 800614f8
+    int x17a20;                         // 8054faa8
+    int tick_num;                       // 8054faac, incremented by AudioEmitter_Think
 } Audio3D;
 
 static u16 **stc_audio_track_unk = (u16 **)0x805de440;      // 0x1360(r13), 
 static int *stc_audio_track_num = (int *)0x805de444;        // 0x1364(r13), number of audio tracks in audio_track_unk. determined by 80059e50 
 static int *stc_audio_track_blacklist = (int *)0x805de450;  // 0x1370(r13), bitfield. (1 << audio_track) is AND'd with this value, if the flag is present it does not create the sfx
 
-static Audio3D *audio_3d_data = (Audio3D *)0x80538088;   // indexed by value returned from Audio_AllocSource()
+static Audio3D *audio_3d_data = (Audio3D *)0x80538088;
 
 static PID *stc_bgm_pid = (PID *)0x80508bc8;                            // 0 = ?, 1 = main song, 2 = secondary song (event) is -1 when nothing is playing
 static FGMInstanceData **p_voices = (FGMInstanceData **)0x8058e298;         // FGMInstance pointers that correspond to each pid. they are stored when the sfx script plays a sound @ 80441298
@@ -741,9 +655,7 @@ int SFX_PlayMenuSFX(int sfxID);                                                 
 int SFX_PlayRaw(int sfx, int volume, int pan, int audio_track, int sg);         // 0x80442a10, sg is 0x42 of AudioEmitterData. any audio_track other than 0 will remember the current instance and destroy it if another is requested to play with that slot
 int SFX_PlayFullVolume(int sfxID);                                              // 0x8006176c, plays a sound effect at full volume
 
-// Menu SFX wrappers - each plays one fixed menu sound (no args; the sfx id,
-// volume, pan, and track are hardcoded internally). Names from GKYE01.map.
-int playSoundFX_errorNoise(void);   // 0x80061734, "denied/error" buzzer for rejected menu actions
+int playSoundFX_errorNoise(void);   // 0x80061734, "denied/error" buzzer for rejected menu actions; plays one fixed menu sound
 
 void AudioHeap_SetAllocAndFree(void *alloc_func, void *free_func); // 0x804479d4
 
@@ -761,7 +673,7 @@ typedef void (*FGMTaskFunc)(void);
 // index base comes from stc_ssm_load_header, filled in by the file's own header
 // as the queue reaches it.
 void FGM_QueueLoad(char *path, int slot, FGMLoadCallback cb, void *arg);      // 0x8044809c
-void FGM_SychronousLoad(FGMTaskFunc do_tasks);                                // 0x80448220, spins until the queue drains
+void FGM_SynchronousLoad(FGMTaskFunc do_tasks);                               // 0x80448220, spins until the queue drains
 int FGM_InitSEM(void *sem_file);                                              // 0x80444208, relocates the image in place and installs it
 // Reads audio/<file_name> into the audio heap and hands it to FGM_InitSEM. Returns the
 // image, or NULL on failure.

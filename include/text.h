@@ -25,7 +25,7 @@ typedef enum TextCmdOpcode
     TEXTCMD_LINEBREAK,        // 0x03, 1 byte. Newline (advance cursor.y by line height * scale).
     TEXTCMD_LINEBREAK_REFLOW, // 0x04, 1 byte. LINEBREAK + sets reflow flag for next-frame re-entry.
     TEXTCMD_DELAY,            // 0x05, 3 bytes (u16 frames). Typewriter pause counter.
-    TEXTCMD_TIMING,           // 0x06, 5 bytes: sets temp.char_delay then temp.space_delay
+    TEXTCMD_TIMING,           // 0x06, 5 bytes (u16 char, u16 space). Loads the renderer's working delays; temp.char_delay/space_delay are untouched.
     TEXTCMD_POS,              // 0x07, 5 bytes (s16 x, s16 y), both pre-viewport_scale pixels. Subtext header.
     TEXTCMD_JUMP,             // 0x08, 5 bytes (s32 abs ptr). Absolute pointer jump (HSD-relocated).
     TEXTCMD_CALL,             // 0x09, 5 bytes (s32 abs ptr). Push return marker, jump absolute.
@@ -43,8 +43,8 @@ typedef enum TextCmdOpcode
     TEXTCMD_ALIGNRIGHTEND,    // 0x15, 1 byte. Pops align.
     TEXTCMD_KERNING,          // 0x16, 1 byte. Sets temp.kerning = 1 (no push).
     TEXTCMD_KERNINGEND,       // 0x17, 1 byte. Sets temp.kerning = 0.
-    TEXTCMD_FIT,              // 0x18, 1 byte. Sets temp.use_aspect_fit = 1 (auto-shrink to aspect.x).
-    TEXTCMD_FITEND,           // 0x19, 1 byte. Sets temp.use_aspect_fit = 0.
+    TEXTCMD_FIT,              // 0x18, 1 byte. Sets temp.use_aspect = 1 (auto-shrink to aspect.x).
+    TEXTCMD_FITEND,           // 0x19, 1 byte. Sets temp.use_aspect = 0.
     TEXTCMD_SPACE,            // 0x1a, 1 byte. Word separator (advances cursor.x by space-width).
     TEXTCMD_NOOP_1B,          // 0x1b, 1 byte. No-op.
     TEXTCMD_NOOP_1C,          // 0x1c, 1 byte. No-op.
@@ -83,11 +83,11 @@ struct TextHeapCell
 struct TextCanvas
 {
     TextCanvas *next;   // 0x0, intrusive next in stc_textcanvas_first chain
-    GOBJ *cam_gobj;     // 0x4, owning camera GObj (set unless no_create_cam_gobj < 0)
-    u16 size;           // 0x8, heap cell size remaining
+    GOBJ *cam_gobj;     // 0x4, owning camera GObj (NULL when no_create_cam_gobj is nonzero)
+    u16 entity_class;   // 0x8, GObj entity class for the canvas and its Text GObjs
     u16 sis_idx;        // 0xa, SIS slot bound to this canvas
-    u8 entity_class;    // 0xC, GObj entityclass passed to Text_CreateCanvas
-    u8 p_link;          // 0xD, GObj plink
+    u8 p_link;          // 0xC, GObj p_link
+    u8 p_priority;      // 0xD, GObj p_priority
     u8 gx_link;         // 0xE, GX link bit for child Text GObjs
     u8 gx_pri;          // 0xF, GX priority for child Text GObjs
 };
@@ -152,7 +152,7 @@ struct Text
                                //       0x01/0x02 SUBTEXT opcode, so 0x07-delimited buffers must write it
                                //       directly; it is never cleared, so one write persists across frames.
                                //       TEXTCMD_TIMING updates only the working register, not this field.
-        u16 space_delay;       // 0x92, per-space / linebreak pause in frames (init from space_delay_init; live-settable via TEXTCMD_TIMING).
+        u16 space_delay;       // 0x92, per-space / linebreak pause in frames (init from space_delay_init).
         int wait_countdown;    // 0x94, frames left to pause at the reveal frontier, decremented once per
                                //       render. Set from char_delay/space_delay, or by TEXTCMD_DELAY.
         int reveal_count;      // 0x98, glyphs revealed so far. Reset only by 0x01/0x02 SUBTEXT or Text
@@ -161,7 +161,6 @@ struct Text
         u8 kerning;            // 0x9D, mirror of Text.kerning, mutable via TEXTCMD_KERNING/KERNINGEND.
         u8 align;              // 0x9E, mirror of Text.align, mutable via TEXTCMD_ALIGN*.
         u8 pad9F;              // 0x9F, padding.
-        int pad100;            // 0xA0, padding/scratch.
     } temp;
 };
 
@@ -259,7 +258,7 @@ static void Text_SetColor(Text *text, int idx, GXColor *col)
     col_cmd->g = col->g;
     col_cmd->b = col->b;
 }
-static void Text_SetScale(Text *text, int idx, float x, float y)
+static void Text_SetSubtextScale(Text *text, int idx, float x, float y)
 {
     TextCmdScale *scale_cmd = (TextCmdScale *)Text_GetCommand(text, idx, TEXTCMD_SCALE);
 
@@ -462,7 +461,7 @@ static float Text_GetStringWidth(char *s, float scale)
 }
 
 /*** Functions ***/
-int Text_CreateCanvas(int sis_idx, int no_create_cam_gobj, int gobj_entityclass, int gobj_plink, int gobj_ppriority, int gxlink, int gxpri, int cobj_gxpri); // 0x8044f674 - the optional gobj and cobj_gxlink are used to create a cobj as well. set gobj
+int Text_CreateCanvas(int sis_idx, int no_create_cam_gobj, int gobj_entityclass, int gobj_plink, int gobj_ppriority, int gxlink, int gxpri, int cobj_gxpri); // 0x8044f674 - returns the canvas index within sis_idx; unless no_create_cam_gobj, also builds a camera GObj drawing gxlink at cobj_gxpri
 Text *Text_CreateText(int sis_idx, int canvas_idx); // 0x8044fa70
 Text *Text_CreateTextManual(int sis_idx, int canvas_idx, float pos_x, float pos_y, float pos_z, float limit_x, float limit_y); // 0x8044f128
 void Text_Destroy(Text *text); // 0x8044f350

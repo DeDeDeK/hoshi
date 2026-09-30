@@ -186,20 +186,22 @@ struct HSD_Update
     int (*isRequestPause)();        // 0x7f4,
     int (*isRequestFrameAdvance)(); // 0x7f8,
     int x7fc;                       // 0x7fc
-    u64 plink_blacklist;            // 0x800, p_links GObj_UpdateAll skips (bit = 1 << p_link); updateFunction ORs in stc_pause_plink_blacklists per set pause kind
-    u64 plink_blacklist_prev;       // 0x808
-    void *funcs;                    // 0x814
+    u64 plink_blacklist_req;        // 0x800, stc_pause_plink_blacklists ORed per set pause kind (bit = 1 << p_link); all ones while is_running is clear
+    u64 plink_blacklist;            // 0x808, the p_links GObj_UpdateAll skips: plink_blacklist_req, or all ones on a frame the engine-speed gate drops
+    u8 is_running : 1;              // 0x810, 0x80, clear while pause kind 0 is set without a frame advance
+    u8 x810_7f : 7;                 // 0x810
+    u8 x811[3];                     // 0x811
+    void *funcs;                    // 0x814, &MinorSceneDesc.cb_ThinkPreGObjProc of the current minor
     int x818;                       // 0x818
     int x81c;                       // 0x81c
-    int x820;                       // 0x820
+    int x820;                       // 0x820, incremented by Gm_IncrementUnkHSDUpdateFrames
     int x824;                       // 0x824
 };
 
 struct HSD_VI
 {
-    int x0;
-    int x4;
-    int is_prog;
+    int x0;        // 0x0, boot path kind (0x800063a8, 0x8000cd68)
+    int reset_req; // 0x4, 1 once the reset button is pressed with a disc present
 };
 
 typedef struct _HSD_VIStatus {
@@ -322,25 +324,28 @@ struct HSD_Archive
 };
 typedef struct {
     u8 padstatus_arr_len;       // 0x00  (number of queue slots)
-    u8 write_index;             // 0x01
-    u8 read_index;              // 0x02
+    u8 read_index;              // 0x01, advanced by HSD_PadConsume
+    u8 write_index;             // 0x02, advanced by _HSD_IncrementPadQueue
     u8 count;                   // 0x03
 } HSD_PadQueueInfo;
 
 /*** Static Variables ***/
-static HSD_IDTable *stc_hsd_default_table = (HSD_IDTable *)0x804C23EC;
-static HSD_VI *stc_HSD_VI = (HSD_VI *)0x8046b0f0;
-static HSD_Update *stc_hsd_update = (HSD_Update *)0x80479d58;
+static HSD_IDTable *stc_hsd_default_table = (HSD_IDTable *)0x8058bc94;
+static HSD_VI *stc_HSD_VI = (HSD_VI *)0x805dd540;
+static HSD_Update *stc_hsd_update = (HSD_Update *)0x805361b8; // GameData.update
 static int **stc_rng_seed = (int **)0x805dcd38;
+static HSD_Pad *stc_master_pads = (HSD_Pad *)0x8058b0e4; // HSD_PadRenewMasterStatus writes these
 static HSD_Pad *stc_engine_pads = (HSD_Pad *)0x8058b634;
 static u64 *stc_pause_plink_blacklists = (u64 *)0x80494f68; // per PauseKind, the p_links frozen while that kind is set (bit = 1 << p_link)
 static HSD_PadQueueInfo *stc_hsd_padqueue = (HSD_PadQueueInfo *)0x8058b080;
-static GXPixelFmt *stc_hsd_pixelfmt = (GXPixelFmt *)0x804d76c8;
+static GXPixelFmt *stc_hsd_pixelfmt = (GXPixelFmt *)0x805de2ac;
 static DebugLevel *stc_dblevel = (DebugLevel *)0x805DD630;
 static int *hsd_rand_seed = (int *)0x805dcd30;
 static HSD_VIInfo *hsd_vi_info = (HSD_VIInfo *)0x80589a80;
 
 /*** Functions ***/
+
+HSD_Update *Gm_GetHSDUpdate(); // 0x80005cbc, returns stc_hsd_update
 
 // NOTE: Archive_LoadFile internally allocates from a per-scene heap, so the
 // returned pointer is only valid for the current scene (3D scene exit zeroes
@@ -350,7 +355,7 @@ static HSD_VIInfo *hsd_vi_info = (HSD_VIInfo *)0x80589a80;
 HSD_Archive *Archive_LoadFile(char *filename);                                            // 0x800596b4
 void Archive_GetSymbols(HSD_Archive *archive, void *symbol_out, char *symbol_name, ...);  // 0x80059520, symbol_out/symbol_name pairs terminated with 0, a missing symbol stores 0
 void *Archive_GetPublicAddress(HSD_Archive *archive, char *symbol);                       // 0x8041e390
-void Archive_Init(HSD_Archive *archive, void *file_data, int size); // 0x8041e224, sets HSD_ARCHIVE_DONT_FREE in archive->flags
+int Archive_Init(HSD_Archive *archive, void *file_data, int size); // 0x8041e224, sets HSD_ARCHIVE_DONT_FREE in archive->flags; -1 when size disagrees with the header, else 0
 void Archive_Free(int heap_id, HSD_Archive *archive);               // 0x80059628, heap_id matches the Heap_Alloc heap (0 for Archive_LoadFile)
 char *Archive_GetExtern(HSD_Archive *archive, int index);                   // 0x8041e434, name of the nth extern symbol, 0 when out of range
 void Archive_LocateExtern(HSD_Archive *archive, char *symbols, void *addr); // 0x8041e46c, points every reference to the extern named symbols at addr
@@ -392,7 +397,7 @@ void HSD_ObjAllocInit(HSD_ObjAllocData *data, size_t size, u32 align); // 0x8041
 void *HSD_ObjAlloc(HSD_ObjAllocData *obj_def); // 0x804180e4
 void HSD_ObjFree(HSD_ObjAllocData *obj_def, void *obj); // 0x80418234
 void _hsdClassDestroy(void *hsd_class); // 0x80420b60, base class destroy, returns the object to its class memory pool
-void HSD_ImageDescCopyFromEFB(_HSD_ImageDesc *image_desc, int left, int top, int clear_efb); // 0x803f7a7c, must be called from a cobj callback!
+void HSD_ImageDescCopyFromEFB(_HSD_ImageDesc *image_desc, int left, int top, int clear_efb, int sync); // 0x803f7a7c, must be called from a cobj callback! sync runs GXPixModeSync and GXInvalidateTexAll after the copy
 void HSD_StartRender(int unk); // 0x80410544
 void EngineSpeed_Update(u64 ticks); // 0x80062874, engine frame duration in OS ticks, normal speed is bus_clock / 240
 void HSD_StateInvalidate(int flags); // 0x803f898c

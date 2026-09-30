@@ -38,7 +38,7 @@ typedef struct mpCollRec
 
 // mpCollInfo - floor/wall/ceiling collision results sub-struct. Allocated
 // internally by mpColl_Create via mpColl_AllocCollInfo (0x802416cc), pointed to
-// by CollData+0x44. mpColl_SetDefaultParams (0x802460d4) clears it and then runs
+// by CollData+0x44. mpColl_ProcessMapColl (0x802460d4) clears it and then runs
 // mpColl_UpdateCollision (0x802485e0) for up to 10 substeps, so the counts below
 // describe the frame's own pushback and survive until the next step clears them.
 // A body is touching a wall this frame exactly when wall_rec_num is non-zero;
@@ -57,10 +57,11 @@ typedef struct mpCollInfo
     int        capacity;        // 0x1bc, 1 - one contact per kind per substep
     u8         x1c0[0x1d0 - 0x1c0];
     int        contact_tri_id;  // 0x1d0, cached triangle id into GrCollParam.tri, -1 = none.
-                                //        destroyBigStar (0x800d7b8c) is the only confirmed
-                                //        reader: it takes tri[id].record as the instance the
-                                //        body is in contact with.
-} mpCollInfo;                   // >= 0x1d4
+                                //        destroyBigStar (0x800d7b8c) takes tri[id].record as
+                                //        the instance the body is in contact with
+    u8         x1d4[0x1e0 - 0x1d4];
+} mpCollInfo;                   // 0x1e0
+
 
 // Map collision. One vertex pool and one triangle array hold both baked terrain
 // and every placed prop's triangles, each prop owning a contiguous slice through
@@ -93,8 +94,8 @@ typedef struct GrCollTri
 
 #define GRCOLL_KIND_GROUNDTYPE_SHIFT 4
 #define GRCOLL_KIND_GROUNDTYPE_MASK  0xFF0
-// Ground type 25 is what Machine_GetGroundHandle searches for; in City Trial 29 is
-// the sea and 30 the two invisible barriers that ring the city.
+// In City Trial ground type 29 is the sea and 30 the two invisible barriers that
+// ring the city.
 // Bits 0..2 are the baked surface category. Every query ANDs its own mask
 // against them first, so these decide whether a triangle can be stood on,
 // walled off, or hit at all - not a runtime normal test. A runtime-built
@@ -199,6 +200,8 @@ typedef struct CollData
         float radius;    // 0x30, sphere radius (lerp endpoint)
         float radius2;   // 0x34, second sphere radius; mpColl_GetSphereRadius lerps +0x30 <-> +0x34
         Vec3 scale;      // 0x38
+        void *x44;       // 0x44, 0x16c-byte pool object, freed by mpColl_Destroy
+        void *x48;       // 0x48, 0x30-byte pool object, freed by mpColl_Destroy
     } *shape_data;
     float radius;                  // 0x344, collision sphere radius
     int param;                     // 0x348, mode/flag parameter from mpColl_Init
@@ -208,51 +211,8 @@ typedef struct CollData
     u8 x34d;                       // 0x34d
     u8 x34e;                       // 0x34e
     u8 x34f;                       // 0x34f
-    int x350;                      // 0x350
-    int x354;                      // 0x354
-    int x358;                      // 0x358
-    int x35c;                      // 0x35c
-    int x360;                      // 0x360
-    int x364;                      // 0x364
-    int x368;                      // 0x368
-    int x36c;                      // 0x36c
-    int x370;                      // 0x370
-    int x374;                      // 0x374
-    int x378;                      // 0x378
-    int x37c;                      // 0x37c
-    int x380;                      // 0x380
-    int x384;                      // 0x384
-    int x388;                      // 0x388
-    int x38c;                      // 0x38c
-    int x390;                      // 0x390
-    int x394;                      // 0x394
-    int x398;                      // 0x398
-    int x39c;                      // 0x39c
-    int x3a0;                      // 0x3a0
-    int x3a4;                      // 0x3a4
-    int x3a8;                      // 0x3a8
-    int x3ac;                      // 0x3ac
-    int x3b0;                      // 0x3b0
-    int x3b4;                      // 0x3b4
-    int x3b8;                      // 0x3b8
-    int x3bc;                      // 0x3bc
-    int x3c0;                      // 0x3c0
-    int x3c4;                      // 0x3c4
-    int x3c8;                      // 0x3c8
-    int x3cc;                      // 0x3cc
-    int x3d0;                      // 0x3d0
-    int x3d4;                      // 0x3d4
-    int x3d8;                      // 0x3d8
-    int x3dc;                      // 0x3dc
-    int x3e0;                      // 0x3e0
-    int x3e4;                      // 0x3e4
-    int x3e8;                      // 0x3e8
-    int x3ec;                      // 0x3ec
-    int x3f0;                      // 0x3f0
-    int x3f4;                      // 0x3f4
-    int x3f8;                      // 0x3f8
-    int x3fc;                      // 0x3fc
-} CollData;
+} CollData;                        // 0x350
+
 
 // Allocates CollData from the pool, links it into the global list and creates
 // its coll_info and shape_data.
@@ -261,10 +221,13 @@ CollData *mpColl_Create(GOBJ *owner);             // 0x80245b4c. Stores owner at
 // Sets position, direction and scale, then inits the subsystems.
 void mpColl_Init(CollData *cd, int type, Vec3 *pos, Vec3 *dir, Vec3 *extents, int param, float radius, float f2); // 0x80245c10
 void mpColl_Reinit(CollData *cd, Vec3 *pos, Vec3 *dir); // 0x80245db0. Re-initializes with new position/direction
-void mpColl_Destroy(CollData *cd);                // 0x80245ed0. Frees shape_data and its two sub-allocations (+0x44, +0x48), unlinks from global list
-// Per-frame: updates position, computes the delta, updates the shape.
-void mpColl_Update(CollData *cd, Vec3 *pos, Vec3 *dir, Vec3 *extents, int r7); // 0x80245f70
-void mpColl_SetDefaultParams(CollData *cd);       // 0x802460d4. Sets default collision check parameters
+void mpColl_Destroy(CollData *cd);                // 0x80245ed0. Frees shape_data and its x44/x48, unlinks from global list
+// Per-frame: updates position, computes the delta, updates the shape. radius goes
+// to cd->radius and radius2 to shape_data->radius2.
+void mpColl_Update(CollData *cd, Vec3 *pos, Vec3 *dir, Vec3 *extents, int arg5, float radius, float radius2); // 0x80245f70
+// The frame's map collision pass with the default kind mask and 10 substeps; runs
+// mpColl_UpdateCollision and fills coll_info.
+void mpColl_ProcessMapColl(CollData *cd);         // 0x802460d4
 void mpColl_UpdateShapeExtents(CollData *cd, Vec3 *pos); // 0x8024625c. Updates shape extents from scale
 void mpColl_SetFlag(CollData *cd, int value);     // 0x80247e2c. Sets/clears bit 7 of flags byte at +0x34C
 // Sets/clears flags bit 2. With it set, the map sweep runs the yakumono break
@@ -273,7 +236,12 @@ void mpColl_SetFlag(CollData *cd, int value);     // 0x80247e2c. Sets/clears bit
 // it on machines only - mpColl_Create clears it.
 void mpColl_SetSceneObjBreak(CollData *cd, int enabled); // 0x80247e58
 CollData *mpColl_GetFirstCollObj(void);           // 0x802414d4. Returns head of global CollData linked list
-int mpColl_UpdateCollision(void);                 // 0x802485e0. Recursive pushback substep; records its contacts into coll_info
+// Recursive pushback substep; records its contacts into coll_info.
+int mpColl_UpdateCollision(CollData *cd, GrCollParam *coll, int step, int arg4, int arg5, int arg6,
+                           int arg7, int arg8, int arg9, int arg10, int arg11, int arg12); // 0x802485e0
+// The zone index of the first zone the body is in whose kind (+0x24, low 25 bits) is 25,
+// moving zones included; -1 when none. Machine_CheckFallDeath hands it to Machine_SetFallDead.
+int mpColl_GetDeadZoneIndex(CollData *cd);         // 0x80247fac
 
 // Four byte-identical wrappers over Raycast_Do(&GrObj.coll, start, end, kind_mask,
 // filter, out_pos), differing only in the two constants they pass. Each returns the

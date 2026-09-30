@@ -25,10 +25,6 @@ typedef struct OSMutexLink OSMutexLink;
 typedef struct OSHeapCell OSHeapCell;
 typedef struct CARDFileInfo CARDFileInfo;
 typedef struct RGB565 RGB565;
-typedef struct MTHPlayParam MTHPlayParam;
-typedef struct MTHHeader MTHHeader;
-typedef struct MTHPlayback MTHPlayback;
-typedef struct JPEGHeader JPEGHeader;
 typedef struct DVDDiskID DVDDiskID;
 typedef struct DVDCommandBlock DVDCommandBlock;
 typedef struct DVDFileInfo DVDFileInfo;
@@ -42,7 +38,6 @@ typedef struct GXColor GXColor;
 typedef struct GXRenderModeObj GXRenderModeObj;
 typedef struct GXTexObj GXTexObj;
 typedef struct GXPipe GXPipe;
-typedef struct VIUnknown VIUnknown;
 
 // Audio
 typedef struct FGMInstanceData FGMInstanceData;
@@ -94,40 +89,6 @@ typedef struct HSD_ArchiveHeader HSD_ArchiveHeader;
 typedef struct HSD_ArchiveRelocationInfo HSD_ArchiveRelocationInfo;
 typedef struct HSD_ArchivePublicInfo HSD_ArchivePublicInfo;
 typedef struct HSD_ArchiveExternInfo HSD_ArchiveExternInfo;
-typedef struct HSD_Archive HSD_Archive;
-typedef struct MapHead MapHead;
-
-// Stage
-typedef struct Stage Stage;
-typedef struct StageOnGO StageOnGO;
-typedef struct MapData MapData;
-typedef struct MapDesc MapDesc;
-typedef struct StageFile StageFile;
-typedef struct grGroundParam grGroundParam;
-typedef struct GrDesc GrDesc;
-typedef struct GrExtLookup GrExtLookup;
-typedef struct LineHazardDesc LineHazardDesc;
-typedef struct MapItemDesc MapItemDesc;
-typedef struct LineRange LineRange;
-typedef struct GeneralPoints GeneralPoints;
-typedef struct GeneralPointsInfo GeneralPointsInfo;
-typedef struct MapCollLink MapCollLink;
-typedef struct MapGObjDesc MapGObjDesc;
-
-// Match
-typedef struct MatchInit MatchInit;
-typedef struct Match Match;
-typedef struct MatchLupe MatchLupe;
-typedef struct MatchOffscreen MatchOffscreen;
-typedef struct MatchHUD MatchHUD;
-typedef struct MatchHUDElement MatchHUDElement;
-typedef struct MatchHUDStock MatchHUDStock;
-typedef struct MatchCamera MatchCamera;
-typedef struct CmSubject CmSubject;
-typedef struct MatchStandings MatchStandings;
-typedef struct TeamStandings TeamStandings;
-typedef struct PlayerStandings PlayerStandings;
-typedef struct ExclamData ExclamData;
 
 // Camera
 typedef struct CamData CamData;
@@ -167,35 +128,15 @@ typedef struct GameClearData GameClearData;
 // Item
 typedef struct ItemModelDesc ItemModelDesc;
 typedef struct ItemDesc ItemDesc;
-typedef struct itPublicData itPublicData;
-typedef struct ItemStateDesc ItemStateDesc;
 typedef struct ItemData ItemData;
-typedef struct ItemState ItemState;
 typedef struct SpawnItem SpawnItem;
 typedef struct itData itData;
-typedef struct itCommonAttr itCommonAttr;
-typedef struct itHit itHit;
-typedef struct ItHurt ItHurt;
-typedef struct ItDynamics ItDynamics;
-typedef struct ItDynamicBoneset ItDynamicBoneset;
-
-// Boneset
-typedef struct DynamicBoneset DynamicBoneset;
 
 // Rider
 typedef struct RiderData RiderData;
 
 // Collision
 typedef struct CollData CollData;
-typedef struct ECBSize ECBSize;
-typedef struct CollLineDesc CollLineDesc;
-typedef struct CollLine CollLine;
-typedef struct CollVert CollVert;
-typedef struct CollLineUnk CollLineUnk;
-typedef struct CollDataStage CollDataStage;
-typedef struct CollLineConnection CollLineConnection;
-typedef struct CollGroupDesc CollGroupDesc;
-typedef struct CollGroup CollGroup;
 
 // HSD
 typedef struct HSD_Material HSD_Material;
@@ -213,12 +154,8 @@ typedef struct HSD_PollData HSD_PollData;
 // Scene
 typedef struct MajorSceneDesc MajorSceneDesc;
 typedef struct MinorSceneDesc MinorSceneDesc;
-typedef struct MinorScene MinorScene;
 typedef struct SceneInfo SceneInfo;
 typedef struct ScMenuCommon ScMenuCommon;
-typedef struct ScDataVS ScDataVS;
-typedef struct ScDataRst ScDataRst;
-typedef struct ScDataIntro ScDataIntro;
 
 // Preload
 typedef struct PreloadHeapLookup PreloadHeapLookup;
@@ -226,10 +163,8 @@ typedef struct PreloadHeap PreloadHeap;
 typedef struct PreloadHandle PreloadHandle;
 typedef struct PreloadHeapDesc PreloadHeapDesc;
 typedef struct Preload Preload;
-typedef struct PreloadChar PreloadChar;
 typedef struct PreloadEntryDesc PreloadEntryDesc;
 typedef struct PreloadEntry PreloadEntry;
-typedef struct PreloadLookup PreloadLookup;
 typedef struct PreloadAllocData PreloadAllocData;
 typedef struct PreloadTable PreloadTable;
 

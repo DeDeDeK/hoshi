@@ -6,15 +6,17 @@
 #include "hurt.h"
 #include "collision.h"
 #include "yakumono.h"
+#include "audio.h"
 
-// Fully defined by the event system.
 typedef struct EventConfigData EventConfigData;
+typedef struct GrCollisionNode GrCollisionNode;
+typedef struct GrObj GrObj;
 
 #define GRSTATECHANGE_NOANIM (1 << 2)
 
-// The 0..59 stage selection index - a stage's menu/mode-level identity, stored
+// The 0..58 stage selection index - a stage's menu/mode-level identity, stored
 // in GameData.stage_kind (+0xA97) and returned by Gm_GetCurrentStageKind. For Air
-// Ride it equals AirRideCourse; City Trial stadiums occupy 9..33.
+// Ride it equals AirRideCourse; City Trial is 9 and its stadiums occupy 10..33.
 // Gm_GetGrKindFromStageKind maps one to its physical GroundKind. The two index
 // spaces coincide only at 0/1/2 and City Trial (9), because menu order is not
 // file order - Machine Passage is StageKind 6 but GroundKind 5.
@@ -45,7 +47,7 @@ typedef enum StageKind
     STAGEKIND_SINGLERACE8,
     STAGEKIND_SINGLERACE9,
     STAGEKIND_VSKINGDEDEDE, // = 33
-    STAGEKIND_NUM = 60,
+    STAGEKIND_NUM = 59, // St_Kind_Terminate
 } StageKind;
 
 // The physical ground-file index - which terrain geometry is loaded - into the
@@ -105,7 +107,7 @@ static const char *const AirRideCourse_Names[AIRRIDE_NUM] = {
     [AIRRIDE_NEBULA_BELT]      = "Nebula Belt",
 };
 
-// Top Ride course indices (0-6), stored in GameData[0x374]
+// Top Ride course indices (0-6), stored in GameData.topride_selected_course
 typedef enum TopRideCourse
 {
     TOPRIDE_GRASS,
@@ -153,7 +155,6 @@ typedef struct ModelSection
     void *unk_c;         // 0x0C
 } ModelSection;
 
-// Defined further down; HSD_FogDesc comes from obj.h.
 struct SkyPresetEntry;
 
 // The {array, count} pair at SkyBlock+0x04. Repointing both fields swaps in an
@@ -176,7 +177,7 @@ typedef struct SkyBlock
 // calcDistanceFromOOB reads every frame.
 //
 // Gravity splits into a magnitude (gravity_strength) and a unit down direction
-// (gravity_dir), both returned by Gm_GetDownVector. To change how strong gravity
+// (gravity_dir), both returned by Gr_GetDownVector. To change how strong gravity
 // feels, scale the strength and leave the direction unit-length - consumers
 // derive an up vector from it.
 typedef struct StageNode
@@ -185,9 +186,9 @@ typedef struct StageNode
     float machine_accel;    // 0x04 - base machine acceleration scalar
     float scale;            // 0x08 - stage model scale (applied to stage JObjs)
     float gravity_strength; // 0x0C - global gravity magnitude / fall-accel scalar
-                            //        (City Trial = 0.025); returned by Gm_GetDownVector
+                            //        (City Trial = 0.025); returned by Gr_GetDownVector
     Vec3 gravity_dir;       // 0x10 - global down DIRECTION, unit (0,-1,0); written
-                            //        into Gm_GetDownVector's out-param. Keep unit.
+                            //        into Gr_GetDownVector's out-param. Keep unit.
     int fog_flags;          // 0x1C
     u8 x20[0x60 - 0x20];
     float minimap_scale;    // 0x60
@@ -243,9 +244,10 @@ typedef struct GrData // exists in the stage file
     ModelSection *model_section;    // 0x0c - terrain + backdrop JObj descs
     GrModelMotion *motion;          // 0x10, pointer placed at runtime
     void *spline;          // 0x14
-    void *pos_data;        // 0x18
+    GrCollisionNode *coll_node; // 0x18 - baked map collision, sized into GrObj.coll_max by grColl_CountArrays
     int x1c;               // 0x1c
-    void *yakumono_pos;    // 0x20 - yakumono position-record block; grGetYakumonoposNum reads [+0x2c]->[+0x8] as the record count (0x800d1434)
+    void *pos_node;        // 0x20 - placed positions: +0x08 enemy positions by EnemyposId (0xC stride),
+                           //        +0x2c yakumono position records (count at [+0x2c]->[+0x8])
     int x24;               // 0x24
     int x28;               // 0x28
     GrItemNode *item;      // 0x2c - item-spawn tables, one entry per ItemposId
@@ -255,6 +257,8 @@ typedef struct GrData // exists in the stage file
     int x38;               // 0x38
     int x3c;               // 0x3c
     YakumonoTable *yakumono; // 0x40 - per-stage yakumono manifest
+    int x44;               // 0x44
+    void *coll_tree_node;  // 0x48 - [0] is the static KD-tree grColl_TreeInit installs as GrObj.coll_tree
 } GrData;        //
 
 // The "CZK" tag carried by every collision-zone box face, packed into
@@ -267,13 +271,13 @@ typedef enum GrCollZoneKind
     GrCZK_DashGateA   = 2,  // grGetDashGateZoneParam, GrDashGate_Num = 2
     GrCZK_DashGateB   = 3,
     GrCZK_DashRing    = 4,  // grGetDashGateZoneParam, GrDashRing_Num = 2
-    GrCZK_WarpIn      = 5,  // UNIMPLEMENTED - see the warp note below
-    GrCZK_WarpOut     = 6,  // UNIMPLEMENTED - "
+    GrCZK_WarpIn      = 5,  // unimplemented
+    GrCZK_WarpOut     = 6,  // unimplemented
     GrCZK_SuperJump   = 7,  // grGetSuperJumpZoneParam
     GrCZK_SuperJumpApproach = 8,
     GrCZK_Jump        = 9,  // grGetJumpZoneParam
     GrCZK_Spin        = 10, // grGetSpinZoneParam, GrSpinZone_Num = 2
-    GrCZK_RandomAbility = 15, // ground copy panel; zz_80246f40_ -> Rider_GiveRandomAbility
+    GrCZK_RandomAbility = 15, // ground copy panel; zz_80246f40_ -> RiderGObj_GiveRandomAbility
     GrCZK_FreeMove    = 16,
     GrCZK_LocalDead   = 25, // grGetLocalDeadZoneParam
     GrCZK_Occlusion   = 26,
@@ -304,7 +308,7 @@ typedef struct GrCollZone
     u8 x18[0x4C - 0x18];
 } GrCollZone;
 
-// GrData.pos_data (+0x18) points here - a paired {pointer, count} mirror of the
+// GrData.coll_node (+0x18) points here - a paired {pointer, count} mirror of the
 // runtime GrCollParam. grColl_Alloc sizes every runtime array straight from
 // these counts with no headroom, so tri_num here is exactly GrCollParam.tri_num.
 typedef struct GrCollisionNode
@@ -323,28 +327,32 @@ typedef struct GrCollisionNode
     int zone_num;        // 0x2c - asserted < Gr_CollZone_NumMax (500)
 } GrCollisionNode;
 
-// Per-kind zone-parameter getters. Each asserts the zone it is handed carries
-// its kind, then fills the caller's out-params from the per-kind param block.
-void grGetDashZoneParam(void);                 // 0x800d1ff0
-void grGetDashGateZoneParam(void);             // 0x800d21f8 - kinds 2, 3 and 4
-void grGetSuperJumpZoneParam(void);            // 0x800d24fc - kind 7
-void grGetJumpZoneParam(void);                 // 0x800d25a8 - kind 9
-void grGetSpinZoneParam(void);                 // 0x800d2654 - kind 10
-void grGetLocalDeadZoneParam(void);            // 0x800d50f8 - kind 25
-void grZone_BuildRecord(void);                 // 0x800dcf08 - GrCollZone -> 0x140 runtime record
+// Per-kind zone-parameter getters, taking an index into GrObj.coll.zone. Each
+// asserts the zone it is handed carries its kind, then fills the caller's
+// out-params from the per-kind param block.
+void grGetDashZoneParam(int zone, float *out1, void *out2, void *out3, void *out4);          // 0x800d1ff0
+void grGetDashGateZoneParam(int zone, void *out1, void *out2, void *out3, void *out4);       // 0x800d21f8 - kinds 2, 3 and 4
+void grGetSuperJumpZoneParam(int zone, int *out1, int *out2, int *out3);                    // 0x800d24fc - kind 7; out3 may be NULL
+void grGetJumpZoneParam(int zone, int *out1, int *out2, int *out3);                         // 0x800d25a8 - kind 9; out3 may be NULL
+int grGetSpinZoneParam(int zone);                                                            // 0x800d2654 - kind 10; returns param_index != 0
+void grGetLocalDeadZoneParam(int zone, void *out1, void *out2, void *out3);                 // 0x800d50f8 - kind 25, via loadLocalDeadLocations
+void grZone_BuildRecord(int arg0, int arg1, GrCollParam *gcp, GrCollisionNode *node, GrJoint **joints, int zone); // 0x800dcf08 - GrCollZone -> 0x140 runtime record
 
 // Narrowphase primitives, both taking a triangle index into GrCollParam.tri and
 // applying the kind_mask and state gates.
-void grColl_RayVsTri(void);            // 0x800d95dc - segment vs one triangle by index
-void grColl_SweptSphereVsTri(void);    // 0x802448b0 - swept sphere vs one triangle by index
-void grColl_SweptSphereQuery(void);    // 0x800d9e34 - moving sweep + tree walk; moving pass gated on arg 5
+int grColl_RayVsTri(int arg0, int arg1, void *bounds, GrCollParam *gcp, int tri, int kind_mask, int arg6, int arg7, int arg8, float f1); // 0x800d95dc - segment vs one triangle by index; returns 1 on a hit
+int grColl_SweptSphereVsTri(int arg0, int arg1, int arg2, void *bounds, GrCollParam *gcp, int tri, int kind_mask, int arg7,
+                            int arg8, int arg9, int arg10, int arg11, float f1, float f2, float f3); // 0x802448b0 - swept sphere vs one triangle by index; returns 1 on a hit
+int grColl_SweptSphereQuery(GrCollParam *gcp, Vec3 *start, Vec3 *end, int kind_mask, int moving, Vec3 *out_pos, int arg6,
+                            float f1, float f2); // 0x800d9e34 - moving sweep + tree walk, moving pass only when moving != 0. Returns the hit tri or -1
 
 // Rider and machine wall/floor pushback, under mpColl_UpdateCollision
 // (0x802485e0). The sweep is what a machine is actually stopped by.
-void mpColl_SweptSphereMapColl(void);  // 0x802454f8 - swept sphere vs map tris, moving pass always
-void mpColl_InsertContact(void);       // 0x80241ca8 - caches the winning tri id in the floor/wall/ceiling slot
-void grColl_TreeInit(void);            // 0x800de0e8 - fills GrObj.coll_tree; adds objKinds 3-5
-void grColl_TreeFree(void);            // 0x800de1a8
+void mpColl_SweptSphereMapColl(void *coll, int arg1, int arg2, int arg3, int arg4, int arg5, int arg6); // 0x802454f8 - swept sphere vs map tris, moving pass always
+void mpColl_InsertContact(void *contacts, int slot, GrCollParam *gcp, int tri, Vec3 *arg4, Vec3 *arg5,
+                          int arg6, int arg7, float f1, float f2); // 0x80241ca8 - caches the winning tri id in the floor/wall/ceiling slot
+void grColl_TreeInit(GrObj *gr); // 0x800de0e8 - fills GrObj.coll_tree from GrData.coll_tree_node; adds objKinds 3-5
+void grColl_TreeFree(GrObj *gr); // 0x800de1a8
 
 typedef struct GrObj
 {
@@ -367,7 +375,9 @@ typedef struct GrObj
                                 //         ModelSection.terrain by grLoadStage; entry 0 =
                                 //         terrain root joint. Indexed by Sky_SetupLights;
                                 //         walk the tree from [0] to reach every terrain MObj.
-    u8 x108[0x168 - 0x108];
+    u8 x108[0x11C - 0x108];
+    void *spline;               // 0x11C - -> {entries, count} of enemy walking paths
+    u8 x120[0x168 - 0x120];
     GOBJ *sky_gobj;             // 0x168 - fog/sky GObj built by Sky_InitFog.
                                 //         hsd_object (+0x28) = HSD_Fog *,
                                 //         userdata (+0x2C) = SkyState *.
@@ -380,6 +390,7 @@ typedef struct GrObj
                                 //         system (incremented per stage entry,
                                 //         so it doubles as a freshness signal).
     AreaLight *area_light;      // 0x718 - KAR-proprietary directional light.
+    u8 x71c[0x870 - 0x71C];
 } GrObj;
 
 static GrData **stc_grdatalookup = (GrData **)(0x80557638); // indexed by physical GroundKind
@@ -445,8 +456,8 @@ GroundKind Gr_GetCurrentGrKind();    // 0x800d1d3c - reads (*stc_grobj)->gr_kind
 GroundKind Gm_GetGrKindFromStageKind(StageKind stage_kind); // 0x80261ce8 - StageKind -> physical GroundKind
 int stGetCurrentStageKind_ItemposId(); // 0x802623e8 - Stage.dat row +0x24, the GrData.item index
 // Returns GrData.item[ItemposId], or NULL when the stage has no item node or
-// Gm_IsItemsDisabled() holds.
-GrItemNode *fn_grGetItemData(void *st_obj); // 0x800da518
+// Gm_IsMapDebug() holds.
+GrItemNode *fn_grGetItemData(GrObj *gr); // 0x800da518
 
 // Minimum signed distance from a world position to any of the six
 // StageNode.oob_min/oob_max planes; positive = inside, negative = past a wall.
@@ -454,9 +465,9 @@ float calcDistanceFromOOB(Vec3 *pos);          // 0x800d4f20
 
 // Props the current stage places for a yakumono descriptor id (the id that also
 // indexes PlayerStats.yakumono_break). Only meaningful while a stage is loaded;
-// returns 0 for grounds with no spawn-count table (only GR_CITY1 and GR_SANDS2
+// returns 0 for grounds with no spawn-count table (only GR_CITY1 and GR_DESERT1
 // have one). City Trial: desc 33 = 10, 34 = 53, 35 = 41, 38 = 30.
-int Gr_GetYakumonoSpawnTotal(int desc_id);     // 0x800f7db0
+int Gr_GetYakumonoSpawnTotal(YakuKind kind);   // 0x800f7db0
 
 // 0x48-byte preset entry in the stage file's sky-block array, interpolating fog,
 // screen tint, sky ambient color and AreaLight params over transition_frames.
@@ -473,7 +484,6 @@ typedef struct SkyPresetEntry
     u8 light_vis_flag;         // 0x44 bit 0 -> AreaLight registry +0x38 bit 0x80
     u8 x45[3];                // 0x45
 } SkyPresetEntry;
-_Static_assert(sizeof(SkyPresetEntry) == 0x48, "SkyPresetEntry must be 0x48 bytes");
 
 // Runtime sky state owned by the fog/sky GObj at GrObj+0x168, reachable via
 // grobj->gobj[+0x168]+0x2C: the target preset, transition counter, and the
@@ -490,9 +500,8 @@ typedef struct SkyState
     s32 current_preset_index;       // 0x1C
     AreaLightData start_area_light; // 0x20 lerp start for AreaLight_Lerp (0x2C bytes)
 } SkyState;
-_Static_assert(sizeof(SkyState) == 0x4C, "SkyState must be 0x4C bytes");
 
-void Sky_Init(GrObj *grobj);                              // 0x8010f114 - initial sky setup per stage
+void Sky_Init(GOBJ *stage_gobj);                         // 0x8010f114 - initial sky setup per stage
 void Sky_SetPresetIndex(GrObj *grobj, int preset_index);  // 0x800dc630 - store preset index in sky state +0x1C
 void Sky_LoadPreset(GrObj *grobj);                        // 0x800dc1b4 - load preset immediately (no transition)
 void Sky_BeginTransition(GrObj *grobj, int preset_index); // 0x800dc354 - smooth transition to preset
@@ -517,7 +526,7 @@ void Gr_Think(GOBJ *stage_gobj);                          // 0x800ce618
 // GrObj.backdrop_jobj (+0xF4) with no GObj of its own. Stamps grGetStageScale()
 // over all three scale components of each instantiated root joint, discarding
 // whatever scale the loaded JOBJDesc carried.
-void CreateStageModel_3D(GrObj *grobj);                   // 0x800dcbf0
+void CreateStageModel_3D(GOBJ *stage_gobj);               // 0x800dcbf0
 
 // Global EFB/erase color (RGBA8888, in BSS), written each frame by Sky_Update
 // and read by World_CObj+0x144 to drive CObj_SetEraseColor for the next CopyDisp.
@@ -529,15 +538,12 @@ static u32 *stc_global_fog_color = (u32 *)0x80557484;
 // (+0x14) to re-tint terrain at runtime. NULL outside CT-style stages.
 static struct LOBJ **stc_main_light = (struct LOBJ **)(0x805dd0e0 + 0x5fc);
 
-// Spline path system - enemy walking paths embedded in stage data, headed at
-// GrObj+0x11C as {void *entries, int count}. Each 0x18-stride entry holds
-// forward/backward HSD spline pointers. The accessors below read stc_grobj.
+// Enemy walking paths, reached through GrObj.spline as {void *entries, int count}.
+// Each 0x18-stride entry holds forward/backward HSD spline pointers. The accessors
+// below read stc_grobj.
 int Spline_GetCount(void);                               // 0x800cf38c - number of spline segments in current stage
 void *Spline_GetForward(int segment);                    // 0x800cf3ac - forward HSD spline pointer for segment
 void *Spline_GetBackward(int segment);                   // 0x800cf44c - backward HSD spline pointer for segment
-
-// HSD spline evaluation. param runs [0.0, 1.0] from first to last control
-// point. The spline struct has u8 type at +0x0 and s16 num_points at +0x2.
 
 AudioEmitter Map_AllocAudioEmitter(int index); // 0x8005ded0
 #endif

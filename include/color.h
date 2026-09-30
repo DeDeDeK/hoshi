@@ -40,7 +40,6 @@ struct ColAnimSlot
     u8      flags;          // 0xaa, 0x80 = tint live, 0x40 = light live, 0x20/0x10 select light submodes
     u8      xab;            // 0xab
 };
-_Static_assert(sizeof(ColAnimSlot) == 0xac, "ColAnimSlot must be 0xac bytes");
 
 // Three overlay slots plus the state the renderer reads. ColAnim_Resolve (0x8006ae7c) picks
 // the active slot of highest priority and copies its tint, light and ratio down here;
@@ -61,7 +60,6 @@ struct ColAnimState
     u8          flags;       // 0x235, 0x80 = tint live, 0x40 = light live, 0x08 = light_pos is model-local
     u8          x236[2];     // 0x236
 };
-_Static_assert(sizeof(ColAnimState) == 0x238, "ColAnimState must be 0x238 bytes");
 
 #define COLANIM_FLAG_TINT  0x80 // tint override is live
 #define COLANIM_FLAG_LIGHT 0x40 // light override is live

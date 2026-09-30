@@ -5,15 +5,6 @@
 #include "datatypes.h"
 
 // Scene Enums
-enum SCENE_HEAP_KIND
-{
-    SCENEHEAPKIND_UNK0,
-    SCENEHEAPKIND_UNK1,
-    SCENEHEAPKIND_UNK2,
-    SCENEHEAPKIND_UNK3, // shrinks main heap, enables fighter cache?
-    SCENEHEAPKIND_UNK4,
-};
-
 typedef enum MinorKind
 {
     MNRKIND_TITLESCREEN,           //
@@ -35,7 +26,7 @@ typedef enum MinorKind
     MNRKIND_16,                    //
     MNRKIND_STADIUMSPLASH,         //
     MNRKIND_3D,                    // Air Ride / City Trial gameplay (stadiums included)
-    MNRKIND_19,                    // Top Ride gameplay - its own 2D engine, not the 3D path
+    MNRKIND_TOPRIDE,               // Top Ride gameplay - its own 2D engine, not the 3D path
     MNRKIND_20,                    //
     MNRKIND_STADIUMSELECT,         //
     MNRKIND_MOVIE = 25,            //
@@ -96,17 +87,6 @@ struct MinorSceneDesc
     int preload_kind;                          // 0x20. copied to Preload::kind
 };
 
-struct MinorScene
-{
-    s8 minor_id;        // is -1 for last entry
-    u8 heap_kind;       // heap behavior, (2)
-    void *minor_prep;   // inits data for this minor (major exclusive)
-    void *minor_decide; // decides next minor scene
-    u8 minor_kind;      // index for a re-useable list of scene functions. contains a load, think, and leave function.
-    void *load_data;    // points to static data used throughout this minor. other minors may use the same pointer to exchange data between minors
-    void *unload_data;  // points to static data used throughout this minor. other minors may use the same pointer to exchange data between minors
-};
-
 struct SceneInfo
 {
     u8 major_curr; // 0x0
@@ -143,7 +123,9 @@ struct ScMenuCommon
             Text *x4;           // 0x44
         } ply_machine_description[4];
     } text;
-    u8 x54[0x298];              // 0x60
+    u8 x60[0x30];               // 0x60
+    int preload_menu_files[23]; // 0x90, entrynums; stc_preload_menu_files points here
+    u8 xec[0x20c];              // 0xec
     struct
     {
         GOBJ *menu_name;                    // 0x2f8
@@ -904,10 +886,10 @@ void CitySelect_CreateIPos(void);                          // 0x8015bbb8
 // Repainting one select panel after its color changes. Storing the color byte
 // alone does not redraw anything - the engine always pairs the store with the
 // matching update call, passing the panel's kind as the anim kind. City Trial
-// substitutes 5 for that kind when x1d0 is 2, the slot's x1d4 bit is clear and
-// ply_pkind is 4. The frame helper is shared by all three select screens despite
-// its City Trial name.
-s8 CitySelect_GetColorAnimFrame(s8 color);                   // 0x80009630
+// substitutes 5 for that kind when city_select_ply.mode is 2, the slot's x1d4 bit
+// is clear and ply_pkind is 4. The frame helper is shared by all three select screens and the
+// player HUDs.
+s8 Gm_GetColorAnimFrame(s8 color);                           // 0x80009630
 void CitySelect_UpdatePlayer(s8 ply, s8 pkind, s8 frame);    // 0x801354d4
 void TopRide_UpdatePanel(s8 panel, s8 pkind, s8 frame);      // 0x80134a0c
 
@@ -924,18 +906,18 @@ static int *stc_city_select_name_text = (int *)0x804aa598;    // [CKIND_NUM]
 static int *stc_city_select_desc_text = (int *)0x804aa5e8;    // [CKIND_NUM]
 void AirRideSelect_LoadSisFile(void);                    // 0x8013bacc, SisSelply.dat
 void CitySelect_LoadSisFile(void);                       // 0x8013c4a8, SisSelplyCt.dat
-void AirRideSelect_SetMachineText(s8 player, s8 ckind);  // 0x80153d2c
-void CitySelect_SetMachineText(s8 player, s8 ckind);     // 0x8015e740
-void AirRideSelect_CreateMachineText(s8 player, s8 name_text, s8 desc_text, Vec3 *pos); // 0x8013bea0
-void CitySelect_CreateMachineText(s8 player, s8 name_text, s8 desc_text, Vec3 *pos);    // 0x8013c740
+void AirRideSelect_SetMachineText(s8 ply, s8 ckind);     // 0x80153d2c
+void CitySelect_SetMachineText(s8 ply, s8 ckind);        // 0x8015e740
+void AirRideSelect_CreateMachineText(s8 ply, s8 name_text, s8 desc_text, Vec3 *pos); // 0x8013bea0
+void CitySelect_CreateMachineText(s8 ply, s8 name_text, s8 desc_text, Vec3 *pos);    // 0x8013c740
 
 // The character plate on a select screen and its Siconbig counterpart on a results
 // screen. Both fold a CharacterKind and a color anim frame into one texture frame:
 // kinds 0..17 at their own index, Dedede at 20 + color, Meta Knight at 30 + color.
-void AirRideSelect_SetSIcon2Color(s8 player, s8 color);       // 0x80151ab4
-void AirRideSelect_SetSIcon2Character(s8 player, s8 ckind);   // 0x80151b78
-void CitySelect_SetSIcon2Color(s8 player, s8 color);          // 0x8015c574
-void CitySelect_SetSIcon2Character(s8 player, s8 ckind);      // 0x8015c638
+void AirRideSelect_SetSIcon2Color(s8 ply, s8 color);               // 0x80151ab4
+void AirRideSelect_SetSIcon2Character(s8 ply, s8 ckind, s8 color);  // 0x80151b78
+void CitySelect_SetSIcon2Color(s8 ply, s8 color);                  // 0x8015c574
+void CitySelect_SetSIcon2Character(s8 ply, s8 ckind, s8 color);     // 0x8015c638
 void MnResult_CreateSiconBig(s8 ckind, s8 color);                     // 0x80167250
 void MnResult2_CreateSiconBig(s8 row, s8 ckind, s8 color);            // 0x8016aff4
 void MnResult4_CreateSiconBig(s8 row, s8 ckind, s8 color);            // 0x8016e924
@@ -954,7 +936,7 @@ void MnResult_IndexSiconBigSymbol(void);   // 0x80167204
 void MnResult2_IndexSiconBigSymbol(void);  // 0x8016afa8
 void MnResult4_IndexSiconBigSymbol(void);  // 0x8016e8d8
 void MnResultCt_IndexSiconBigSymbol(void); // 0x80177a9c
-void MnResult_CreatePlayerElements(s8 slot, s8 color, s8 place, s8 ckind, s8 rider_kind);        // 0x801368ac
+void MnResult_CreatePlayerElements(s8 slot, s8 color, s8 place, s8 ckind, s8 rkind);             // 0x801368ac
 void MnResult2_CreatePlayerElements(s8 row, s8 slot, s8 color, s8 place, s8 ckind, s8 rkind);    // 0x80136d80
 void MnResult4_CreatePlayerElements(s8 row, s8 slot, s8 color, s8 place, s8 ckind, s8 rkind);    // 0x80137248
 void MnResult4_CreateCpuElements(s8 row, s8 slot, s8 color, s8 place, s8 ckind, s8 rkind);       // 0x801372bc

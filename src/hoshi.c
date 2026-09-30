@@ -428,7 +428,7 @@ void MemFreePersistent(int size)
 }
 
 volatile int archive_is_loaded = 0;
-void Archive_LoadFilePersistentCallback(int unk, void *arg2)
+void Archive_LoadFilePersistentCallback(int request_id, void *arg, void *staging, int error)
 {
     archive_is_loaded = 1;
 }
@@ -454,9 +454,9 @@ HSD_Archive *Archive_LoadFilePersistent(char *filename)
     return archive;
 }
 
-void File_LoadCallback(int r3, void *arg2)
+void File_LoadCallback(int request_id, void *arg, void *staging, int error)
 {
-    int *is_loaded = (int *)arg2;
+    int *is_loaded = (int *)arg;
     *is_loaded = 1;
     return;
 }

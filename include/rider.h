@@ -38,7 +38,8 @@ typedef enum RiderPri
 // RiderData.status. RiderStateChange (0x8018e580) takes states below
 // RDSTATE_COMMON_NUM from the common table and the rest from the rider kind's own
 // table. From RDSTATE_READY on the values are Kirby's: Dedede matches only through
-// RDSTATE_SPINTURNEND and Meta Knight is shifted by two from RDSTATE_PUSHSTART.
+// RDSTATE_SPINTURNEND. Meta Knight's ACCELN..ACCELFEND sit one lower and his
+// PUSHSTART..SPINTURNEND one higher.
 typedef enum RiderStatus
 {
     RDSTATE_WAIT,
@@ -105,10 +106,10 @@ typedef enum RiderStatus
     RDSTATE_PLASMAGET,
     RDSTATE_NEEDLEGET,
     RDSTATE_MIKEGET,
-    RDSTATE_FREEZEGET,
+    RDSTATE_ICEGET,
     RDSTATE_TORNADOGET,
-    RDSTATE_WHEELGET,
-    RDSTATE_WINGGET,
+    RDSTATE_TIREGET,
+    RDSTATE_BIRDGET,
     RDSTATE_CRACKERGET,
     RDSTATE_CRACKERRUN,
     RDSTATE_CRACKERPUSHSTART,
@@ -125,7 +126,7 @@ typedef enum RiderStatus
     RDSTATE_PANICSPINSTART,
     RDSTATE_PANICSPINLOOP,
     RDSTATE_PANICSPINEND,
-    RDSTATE_MIKESING = 97,          // singing blast from ability_Mic (Effect 0x5a5a2 / SFX 0x2006b)
+    RDSTATE_MIKESING = 97,          // singing blast (Effect 0x5a5a2 / SFX 0x2006b)
     RDSTATE_MIKEEND,
     RDSTATE_LOSEABILITY = 104,
     RDSTATE_LANDOK,
@@ -167,14 +168,14 @@ typedef enum CopyKind
 {
     COPYKIND_NONE = -1,
     COPYKIND_FIRE = 0,
-    COPYKIND_WHEEL,
+    COPYKIND_TIRE,
     COPYKIND_SLEEP,
     COPYKIND_SWORD,
     COPYKIND_BOMB,
     COPYKIND_PLASMA,
     COPYKIND_NEEDLE,
-    COPYKIND_MIC,
-    COPYKIND_FREEZE,
+    COPYKIND_MIKE,
+    COPYKIND_ICE,
     COPYKIND_TORNADO,
     COPYKIND_BIRD,
     COPYKIND_NUM,
@@ -182,14 +183,14 @@ typedef enum CopyKind
 
 static const char *const CopyKind_Names[COPYKIND_NUM] = {
     [COPYKIND_FIRE]    = "Fire",
-    [COPYKIND_WHEEL]   = "Wheel",
+    [COPYKIND_TIRE]    = "Wheel",
     [COPYKIND_SLEEP]   = "Sleep",
     [COPYKIND_SWORD]   = "Sword",
     [COPYKIND_BOMB]    = "Bomb",
     [COPYKIND_PLASMA]  = "Plasma",
     [COPYKIND_NEEDLE]  = "Needle",
-    [COPYKIND_MIC]     = "Mic",
-    [COPYKIND_FREEZE]  = "Freeze",
+    [COPYKIND_MIKE]    = "Mic",
+    [COPYKIND_ICE]     = "Freeze",
     [COPYKIND_TORNADO] = "Tornado",
     [COPYKIND_BIRD]    = "Wing",
 };
@@ -311,24 +312,10 @@ typedef struct rdDataCommon
     void *x10;               // 0x10
 } rdDataCommon;
 
-// CPU rider AI state (the "virtual pad"), pointed to by RiderData.cpu (+0x778).
-// Allocated only for CPU riders (NULL for humans). Its leading fields are the
-// synthesized controller output that Rider_InputThink reads back via
-// Rider_GetCPUStickX/Y/Buttons into the rider's effective input fields (held/
-// stickX/stickY). Rider_UpdateCPU fills it each frame: perceive -> decide ->
-// process -> emit (command stream). Partial map.
-// Two layers drive a CPU rider:
-//   - ai_state (0x08)  : the AI PROFILE - chosen once at init by Rider_CPUSelectProfile
-//                        from stage/city/ply (1..10; state 0 asserts) and FIXED for the
-//                        match. Dispatched by Rider_CPUDecideState; its handler picks the
-//                        tactical maneuver each frame. NOT a per-frame transitioning FSM.
-//   - maneuver (0x10)  : TACTICAL maneuver, dispatched by Rider_ProcessCPUManeuver
-//                        (0..0x15). Emits a fresh command stream into cmd_buffer,
-//                        but ONLY when the command VM is idle (cmd_read_ptr==0 &&
-//                        cmd_timer==0) - so one maneuver plays to completion before
-//                        the next is chosen.
-// The command VM (Rider_CPUProcessCmd) then plays cmd_buffer back into the pad
-// fields (buttons/stick_x/stick_y). Gaps are padding.
+// CPU rider AI state, RiderData.cpu (NULL for humans). Its leading fields are the
+// virtual pad RiderGObj_InputThink reads back through Rider_GetCPU*. ai_state is a
+// profile fixed at init; maneuver emits a command stream into cmd_buffer only while
+// the command VM is idle, and Rider_CPUProcessCmd plays it into the pad fields.
 
 // CpuData.ai_state profiles; 4 and values above 10 share the CRUISE_PLUS handler.
 typedef enum CpuAIState
@@ -347,20 +334,18 @@ typedef enum CpuAIState
 typedef struct CpuData
 {
     int buttons;           // 0x00, synthesized button mask -> RiderData.held (0x3d8)
-    s8  stick_x;           // 0x04, synthesized stick X -> RiderData.stickX (0x3ec)
-    u8  x05;               // 0x05
-    s8  stick_y;           // 0x06, synthesized stick Y -> RiderData.stickY (0x3ed)
-    u8  x07;               // 0x07
+    s16 stick_x;           // 0x04, synthesized stick X; Rider_GetCPUStickX truncates it into RiderData.stickX
+    s16 stick_y;           // 0x06, synthesized stick Y; Rider_GetCPUStickY truncates it into RiderData.stickY
     int ai_state;          // 0x08, CpuAIState profile (0 asserts) set once at init, dispatched by Rider_CPUDecideState
     u8  machine_is_bike;   // 0x0c, is_bike of RiderData.machine_gobj, -1 with none (refreshed each perceive)
-    u8  machine_kind;      // 0x0d, its Machine_GetAbsoluteKind, -1 with none; only Rider_CPUEmitSteerStick
+    u8  machine_kind;      // 0x0d, its MachineGObj_GetAbsoluteKind, -1 with none; only Rider_CPUEmitSteerStick
                            //       reads it, comparing against Hydra, Winged and Jet
     u8  city_kind;         // 0x0e, Gm_GetCityKind() captured at init (selects the AI profile)
     u8  stage_kind;        // 0x0f, stGetCurrentStageKind() captured at init (selects the AI profile)
     int maneuver;          // 0x10, TACTICAL maneuver (0..0x15), dispatched by Rider_ProcessCPUManeuver
     int base_maneuver;     // 0x14, fallback maneuver a strategic state parks on (set to 1 or 2); handlers return here via `maneuver = base_maneuver`
     int scratch_18;        // 0x18, cleared at the top of each decide pass but never read (vestigial)
-    uint desire_flags;     // 0x1c, INHIBITOR bits (set = suppress a reaction), seeded from the action state
+    uint desire_flags;     // 0x1c, INHIBITOR bits (set = suppress a reaction), seeded from the status
                            //       and cleared each decide pass. 0x100 no-ram-press, 0x200 no-avoidance,
                            //       0x400 no-dodge/attack-scan, 0x1000000 no-charge/intercept
     u8  suppress_timer;    // 0x20, countdown; while > 0 the perceive stage forces target_secondary = -1
@@ -390,7 +375,7 @@ typedef struct CpuData
     s16 wander_timer;      // 0x5e, Patrol (state 10) wander/oscillation countdown (init 0x4b0; reloads 900)
     Vec3 recorded_pos;     // 0x60, anti-stuck reference position (compared against pos each frame)
     int pos_stuck_timer;   // 0x6c, frames spent within range of recorded_pos (anti-stuck)
-    s16 rival_player_idx;  // 0x70, target rival's player index (5 = none); written by the rival selector, read by attack/patrol via Ply_GetPosition
+    s16 rival_ply;         // 0x70, target rival's ply (5 = none); written by the rival selector, read by attack/patrol via Ply_GetPosition
     s16 rival_reselect_timer; // 0x72, frames until the rival is re-picked (HSD_Randi(0x3c)+0x3c)
     void *item_target;     // 0x74, cached item / chase-object GObj* (0 = none); set by the item-target scan (states 3/8)
     Vec3 item_target_pos;  // 0x78, cached world position of item_target
@@ -414,8 +399,9 @@ typedef struct CpuData
     int cmd_timer;         // 0x110, command countdown; reads next opcode when it hits 0
     u8 *cmd_read_ptr;      // 0x114, command VM playback position within cmd_buffer (0 = idle)
     u8 *cmd_write_ptr;     // 0x118, where maneuver handlers append opcodes (reset to cmd_buffer each maneuver)
-    u8  cmd_buffer[0x80];  // 0x11c, command opcode stream (ends at 0x19c)
+    u8  cmd_buffer[0x80];  // 0x11c, command opcode stream
 } CpuData;
+
 
 // CpuData.maneuver, committed by Rider_CPUArbitrateManeuver.
 typedef enum CpuManeuver
@@ -429,7 +415,7 @@ typedef enum CpuManeuver
     CPUMAN_APPROACH_WAYPOINT_CITY = 0x06,
     CPUMAN_CHARGE_HOLD = 0x07,
     CPUMAN_AVOID_OBSTACLE = 0x08,
-    CPUMAN_DODGE_PROJECTILE = 0x09,
+    CPUMAN_DODGE_WEAPON = 0x09,
     CPUMAN_CHARGE_RELEASE = 0x0a,
     CPUMAN_STEER_TARGET_WIGGLE = 0x0b,
     CPUMAN_STEER_TARGET_ADVANCE = 0x0c,
@@ -469,7 +455,9 @@ typedef struct CpuHazardList
 {
     CpuHazard entries[8]; // 0x000
     int num;              // 0x200
+    u8 x204[0xc];         // 0x204
 } CpuHazardList;
+
 
 typedef struct CpuForwardTarget
 {
@@ -482,7 +470,9 @@ typedef struct CpuForwardList
 {
     CpuForwardTarget entries[8]; // 0x00
     int num;                     // 0xa0
+    u8 xa4[0xc];                 // 0xa4
 } CpuForwardList;
+
 
 static CpuHazardList *stc_cpu_hazards = (CpuHazardList *)0x8055e698;      // Rider_CPUCollectHazards
 static CpuForwardList *stc_cpu_forward = (CpuForwardList *)0x8055e8b4;    // Rider_CPUForwardLookahead
@@ -506,6 +496,7 @@ typedef struct CpuMachineCaps
     float charge_release; // 0x0c, a charge-holding CPU keeps holding while the gauge is at or under this
     float x10;            // 0x10, never read
 } CpuMachineCaps;
+
 
 // One per star kind. The bike table after it is never read: bikes and riders with no
 // machine get the Warp Star's row.
@@ -531,7 +522,7 @@ static CpuMachineSteer *stc_cpu_machine_steer_star = (CpuMachineSteer *)0x804b8f
 static CpuStadiumMachineParam *stc_cpu_airglider_machine = (CpuStadiumMachineParam *)0x804b8a5c; // [25]
 static CpuStadiumMachineParam *stc_cpu_highjump_machine = (CpuStadiumMachineParam *)0x804b8b24;  // [25]
 
-// The constants Machine_CPUGetChargeHoldGate and Machine_CPUGetChargeReleaseOverride
+// The constants MachineGObj_CPUGetChargeHoldGate and MachineGObj_CPUGetChargeReleaseOverride
 // load for the kinds they switch on.
 static float *stc_cpu_charge_gate_low = (float *)0x805e31a4; // second gate of Bulk, Rocket and Formula
 static float *stc_cpu_charge_gate_bulk = (float *)0x805e31a8;
@@ -542,24 +533,37 @@ static float *stc_cpu_charge_gate_formula = (float *)0x805e31b8;
 static float *stc_cpu_charge_release_bulk = (float *)0x805e31bc;
 static float *stc_cpu_charge_release_hydra = (float *)0x805e31c0;
 
+// One status. RiderStateChange installs the callbacks and hands attack_log to
+// Rider_AssignAttackLog.
+typedef struct RiderStateDesc
+{
+    int mstatus;       // 0x00, -1 = none
+    int attack_log;    // 0x04, 0 on states whose hitboxes credit no player
+    void *callback[6]; // 0x08, anim, input, phys, envcoll, x7c4, x7c8
+} RiderStateDesc;
+
+
 typedef struct RiderData
 {
     GOBJ *gobj;                           // 0x0, the rider's own GObj; Rider_InitData (0x8018ddc4) writes it back
     RiderKind kind;                       // 0x4
     u8 ply;                               // 0x8
-    u8 x9;                                // 0x9
+    u8 controller_index;                  // 0x9
     u8 color_idx;                         // 0xa
     u8 xb;                                // 0xb
-    MachineKind starting_machine_idx : 8; // 0xc
-    int x10;                              // 0x10
-    int x14;                              // 0x14
+    int is_bike;                          // 0xc, PlayerData.is_bike at spawn; mount and respawn refresh it from
+                                          //      the ridden machine, -1 with none. Kirby's bike pose follows it
+    MachineKind machine_kind : 8;         // 0x10, class-relative PlayerData.machine_kind at spawn; never refreshed
+    u8 team;                              // 0x11, PlayerData+0x90 at spawn
+    u8 x12[2];                            // 0x12
+    JOBJDesc *jobjdesc;                   // 0x14, body model joint, from rdDataKirby.model
     rdDataKirby *rdDataKirby;             // 0x18
     RiderStatus status;                   // 0x1c
-    int x20;                              // 0x20, count of shared states (RDSTATE_COMMON_NUM)
+    int common_state_num;                 // 0x20, RDSTATE_COMMON_NUM
     int state_frame;                      // 0x24
     RiderMotionStatus mstatus;            // 0x28, -1 = none
-    int x2c;                              // 0x2c, RiderStateDesc * for the shared states
-    int x30;                              // 0x30, RiderStateDesc * for the character's states from x20
+    RiderStateDesc *common_state_table;   // 0x2c, statuses below common_state_num
+    RiderStateDesc *state_table;          // 0x30, the kind's own statuses, indexed status - common_state_num
     int x34;                              // 0x34
     int x38;                              // 0x38
     int x3c;                              // 0x3c
@@ -582,18 +586,18 @@ typedef struct RiderData
     int x2a4;                             // 0x2a4
     int x2a8;                             // 0x2a8
     int x2ac;                             // 0x2ac
-    void *ability_hat_model;              // 0x2b0, rider model container. **+0x0 is the body model JOBJ root,
-                                          //        baked every frame by Rider_ApplyModelMatrix; **+0x120 is the
-                                          //        copy-ability hat JObj (NULL with no ability), which the
-                                          //        projectile spawners use as the throw bone and assert on.
+    void *model_parts;                    // 0x2b0, 0x10-byte entries led by a JOBJ*. Entry 0 is the body root,
+                                          //        baked every frame by Rider_ApplyModelMatrix; entry 18 (+0x120)
+                                          //        is the copy-ability hat (NULL with no ability), the weapon
+                                          //        spawners' throw bone.
     int x2b4;                             // 0x2b4
     int x2b8;                             // 0x2b8
     int x2bc;                             // 0x2bc
-    DOBJ *dobj_lookup_arr;                // 0x2c0, the body's render objects, one per material slot and indexed
-                                          //        by material index. The entry point for any per-material color
-                                          //        write, and what the recolor path drives MatAnim AObjs through.
-    int x2c4;                             // 0x2c4
-    int x2c8;                             // 0x2c8
+    TOBJ **tobj_lookup_arr;               // 0x2c0, every TObj of the body's DObj/MObj chains, flattened (filled
+                                          //        by 0x801968d0). The recolor functions seek each entry's aobj to
+                                          //        pick a baked texture variant; body colors are texture swaps.
+    float rider_scale;                    // 0x2c4, PlayerData.rider_scale at spawn
+    float x2c8;                           // 0x2c8, rider_scale copied by Rider_InitWalk; Trigger_Init's scale
     int is_airborne;                      // 0x2cc, off the machine: the ground probe missed
     int x2d0;                             // 0x2d0
     int x2d4;                             // 0x2d4
@@ -609,10 +613,7 @@ typedef struct RiderData
     int x30c;                             // 0x30c
     int x310;                             // 0x310
     int x314;                             // 0x314
-    Vec3 hand_bone_pos;                   // 0x318, world-space anchor read by Rider_GetHandBonePos.
-                                          // Used by Bomb_State0_SnapToHand for the bomb HELD-state position
-                                          // and by spawnFireAura/spawnSpikeAura/spawnIceAura as the aura
-                                          // spawn position - presumably the rider's hand bone.
+    Vec3 hand_bone_pos;                   // 0x318, the held bomb's position and the Fire/Needle/Ice aura spawn point
     Vec3 forward;                         // 0x324, forward movement vector
     Vec3 up;                              // 0x330, up vector
     Vec3 x33c;                            // 0x33c
@@ -655,8 +656,8 @@ typedef struct RiderData
         int x3e8;           // 0x3e8
         s8 stickX;          // 0x3ec, effective stick X (byte). For CPU riders set from Rider_GetCPUStickX; also used by replays.
         s8 stickY;          // 0x3ed, effective stick Y (byte). For CPU riders set from Rider_GetCPUStickY; also used by replays.
-        int x3f0;           // 0x3f0
     } input;
+    GOBJ *ability_gobj;        // 0x3f0, the copy ability's weapon GObj (Fire's aura), destroyed when it is lost
     GOBJ *machine_gobj;        // 0x3f4
     GOBJ *x3f8;                // 0x3f8
     int respawn_machine_id;    // 0x3fc, MachineData.exist_num cached at the last respawn; a different id on boarding is a machine change
@@ -681,8 +682,8 @@ typedef struct RiderData
     u8 x433;                   // 0x433
     int x434;                  // 0x434
     int x438;                  // 0x438
-    int x43c;                  // 0x43c
-    int efgroup;               // 0x440, EfGroup bucket this rider's effects spawn into
+    int efgroup;               // 0x43c, EfGroup bucket most of this rider's effects spawn into
+    int efgroup2;              // 0x440, second EfGroup bucket
     int x444;                  // 0x444
     int x448;                  // 0x448
     int x44c;                  // 0x44c
@@ -717,7 +718,7 @@ typedef struct RiderData
     int x4b8;                  // 0x4b8
     int x4bc;                  // 0x4bc
     int x4c0;                  // 0x4c0
-    int x4c4;                  // 0x4c4
+    void *homing_trackers;     // 0x4c4, list of weapon homing trackers locked onto this rider
     int x4c8;                  // 0x4c8
     AudioEmitter audio_emitter;// 0x4cc
     int audio_track;           // 0x4d0
@@ -768,9 +769,9 @@ typedef struct RiderData
     int x584;                  // 0x584
     int candy_duration;        // 0x588
     int x58c;                  // 0x58c
-    int patch_drop_cooldown;   // 0x590, per-spawn cooldown, reset to game_singleton[0x21c] after each spawn
-                               //        and to 0 on a fresh Rider_DropPatches session
-    int patch_drop_progress;   // 0x594, drops dispatched this session. Below game_singleton[0x220] the
+    int patch_drop_cooldown;   // 0x590, per-spawn cooldown, reset to RiderCommonParam.patch_drop_cooldown_init
+                               //        after each spawn and to 0 on a fresh Rider_DropPatches session
+    int patch_drop_progress;   // 0x594, drops dispatched this session. Below RiderCommonParam.patch_drop_burst_threshold the
                                //        sub-handler spawns sequentially; at or above it switches to the burst
                                //        path. Reset to 0 on a fresh session.
     int patch_drop_count;      // 0x598, queued patch-item count for the per-frame drop consumer; written by Rider_DropPatches
@@ -831,36 +832,6 @@ typedef struct RiderData
     GOBJ *shadow_gobj;         // 0x66c
     CollData *coll_data;       // 0x670
     TriggerData trigger;       // 0x674
-    int x6d4;                  // 0x6d4
-    int x6d8;                  // 0x6d8
-    int x6dc;                  // 0x6dc
-    int x6e0;                  // 0x6e0
-    int x6e4;                  // 0x6e4
-    int x6e8;                  // 0x6e8
-    int x6ec;                  // 0x6ec
-    int x6f0;                  // 0x6f0
-    int x6f4;                  // 0x6f4
-    int x6f8;                  // 0x6f8
-    int x6fc;                  // 0x6fc
-    int x700;                  // 0x700
-    int x704;                  // 0x704
-    int x708;                  // 0x708
-    int x70c;                  // 0x70c
-    int x710;                  // 0x710
-    int x714;                  // 0x714
-    int x718;                  // 0x718
-    int x71c;                  // 0x71c
-    int x720;                  // 0x720
-    int x724;                  // 0x724
-    int x728;                  // 0x728
-    int x72c;                  // 0x72c
-    int x730;                  // 0x730
-    int x734;                  // 0x734
-    int x738;                  // 0x738
-    int x73c;                  // 0x73c
-    int x740;                  // 0x740
-    float x744;                // 0x744
-    float x748;                // 0x748
     union {                    // 0x74C
         struct {
             float weight;
@@ -887,14 +858,14 @@ typedef struct RiderData
     DmgLog dmg_log;            // 0x794, attack_data from RiderStateDesc.attack_log
     struct                     //
     {                          //
-        void (*anim)(GOBJ *);  // 0x7b4
-        void (*iasa)(GOBJ *);  // 0x7b8
-        void (*phys)(GOBJ *);  // 0x7bc
-        void (*coll)(GOBJ *);  // 0x7c0
-        void (*x7c4)(GOBJ *);  // 0x7c4, runs per frame from gobj proc 8018f7b0
-        void (*x7c8)(GOBJ *);  // 0x7c8, runs per frame from gobj proc 8018fc10
-        void (*x7cc)(GOBJ *);  // 0x7cc, runs per frame from gobj proc 8018e9f0
-        void (*x7d0)(GOBJ *);  // 0x7d0, runs per frame, cracker launcher uses this to decide when to shoot
+        void (*anim)(GOBJ *);    // 0x7b4, RDPRI_ANIM
+        void (*input)(GOBJ *);   // 0x7b8, RDPRI_INPUT, the interrupt checks
+        void (*phys)(GOBJ *);    // 0x7bc, RDPRI_PHYS
+        void (*envcoll)(GOBJ *); // 0x7c0, RDPRI_ENVCOLL
+        void (*x7c4)(GOBJ *);    // 0x7c4, RDPRI_6
+        void (*x7c8)(GOBJ *);    // 0x7c8, RDPRI_13
+        void (*x7cc)(GOBJ *);    // 0x7cc, RDPRI_0
+        void (*x7d0)(GOBJ *);    // 0x7d0, RDPRI_7; the cracker launcher decides when to shoot here
         void (*x7d4)(GOBJ *);  // 0x7d4
         void (*x7d8)(GOBJ *);  // 0x7d8
         void (*x7dc)(GOBJ *);  // 0x7dc
@@ -905,17 +876,10 @@ typedef struct RiderData
         void (*x7f0)(GOBJ *);  // 0x7f0
         void (*x7f4)(GOBJ *);  // 0x7f4
     } cb;
-    // 0x7f8 / 0x7fc: per-ability teardown callbacks installed at grant, each called
-    // with the rider in r3. An ability installs into one slot of the pair: +0x7f8
-    // for Fire (0x801af618), Sword (0x801aff1c), Bomb (0x801b13ac); +0x7fc for
-    // Wheel (via 0x801af638) and Bird. Both route through
-    // Rider_TeardownCopyAbility (0x801a810c), which resets copy_kind to -1, spawns
-    // the "ability lost" poof VFX/SFX, and removes the ability model/hat; clearing
-    // the callback field itself is left to the per-ability wrapper. Don't call
-    // these directly - use Rider_AbilityRemoveModel (0x80191554), which calls
-    // +0x7f8 and then +0x7fc, skipping either when NULL (that's how the engine
-    // strips the old ability on a new inhale).
-    void (*cb_ability_remove2)(RiderData *); // 0x7f8
+    // Copy-ability teardowns, run by Rider_AbilityRemoveModel. A status installs
+    // cb_status_remove (the Fire/Sword/Bomb GET states, the inhale states) and every
+    // RiderStateChange clears it; cb_ability_remove persists (Tire, Bird).
+    void (*cb_status_remove)(RiderData *);   // 0x7f8
     void (*cb_ability_remove)(RiderData *);  // 0x7fc
     int x800;                           // 0x800
     int x804;                           // 0x804
@@ -1014,10 +978,9 @@ typedef struct RiderData
     int x920;                           // 0x920, "about to expire" threshold (warning blink fires when copy_timer drops below it)
     int x924;                           // 0x924
     int x928;                           // 0x928
-    // 0x92c: per-frame ability tick (the copy_kind's abilityTimer_* fn), called by
-    // abilityTimerBranchToAbilityCountdown (0x801a5f68) while in the ability action-
-    // state. Decrements copy_timer and runs the drop at 0. Not installed by every
-    // kind (Bomb has none).
+    // Per-frame ability tick (the copy_kind's abilityTimer_* fn), called by
+    // abilityTimerBranchToAbilityCountdown (0x801a5f68) in the ability status.
+    // Decrements copy_timer and runs the drop at 0. Bomb installs none.
     void (*cb_ability_tick)(RiderData *); // 0x92c
     void (*cb_copy_input)(RiderData *); // 0x930
     int x934;                           // 0x934
@@ -1025,13 +988,13 @@ typedef struct RiderData
     union                               // 0x93c
     {
         CopyKind copy_wheel_result;     // CopyKind the copy wheel selected
-        s32 inhale_timer;               // reused during the inhale action-state; the
+        s32 inhale_timer;               // reused during the inhale statuses; the
                                         // gesture ends when it counts down to 0
         GOBJ *saved_plink_neighbour;    // reused during a legendary assembly
     };
     int x940;                           // 0x940, saved gx_link neighbour GOBJ during a legendary assembly
-    int respawn_is_bike;                // 0x944, staged is_bike for Rider_RespawnFullRecreate
-    int respawn_class_slot;             // 0x948, staged class slot for Rider_RespawnFullRecreate
+    int respawn_is_bike;                // 0x944, staged is_bike for Rider_RespawnFullRecreate; status scratch
+    int respawn_class_slot;             // 0x948, staged class slot for it; the inhale statuses reuse the pair
     int x94c;                           // 0x94c
     int x950;                           // 0x950
     int x954;                           // 0x954
@@ -1070,7 +1033,7 @@ typedef struct RiderData
     u8 x9cf;                            // 0x9cf
     int x9d0;                           // 0x9d0
     int x9d4;                           // 0x9d4
-    int x9d8;                           // 0x9d8, per-state scratch: AS_Jump effect timer, AS_Dash speed tier
+    int x9d8;                           // 0x9d8, per-status scratch: Jump effect timer, Dash speed tier
     int x9dc;                           // 0x9dc
     int x9e0;                           // 0x9e0
     int x9e4;                           // 0x9e4
@@ -1089,7 +1052,7 @@ typedef struct RiderData
     int xa0c;                           // 0xa0c
     int xa10;                           // 0xa10
     int xa14;                           // 0xa14
-    int x;                              // 0xa18
+    int xa18;                           // 0xa18
     int xa1c;                           // 0xa1c
     int xa20;                           // 0xa20
     int xa24;                           // 0xa24
@@ -1097,7 +1060,7 @@ typedef struct RiderData
     int xa2c;                           // 0xa2c
     int xa30;                           // 0xa30
     int xa34;                           // 0xa34
-    int xa38;                           // 0xa38, quick-spin scratch, cleared on Rider_QuickSpin_Enter
+    int xa38;                           // 0xa38, quick-spin scratch, cleared on RiderState_QuickSpinEnter
     int xa3c;                           // 0xa3c
     union                               // 0xa40, walk flags off the machine, quick-spin accumulators on it
     {
@@ -1107,7 +1070,7 @@ typedef struct RiderData
             u8 is_grounded : 1;         // 0xa40, 0x40
             u8 is_fall : 1;             // 0xa40, 0x20, walked off a ledge
             u8 is_fly : 1;              // 0xa40, 0x10
-            u8 is_fly2 : 1;             // 0xa40, 0x08, air jump (AS_Jump2), checked by CheckIfKirbyJumps
+            u8 is_fly2 : 1;             // 0xa40, 0x08, air jump (Jump2 status), checked by CheckIfKirbyJumps
             u8 is_swim : 1;             // 0xa40, 0x04
         };
         struct
@@ -1140,16 +1103,8 @@ typedef struct RiderData
     int xa94;                           // 0xa94
     int xa98;                           // 0xa98
     int xa9c;                           // 0xa9c
-    int xaa0;                           // 0xaa0
-    int xaa4;                           // 0xaa4
-    int xaa8;                           // 0xaa8
-    int xaac;                           // 0xaac
-    int xab0;                           // 0xab0
-    int xab4;                           // 0xab4
-    int xab8;                           // 0xab8
-    int xabc;                           // 0xabc
-    int xac0;                           // 0xac0
 } RiderData;
+
 
 static rdDataKirby **stc_rdDataKirby = (rdDataKirby **)0x80559fa8;
 static rdDataCommon **stc_rd_common_data = (rdDataCommon **)(0x805dd0e0 + 0x730);
@@ -1161,19 +1116,11 @@ static RiderCommonParam **stc_rider_param = (RiderCommonParam **)(0x805dd0e0 + 0
 typedef void (*AbilityInitFunc)(RiderData *);
 static AbilityInitFunc *stc_ability_init_table = (AbilityInitFunc *)0x804af4f0;
 
-// One action state. RiderStateChange reads states below RiderData.x20 from x2c and
-// the rest from x30, installs the callbacks and copies attack_log into +0x794.
-typedef struct RiderStateDesc
-{
-    int action;        // 0x00, motion action index, -1 = none
-    int attack_log;    // 0x04, 0 on states whose hitboxes credit no player
-    void *callback[6]; // 0x08, anim, iasa, phys, coll, x7c4, x7c8
-} RiderStateDesc; // 0x20
-static RiderStateDesc *stc_rider_common_states = (RiderStateDesc *)0x804adc08; // [RDSTATE_COMMON_NUM]
-// Kirby's states from RDSTATE_COMMON_NUM. 30 (AS_RaceStartGo) and 40
-// (AS_StarBeginCharge) play action 100, which arms a 1-frame, 2-damage hitbox against
-// event actors, items, projectiles and stage objects that credits no player.
-static RiderStateDesc *stc_rider_kirby_states = (RiderStateDesc *)0x804ae428;
+static RiderStateDesc *stc_rider_common_state_table = (RiderStateDesc *)0x804adc08; // [RDSTATE_COMMON_NUM]
+// Kirby's statuses from RDSTATE_COMMON_NUM. RDSTATE_READYPUSHSTART and RDSTATE_PUSHSTART
+// play mstatus 100, which arms a 1-frame, 2-damage hitbox against event actors, items,
+// weapons and stage objects that credits no player.
+static RiderStateDesc *stc_rider_kirby_state_table = (RiderStateDesc *)0x804ae428;
 
 // Copy wheel ability list tables used by Rider_StartCopyWheel.
 // Normal mode: 11 entries {0,1,2,...,10} (all CopyKinds).
@@ -1187,11 +1134,10 @@ typedef struct CopyWheelTable
 static CopyWheelTable *stc_copy_wheel_normal = (CopyWheelTable *)0x804af730; // count=11, list at 0x804af690
 static CopyWheelTable *stc_copy_wheel_melee = (CopyWheelTable *)0x804af738;  // count=29, list at 0x804af6bc
 
-// CPU rider AI ("virtual pad") pipeline.
 // The on-foot counterpart of Machine_ActOnHitCollision, including its Rail Fire
 // station case (bl Ply_PlayRailFireHitSFX at 0x80196668).
 void Rider_ActOnHitCollision(RiderData *rd); // 0x8019655c
-void Rider_CPUThink(GOBJ *gobj);          // 0x8018fc58, rider proc: if CPU, runs the AI update
+void RiderGObj_CPUThink(GOBJ *gobj);      // 0x8018fc58, rider proc: if CPU, runs the AI update
 // Allocates rd->cpu. ai_state 0 picks the profile with Rider_CPUSelectProfile.
 void Rider_CPUInit(RiderData *rd, int ai_state, int difficulty); // 0x80262d6c
 void Rider_UpdateCPU(RiderData *rd);      // 0x8026beec, orchestrates perceive -> decide -> process -> emit
@@ -1214,12 +1160,12 @@ void Rider_CPUProcessCmd(RiderData *rd);  // 0x80275cbc, plays the command strea
 void Rider_CPUArbitrateManeuver(RiderData *rd); // 0x80274ec0
 // Builds the look-ahead waypoint route into scratch 0x8055e964, returning 0 if
 // the route is invalid. Does not pick the maneuver.
-int  Rider_CPUBuildRoute(CpuData *cpu, void *route_scratch, uint *flags_out); // 0x8026a734
+int  Rider_CPUBuildRoute(RiderData *rd, void *route_scratch, uint *flags_out); // 0x8026a734
 void Rider_CPUUpdateNavTarget(RiderData *rd); // 0x8026b6d0, nearest-node spatial query -> assigns CpuData.target_primary (+0x38) + arc (+0x3c)
-// ORs inhibitor bits into CpuData.desire_flags from the rider's action state.
+// ORs inhibitor bits into CpuData.desire_flags from the rider's status.
 void Rider_CPUSeedDesire(RiderData *rd);  // 0x802762dc
-// Target-selection scans (populate CpuData target fields each frame; signatures approximate).
-void  Rider_CPURivalSelect(RiderData *rd);        // 0x80264210, scores 5 slots -> rival_player_idx (+0x70); shared by states 1/2/4/8/10
+// Target-selection scans, filling CpuData's target fields each frame.
+void  Rider_CPURivalSelect(RiderData *rd);        // 0x80264210, scores 5 slots -> rival_ply (+0x70); shared by states 1/2/4/8/10
 // Ranks the top 5 items within radius of center by Rider_CPUGetItemScore plus
 // distance bands and returns the path_retry_counter'th; the caller stores it to
 // item_target (+0x74) (states 3/8). A non-NULL facing adds 5 to items off its axis.
@@ -1227,19 +1173,20 @@ GOBJ *Rider_CPUScanItems(RiderData *rd, Vec3 *center, Vec3 *facing, float radius
 GOBJ *Rider_CPUScanCityObjects(RiderData *rd, Vec3 *center, float radius); // 0x802638a4, top-5 ranked city-object scan -> city_object (+0x84) (state 3)
 void  Rider_CPUScanRouteGoal(RiderData *rd);      // 0x80263fd0, single-best route-goal scan -> route_goal (+0x94) (states 5/6)
 void  Rider_CPUSelectChargeAnchor(RiderData *rd); // 0x80263610, resolves charge anchor -> charge_anchor (+0xb0/+0xb4) (state 7)
-void  Rider_CPUBlendRoutePoints(RiderData *rd);   // 0x80267238, blends item/interaction/path-point positions into the steering route
+void  Rider_CPUBlendRoutePoints(RiderData *rd, void *route_scratch); // 0x80267238, blends item/interaction/path-point positions into the route
 // Perception (fill the per-frame scratch buffers).
 void  Rider_CPUCollectHazards(RiderData *rd);     // 0x80269928, hazard/threat list -> scratch 0x8055e698 (behavior bit 0x02 adds a 5th pass)
-void  Rider_CPUCollectRiderHazards(RiderData *rd); // 0x80268234, hazard pass 1: rider bodies + hurt-volumes
-void  Rider_CPUForwardLookahead(RiderData *rd);   // 0x80269f10, forward-collision list -> scratch 0x8055e8b4 (behavior bit 0x80 gates it)
+void  Rider_CPUCollectRiderHazards(RiderData *rd, CpuHazardList *list, Vec3 *pos, Vec3 *arg3, float f1); // 0x80268234, hazard pass 1: rider bodies + hurt-volumes
+int   Rider_CPUForwardLookahead(RiderData *rd, CpuForwardList *list); // 0x80269f10, forward-collision list (behavior bit 0x80 gates it)
 void  Rider_CPUForwardLookaheadSetup(RiderData *rd); // 0x8026a498, wrapper: builds the basis then calls Rider_CPUForwardLookahead
-// Advances along the spline graph by arc-length. out = {node_id, along, side},
-// where side is a link-direction tag of -1/0/+1.
-int   Rider_CPUWalkRoute(RiderData *rd, float arc_len, void *out, void *spline_lookup); // 0x80264924
+typedef int (*CpuRouteStep)(int node);
+// Advances along the spline graph from start into out, both {node_id, along, side}.
+// step is Spline_GetForward or Spline_GetBackward.
+int   Rider_CPUWalkRoute(RiderData *rd, void *start, void *out, CpuRouteStep step, float f1, float f2); // 0x80264924
 // Steering / command emission.
 void  Rider_CPUEmitSteer(RiderData *rd, Vec3 *desired_dir);      // 0x8026d6a0, projects + avoidance-bends a heading, emits steering opcodes
 void  Rider_CPUEmitSteerStick(RiderData *rd, Vec3 *desired_dir); // 0x8026c4ec, yaw error -> opcode 190 nudge / 192 ramp (stick_x), 129 (stick_y)
-void  Rider_CPUResolveAvoidVector(RiderData *rd, Vec3 *dir);     // 0x8026d1fc, rotates a heading off the nearest imminent hazard (reads 0x8055e698)
+void  Rider_CPUResolveAvoidVector(RiderData *rd, Vec3 *dir, float f1); // 0x8026d1fc, rotates a heading off the nearest imminent hazard
 void  Rider_CPUEmitAbilityAction(RiderData *rd);  // 0x80273d1c, post-maneuver copy-ability press emitter
 void  Rider_CPUTerminateCmdStream(RiderData *rd); // 0x80276228, caps the per-maneuver command stream (opcode 0x7f), arms the VM
 int   Rider_CPUEmitChargeStutter(RiderData *rd);  // 0x8026da40, velocity-stuck charge-pump (press -> hold-20 -> hold-40); returns 1 if it emitted
@@ -1255,29 +1202,29 @@ float Rider_CPUGetMachineTurnTolerance(RiderData *rd); // 0x802776c4, per-machin
 float Rider_CPUGetMachineAlignCosNear(RiderData *rd);   // 0x80277538, CpuMachineSteer.align_cos_near
 float Rider_CPUGetMachineAlignCosFar(RiderData *rd);    // 0x802775bc, CpuMachineSteer.align_cos_far
 float Rider_CPUGetMachineStuckAngle(RiderData *rd);     // 0x80277640, CpuMachineSteer.stuck_angle
-// The rider's machine's stadium pair, indexed by Machine_GetAbsoluteKind. 0 with no machine.
+// The rider's machine's stadium pair, indexed by MachineGObj_GetAbsoluteKind. 0 with no machine.
 int Rider_CPUGetAirGliderMachineParam(RiderData *rd, float *pitch, float *min_len); // 0x80277024
 int Rider_CPUGetHighJumpMachineParam(RiderData *rd, float *pitch, float *min_len);  // 0x80277094
-// CpuMachineCaps readers. Each splits Machine_GetAbsoluteKind back into a class slot.
-int Machine_CPUGetSwapScore(GOBJ *machine);        // 0x8027699c, -1 with no row
-int Machine_CPUCanSwap(GOBJ *machine);             // 0x80276a24, 0 for a NULL machine
-int Machine_CPUCanBrake(GOBJ *machine);            // 0x80276acc
-int Machine_CPUCanChargeHold(GOBJ *machine);       // 0x80276b64
-float Machine_CPUGetChargeRelease(GOBJ *machine);  // 0x80276bfc
-int Machine_CPUCanRamCharge(GOBJ *machine);        // 0x80276c84
-int Machine_CPUSkipsPassageBranch(GOBJ *machine);  // 0x80276d1c
+// CpuMachineCaps readers. Each splits MachineGObj_GetAbsoluteKind back into a class slot.
+int MachineGObj_CPUGetSwapScore(GOBJ *machine_gobj);        // 0x8027699c, -1 with no row
+int MachineGObj_CPUCanSwap(GOBJ *machine_gobj);             // 0x80276a24, 0 for a NULL machine
+int MachineGObj_CPUCanBrake(GOBJ *machine_gobj);            // 0x80276acc
+int MachineGObj_CPUCanChargeHold(GOBJ *machine_gobj);       // 0x80276b64
+float MachineGObj_CPUGetChargeRelease(GOBJ *machine_gobj);  // 0x80276bfc
+int MachineGObj_CPUCanRamCharge(GOBJ *machine_gobj);        // 0x80276c84
+int MachineGObj_CPUSkipsPassageBranch(GOBJ *machine_gobj);  // 0x80276d1c
 // Whether the City Trial spawn slot numbered by the machine's absolute kind is filled.
-int Machine_CPUIsKindSlotFilled(GOBJ *machine);    // 0x80276db4
+int MachineGObj_CPUIsKindSlotFilled(GOBJ *machine_gobj);    // 0x80276db4
 // Bulk, Hydra, Rocket and Formula only: the charge-hold gate. Returns 0 for the rest.
-int Machine_CPUGetChargeHoldGate(GOBJ *machine, float *a, float *b); // 0x80276de4
+int MachineGObj_CPUGetChargeHoldGate(GOBJ *machine_gobj, float *a, float *b); // 0x80276de4
 // Bulk and Hydra only: the charge level a CPU releases at. Returns 0 for the rest.
-int Machine_CPUGetChargeReleaseOverride(GOBJ *machine, float *level); // 0x80276ea0
-int  Rider_GetCPUButtons(RiderData *rd);  // 0x80275cb0, returns CpuData.buttons (+0x00)
-int  Rider_GetCPUStickX(RiderData *rd);   // 0x80275c90, returns CpuData.stick_x (+0x04)
-int  Rider_GetCPUStickY(RiderData *rd);   // 0x80275ca0, returns CpuData.stick_y (+0x06)
-void Rider_InputThink(GOBJ *gobj);        // 0x8018ee28, rider proc: selects effective input (human / CPU / replay)
+int MachineGObj_CPUGetChargeReleaseOverride(GOBJ *machine_gobj, float *level); // 0x80276ea0
+int  Rider_GetCPUButtons(RiderData *rd);  // 0x80275cb0
+int  Rider_GetCPUStickX(RiderData *rd);   // 0x80275c90, stick_x truncated to s8
+int  Rider_GetCPUStickY(RiderData *rd);   // 0x80275ca0, stick_y truncated to s8
+void RiderGObj_InputThink(GOBJ *gobj);    // 0x8018ee28, rider proc: selects effective input (human / CPU / replay)
 
-void Rider_RespawnEnter(RiderData *); // 0x801a1d70
+void RiderState_RespawnEnter(RiderData *); // 0x801a1d70
 // Tears the rider's current machine down and recreates rider plus machine on
 // (is_bike, class_index) in place. Called by the legendary assembly and by the copy
 // ability's star removal; the trailing arguments are the literals both call sites
@@ -1286,62 +1233,59 @@ void Rider_RespawnEnter(RiderData *); // 0x801a1d70
 // lands in MachineSpawnDesc.x80.
 void Rider_RespawnFullRecreate(RiderData *rd, int is_bike, u8 class_index, int carry_hp_max, int a5, int set_ply_machine, u8 desc_x80, u32 carry_xc3b_10); // 0x80193900
 int Rider_GiveAbility(RiderData *, CopyKind); // 0x801a81a4
-int Rider_CheckUnableAbility(RiderData *); // 0x80191798, checks if the rider can receive an ability?
-// 0x80191554. Universal "remove the currently-held copy ability" teardown: if
-// copy_kind or powerup_kind is set, invokes whichever per-ability teardown
-// callbacks are installed (cb_ability_remove at +0x7fc, and its sibling at +0x7f8
-// used by e.g. Bomb). Those route through Rider_TeardownCopyAbility (0x801a810c),
-// which resets copy_kind to -1, spawns the "ability lost" poof VFX/SFX, removes
-// the ability model/hat, and clears the ability callback fields. This is what
-// Rider_GiveAbility calls to strip the old ability before granting a new one, so
-// it works for every copy_kind. Does NOT play the spit-out animation - pair with
-// Rider_LoseAbilityState_Enter for that.
+int Rider_CheckUnableAbility(RiderData *); // 0x80191798, 1 while grants must be queued (x823 bit 0x01)
+// With a copy ability or power-up held, calls cb_status_remove then cb_ability_remove,
+// skipping NULL ones. Rider_GiveAbility runs it before every grant. The teardowns end
+// in revertKirbyModel (0x801a7d70), which removes the hat, clears cb_ability_remove
+// and runs Rider_TeardownCopyAbility (copy_kind = -1, poof effect and SFX). It does
+// not play the spit-out animation; RiderState_LoseAbilityEnter does.
 void Rider_AbilityRemoveModel(RiderData *); // 0x80191554
 // Cancels queued copy-ability and power-up grants, freeing their pending objects
 // and resetting queued_ability_kind / queued_powerup_kind to -1.
 void Rider_AbilityClearQueued(RiderData *); // 0x801915c4
 // Grants queued_ability_kind / queued_powerup_kind if one is pending, otherwise runs
-// the rider's IASA fallback chain and settles on AS_StarWait. The engine's generic
+// the rider's interrupt fallback chain and settles on RiderState_StarWaitEnter. The engine's generic
 // "resolve or return to neutral" step - the tail of Rider_StartCopyWheel and the exit
 // of the inhale START state.
 void Rider_ResolveQueuedAbility(RiderData *); // 0x801a8454
 
 // Legendary assembly, the rider's half. Kirby only. Enter relinks the rider GOBJ
 // from GAMEPLINK_RIDER to p_link 32 and gx_link 6 to 26, saving both neighbours in
-// +0x93c / +0x940, and enters RiderStateChange(0x82, 0x220 + machine_index). p_link
-// 32 is outside PAUSEKIND_EXPLODE's freeze mask, which is how the rider keeps
-// animating while the world is frozen. The machine swap itself is data-driven, off
-// the motion-script variable at +0x808.
+// +0x93c / +0x940, and enters RDSTATE_LEGENDARYASSEMBLY with mstatus 0x220 +
+// machine_index. p_link 32 is outside PAUSEKIND_EXPLODE's freeze mask, so the rider
+// keeps animating while the world is frozen. The machine swap is driven by the
+// motion-script variable at +0x808.
 void Ply_EnterLegendaryAssembly(int ply, int machine_index);    // 0x8022d6b4, also clears that set's piece bits
 void Ply_ExitLegendaryAssembly(int ply);                        // 0x8022d71c
-void Rider_EnterLegendaryAssembly(GOBJ *rider, int machine_index); // 0x8019248c
-void Rider_ExitLegendaryAssembly(GOBJ *rider);                  // 0x801924f8
+void RiderGObj_EnterLegendaryAssembly(GOBJ *rider_gobj, int machine_index); // 0x8019248c
+void RiderGObj_ExitLegendaryAssembly(GOBJ *rider_gobj);         // 0x801924f8
 void RiderState_LegendaryAssemblyEnter(RiderData *rd, int machine_index); // 0x801bda34
 void RiderState_LegendaryAssemblyAnimThink(RiderData *rd);      // 0x801bdb2c
 void RiderState_LegendaryAssemblyExit(RiderData *rd);           // 0x801bdbac
 // Motion-script opcode: writes the command word's low 24 bits into RiderData
 // +0x808, +0x80c, +0x810 or +0x814, picked by the command byte's low 2 bits.
 void RiderScript_SetVariable(RiderData *rd, void *script);      // 0x8019b98c
-// Mounts the rider on machine_gobj (RiderStateChange 0x73) and counts a get-on when it
+// Mounts the rider on machine_gobj (RDSTATE_GETONSTAR) and counts a get-on when it
 // is not the machine the rider respawned on.
-void AS_GetOnStar(GOBJ *machine_gobj, RiderData *rd); // 0x801ba054
-// Neutral riding/on-foot state (RiderStateChange 0x21). Last resort of the IASA chain.
-void AS_StarWait(RiderData *); // 0x801ab1a0
-// Ends a machine charge and spends it on a boost (RiderStateChange 0x2a), from the
-// A-release interrupt check and the full-charge hold state's think.
+void RiderState_GetOnStarEnter(GOBJ *machine_gobj, RiderData *rd); // 0x801ba054
+// Neutral riding status (RDSTATE_RUN). Last resort of the interrupt chain.
+void RiderState_StarWaitEnter(RiderData *); // 0x801ab1a0
+// Ends a machine charge and spends it on a boost (RDSTATE_PUSHEND), from the
+// A-release interrupt check and the full-charge hold status's think.
 // MachineData.charge_value still holds the charge on entry. Kirby only.
-void AS_StarChargeRelease(RiderData *); // 0x801abc64
-void Rider_LoseAbilityState_Enter(RiderData *); // 0x801b0adc
+void RiderState_StarChargeReleaseEnter(RiderData *); // 0x801abc64
+void RiderState_LoseAbilityEnter(RiderData *); // 0x801b0adc
 void Rider_GiveIntangibility(RiderData *, int time); // 0x80195f68
 void Rider_GiveInvincibility(RiderData *, int time); // 0x80195f28
-int RiderGObj_GetPly(GOBJ *gobj); // 0x8019203c, returns player index from a rider GOBJ
-// The list at rd+0x4c4 of projectile homing trackers locked onto this rider.
-void Rider_AddHomingTracker(GOBJ *rider, void *tracker, void *cb); // 0x801922b0
-void Rider_RemoveHomingTracker(GOBJ *rider, void *tracker);        // 0x801922e4
+int RiderGObj_GetPly(GOBJ *gobj); // 0x8019203c
+HurtData *RiderGObj_GetHurtData(GOBJ *rider_gobj); // 0x80192788
+u8 RiderGObj_GetTeam(GOBJ *gobj); // 0x80191f68, RiderData.team
+void RiderGObj_AddHomingTracker(GOBJ *rider_gobj, void *tracker, void *cb); // 0x801922b0, onto homing_trackers
+void RiderGObj_RemoveHomingTracker(GOBJ *rider_gobj, void *tracker);        // 0x801922e4
 // The rider counterpart of Weapon_AssignStateFlags, on the attack block at rd+0x794.
 void Rider_AssignAttackLog(RiderData *rd, int attack_log); // 0x801a2048
 int Rider_IsOnMachine(RiderData *); // 0x80191680
-int Rider_IsMachineAirborne(RiderData *);   // 0x80194120, Machine_IsAirborne of the ridden machine; no NULL check
+int Rider_IsMachineAirborne(RiderData *);   // 0x80194120, MachineGObj_IsAirborne of the ridden machine; no NULL check
 int Rider_IsMachineDead(RiderData *);       // 0x801943e4, can only be called between the RDPRI_HITCOLL and RDPRI_DMGAPPLY priority.
 // Enqueues a stat-patch drop event; Rider_TickDropPatches drains it per frame.
 // drop_mode 0 = forward, small fixed count, probabilistic all-up; 1 = behind,
@@ -1354,60 +1298,41 @@ void Rider_DropPatches(RiderData *, float stat_array[9], int drop_mode); // 0x80
 // ridden machine in the city.
 void Rider_DropPatchesOnDamage(RiderData *rd, Vec3 *pos, Vec3 *dir, float stat_array[9], int damage); // 0x8019cdfc
 void RiderGObj_DropPatchesOnDamage(GOBJ *rider_gobj, Vec3 *pos, Vec3 *dir, float stat_array[9], int damage); // 0x80192980
-int Rider_CheckCanReceiveAbility(GOBJ *gobj); // 0x8019262c, returns 1 if rider can receive a copy ability
-int Rider_CheckAndGiveAbility(GOBJ *gobj, int kind); // 0x80192650, checks rider is Kirby, then gives copy ability, returns 1 on success
+int RiderGObj_CheckCanReceiveAbility(GOBJ *gobj); // 0x8019262c, returns 1 if rider can receive a copy ability
+int RiderGObj_CheckAndGiveAbility(GOBJ *gobj, int kind); // 0x80192650, checks rider is Kirby, then gives copy ability, returns 1 on success
 // Appends to PlayerStats.copy_history, checks the three ability sequences and
 // bumps copy_obtain_count. Runs for every grant, whatever the source.
-void Rider_RecordCopyAbility(int ply, int copy_kind); // 0x8022ee00
+void Ply_RecordCopyAbility(int ply, int copy_kind); // 0x8022ee00
 // Sets the PlayerStats.copy_chance_mask bit (15-copy_kind). Only the copy-wheel
 // paths call it, so the bit means "the wheel gave it".
-void Rider_MarkCopyAbilityObtained(int ply, int copy_kind); // 0x8022f150
+void Ply_MarkCopyAbilityObtained(int ply, int copy_kind); // 0x8022f150
 
 int randomAbility_giveAbility(RiderData *, int kind); // 0x801a61d4, gives copy ability from copy chance wheel (no unable/queue check)
 // Initializes the copy wheel at a starting ability, setting copy_wheel_ability_list and index.
 void Rider_StartCopyWheel(RiderData *rd, int copy_kind); // 0x801ae550
 // Picks a random starting ability and starts the wheel; returns 1 if it started.
 int Rider_StartRandomCopyWheel(RiderData *rd); // 0x801ae4ec
-int Rider_GiveRandomAbility(GOBJ *gobj); // 0x80191fb8, GOBJ wrapper for Rider_StartRandomCopyWheel
-int Rider_CheckCanReceivePowerUp(GOBJ *gobj); // 0x80192688, returns 1 if rider can receive a power-up (checks lower 4 bits of rd->x825 are clear)
-int Rider_GivePowerUp(GOBJ *gobj, PowerUpKind kind); // 0x801926ac, gives rider a power-up if rider is Kirby, returns 1 on success
+int RiderGObj_GiveRandomAbility(GOBJ *gobj); // 0x80191fb8, GOBJ wrapper for Rider_StartRandomCopyWheel
+int RiderGObj_CheckCanReceivePowerUp(GOBJ *gobj); // 0x80192688, returns 1 if rider can receive a power-up (checks lower 4 bits of rd->x825 are clear)
+int RiderGObj_GivePowerUp(GOBJ *gobj, PowerUpKind kind); // 0x801926ac, gives rider a power-up if rider is Kirby, returns 1 on success
 int Rider_TryGivePowerUp(RiderData *rd, PowerUpKind kind); // 0x801a828c, checks unable, queues into x460 or calls Rider_GivePowerUpByKind
 int Rider_GivePowerUpByKind(RiderData *rd, PowerUpKind kind); // 0x801a8304, removes current ability and initializes power-up kind (0-3), returns 1 on success
 
-// Inhale (no-copy-ability default attack). The native pipeline only targets
-// EventActor enemies and only enters the state when one is already in range, so
-// it never fires in City Trial - but Rider_StartInhale can be called directly to
-// drive the open-mouth suck animation + native suction VFX/SFX for custom mods.
-//
-// The inhale is three action-states in RiderData.state_idx (anim id, +0x1c): 0x2f suck
-// START, 0x30 suck LOOP, 0x31 suck END. They are NOT chained automatically:
-//   * START (0x2f) is a ONE-SHOT gulp. When its body anim finishes the engine resolves to
-//     a normal riding state (Rider_InhaleStartProc -> the generic ability-resolve/star-wait
-//     path); it does NOT advance to the LOOP. A tap of the native inhale is just this gulp.
-//   * LOOP (0x30) is entered ONLY via Rider_StartInhaleLoop. Its process then re-enters 0x30
-//     itself each time the body anim finishes (Rider_IsBodyAnimDone), so the suck sustains
-//     and animates on its own. It self-terminates when a countdown at RiderData+0x93C
-//     reaches 0 (Rider_InhaleLoopTick, only while the mouth is empty) -> Rider_EndInhale.
-//   * END (0x31) closes the mouth (+ a close puff) and returns to neutral.
-// NOTE +0x93C is per-action-state scratch that ALIASES copy_wheel_result, so it is not a
-// dependable timer when driving the inhale from mod code. To drive a held suck: call
-// Rider_StartInhale for the gulp, then once START ends call Rider_StartInhaleLoop to enter
-// the LOOP, keep +0x93C topped up so the engine doesn't time it out, and call
-// Rider_EndInhale yourself on release for a clean vanilla ending.
-// Force action-state 0x76: inhale anim, suction effect, SFX, and the per-frame
-// capture callbacks, with no gate or target check. A one-shot gulp - it returns
-// to neutral when the anim ends and does not enter the LOOP.
+// Inhale, the no-copy-ability attack. The native path enters it only with an
+// inhalable EventActor already in range. RDSTATE_DRAWSTART (mstatus 0x76) is a
+// one-shot gulp that returns to neutral. RDSTATE_DRAW (0x77) is entered only through
+// Rider_StartInhaleLoop; its proc re-enters it each time the body motion ends, until
+// the countdown at +0x93c (aliasing copy_wheel_result) runs out while the mouth is
+// empty. RDSTATE_DRAWEND (0x78) closes the mouth.
+// RDSTATE_DRAWSTART with the suction effect, SFX and capture callbacks, and no gate
+// or target check.
 void Rider_StartInhale(RiderData *rd);        // 0x801ad2c4
-// Enter or re-enter the suck-LOOP substate (action-state 0x77), reinstalling the
-// scan/volume callbacks without respawning VFX/SFX or resetting captures. The
-// LOOP process calls this itself on body-anim-done to sustain the suck, and it
-// is also how the LOOP is first entered - the engine never advances into it.
+// Enters or re-enters RDSTATE_DRAW, reinstalling the scan callbacks without
+// respawning the effect or resetting captures.
 void Rider_StartInhaleLoop(RiderData *rd);    // 0x801ad4cc
-// End the suck: action-state 0x78, close anim, close puff, back to neutral. The
-// engine's own ending; call it to stop a driven LOOP cleanly.
+// RDSTATE_DRAWEND: close motion, close puff, back to neutral.
 void Rider_EndInhale(RiderData *rd);          // 0x801adf98
-// 1 once the rider's body motion has played to its end. Gates the LOOP process's
-// per-cycle re-entry of the suck-LOOP anim.
+// 1 once the rider's body motion has played to its end.
 int  Rider_IsBodyAnimDone(RiderData *rd);     // 0x80198b00
 // Gate: attack bit set, no copy ability, and fewer than 3 captures held.
 int  Rider_CanStartInhale(RiderData *rd);     // 0x801a617c
@@ -1417,95 +1342,64 @@ void Rider_TryStartInhale(RiderData *rd);     // 0x8019c5ac
 // Per-frame scan of the EventActor bucket, capturing up to 3 a frame (list cap 10).
 void Rider_InhaleCaptureScan(RiderData *rd);  // 0x8019c63c
 // Candidate predicate: EventActor enemies only. Items and yakumono never pass.
-int  EventActor_IsInhalable(GOBJ *cand);      // 0x802041c8
-// State 0x33 after inhaling an enemy with no ability. Installs the anim callback,
-// which fires spawnStarBullet(rd, flag) when the motion script raises +0x818 bit 7.
-void Rider_InhaleStarSpit_Enter(RiderData *rd, int flag); // 0x801aea5c
-void Rider_InhaleStarSpit_AnimCallback(RiderData *rd);    // 0x801aeb6c
+int  EventActorGObj_IsInhalable(GOBJ *cand);  // 0x802041c8
+// RDSTATE_SPIT after inhaling an enemy with no ability. Installs the anim callback,
+// which fires Rider_SpawnStarBullet(rd, flag) when the motion script raises +0x818 bit 7.
+void RiderState_InhaleStarSpitEnter(RiderData *rd, int flag); // 0x801aea5c
+void RiderState_InhaleStarSpitAnimThink(RiderData *rd);    // 0x801aeb6c
 
-// Quick spin (stick-rotation spin attack). Rider_UpdateQuickSpinTimers
-// (0x80191a58) ticks the CW/CCW frame accumulators at RiderData+0xa40 / +0xa41 -
-// frames since the stick was last held past the threshold in that direction -
-// and Rider_CheckQuickSpinInput (0x80191980) reads them back against
-// RiderCommonParam.quickspin_flick_window to spot a flick. A state that omits the tick
-// leaves the accumulators frozen, so the detector cannot fire there. When it
-// fires, Rider_QuickSpin_Enter transitions to action-state 0x2c (anim 0x6a CCW /
-// 0x6b CW), grants i-frames, and applies the spin hitbox. Two entry paths funnel
-// here: Rider_IASACheck_QuickSpin (0x801b7e80, excludes copy_kind PLASMA) and the
-// neutral-state entry Rider_TryQuickSpinNeutral (0x801b7e0c). The Tornado copy
-// ability's own spin shares the detector but enters via a DIFFERENT function, so
-// it is unaffected.
-// Per-frame tick of the +0xa40 / +0xa41 accumulators: 0 while held in that
-// direction, saturating at 0xfe.
+// Quick spin, the stick-rotation spin attack. Rider_UpdateQuickSpinTimers ticks the
+// CW/CCW accumulators at +0xa40 / +0xa41 and Rider_CheckQuickSpinInput (0x80191980)
+// compares them with RiderCommonParam.quickspin_flick_window; a status that skips the
+// tick freezes them. Tornado's own spin shares the detector but enters elsewhere.
+// Per-frame tick: 0 while held in that direction, saturating at 0xfe.
 void Rider_UpdateQuickSpinTimers(RiderData *rd); // 0x80191a58
-// Per-frame interrupt check: excludes copy_kind PLASMA, reads the stick, and
-// enters the spin on a flick, returning 1 if it did. Called from the grounded
-// rider state but not the airborne one.
-int  Rider_IASACheck_QuickSpin(RiderData *rd); // 0x801b7e80
-// dir is +1 CW / -1 CCW, flag 1 applies the hitbox.
-void Rider_QuickSpin_Enter(float f, RiderData *rd, int dir, int flag); // 0x801b7ee4
+// Interrupt check: excludes copy_kind PLASMA and enters the spin on a flick, returning
+// 1 if it did. Installed in the grounded status but not the airborne one.
+int  RiderState_QuickSpinInterrupt(RiderData *rd); // 0x801b7e80
+// RDSTATE_QUICKSPINTURN (mstatus 0x6a CCW / 0x6b CW) with invincibility. f goes to
+// RiderStateChange, dir is +1 CW / -1 CCW, and flag also runs Rider_MachineEnterQuickSpin.
+void RiderState_QuickSpinEnter(float f, RiderData *rd, int dir, int flag); // 0x801b7ee4
 
-// Dedede and Meta Knight (alternate rider characters) each have their own
-// quick-spin enter, separate from Kirby's Rider_QuickSpin_Enter. Same detector
-// (Rider_CheckQuickSpinInput), but the per-character IASA checks funnel through
-// these instead: Dedede -> action-state 0x2c, Meta Knight -> 0x2d. Each has a
-// single call site.
-void Rider_Dedede_QuickSpin_Enter(RiderData *rd, int dir);     // 0x801c05f8, arg regs: r3=rd, r4=dir; sole caller @ 0x801c05d4
-void Rider_MetaKnight_QuickSpin_Enter(RiderData *rd, int dir); // 0x801c3f90, arg regs: r3=rd, r4=dir; sole caller @ 0x801c3f6c
-// Per-character quick-spin interrupt checks, installed in their grounded states
+// Dedede's and Meta Knight's quick-spin enters, each with a single caller. Dedede
+// enters status 0x2c, Meta Knight 0x2d.
+void RiderState_DededeQuickSpinEnter(RiderData *rd, int dir);     // 0x801c05f8
+void RiderState_MetaKnightQuickSpinEnter(RiderData *rd, int dir); // 0x801c3f90
+// Per-character quick-spin interrupt checks, installed in their grounded statuses
 // but not their air control.
-int  Rider_Dedede_IASACheck_QuickSpin(RiderData *rd);     // 0x801c05a8
-int  Rider_MetaKnight_IASACheck_QuickSpin(RiderData *rd); // 0x801c3f40
+int  RiderState_DededeQuickSpinInterrupt(RiderData *rd);     // 0x801c05a8
+int  RiderState_MetaKnightQuickSpinInterrupt(RiderData *rd); // 0x801c3f40
 // Rider-side entries into the machine spins, through the ridden machine at +0x3f4.
-// The three quick-spin enters call the first; two rider states call the second.
+// The three quick-spin enters call the first; two rider statuses call the second.
 void Rider_MachineEnterQuickSpin(RiderData *rd, int dir);              // 0x80193c20
 void Rider_MachineEnterForcedSpin(RiderData *rd, int frames, int dir); // 0x80193bfc
 
-// Airborne machine-riding state logic. Each rider character has its own rider
-// state-descriptor table, so this state has one callback per character - the
-// three sole callers of the airborne input helper 0x8019fcf0. Kirby's is
-// airControl (0x801ac128). Dedede's runs the charge check then
-// Rider_UpdateQuickSpinTimers; Meta Knight's runs only the charge check, so his
-// spin accumulators stay frozen while airborne.
+// The airborne riding status's callback, one per rider kind (Kirby's is airControl,
+// 0x801ac128). Dedede's runs the charge check then Rider_UpdateQuickSpinTimers; Meta
+// Knight's runs only the charge check, so his spin accumulators freeze while airborne.
 void Rider_Dedede_AirControl(RiderData *rd);     // 0x801bf534
 void Rider_MetaKnight_AirControl(RiderData *rd); // 0x801c2b08
 
-// Kirby recolor. Three native paths:
-//   1. Material-index swap (discrete baked palettes - the 8 player colors + wing/fire):
-//      RiderKirby_SetMaterialColor stages model_part[part].cur_mat_index + dirty bit;
-//      RiderKirby_SetMaterialColorAndUpdate drives the model's MatAnim AObj to that
-//      baked color keyframe (walks dobj_lookup_arr at RiderData+0x2c0).
-//   2. ColAnim overlay (animated, time-based color flash/glow): Rider_ApplyColAnim
-//      selects a baked color-anim from the global table into col_anim.slot[0] via the
-//      generic ColAnim_Apply. Used by Rider_GiveIntangibility (index 2, 0x80195f68)
-//      and Rider_GiveInvincibility (index 3, 0x80195f28 - the candy flash).
-//   3. Direct material color: walk dobj_lookup_arr[i] -> MObj -> HSD_Material and write
-//      ambient/diffuse (GXColor) each frame for an arbitrary smooth hue (no baked limit).
-// Stages model_part[part].cur_mat_index and sets the recolor-dirty bit.
+// Kirby recolor. SetMaterialColor stages a baked palette index in
+// model_part[part].cur_mat_index with a dirty bit; SetMaterialColorAndUpdate also
+// seeks the part's TObjs in tobj_lookup_arr to it, swapping in the baked texture.
+// Rider_ApplyColAnim plays a timed overlay into col_anim.slot[0].
 void RiderKirby_SetMaterialColor(RiderData *rd, int part_idx, u8 mat_index);          // 0x80198d1c
-// Stages it and immediately drives the body MatAnim to the new baked color.
 void RiderKirby_SetMaterialColorAndUpdate(RiderData *rd, int part_idx, u8 mat_index); // 0x80198d3c
-u8   Rider_GetColor(RiderData *rd);                                                   // 0x80192758, PlayerData.color_idx
-// Requests a baked color-overlay anim into col_anim.slot[0]; anim_index selects from
-// the global table. Priority-gated, so it returns 0 when a higher-priority anim holds
-// the slot.
+u8   RiderGObj_GetColor(GOBJ *gobj);                                                  // 0x80192758, RiderData.color_idx
+// anim_index selects from the global table. Priority-gated, so it returns 0 when a
+// higher-priority anim holds the slot.
 int  Rider_ApplyColAnim(RiderData *rd, int anim_index, int param); // 0x8019bfb4
 
-// Reads the machine's projectile inherit velocity via the rider's
-// machine_gobj, into *out. Thin wrapper around
-// MachineGObj_GetWeaponBaseVelocity.
+// MachineGObj_GetWeaponBaseVelocity of the ridden machine, into *out.
 void Rider_GetWeaponBaseVelocity(RiderData *rd, Vec3 *out); // 0x8019407c
 
-// 8-instruction Vec3 readers - `gobj` is the rider GObj, `out` is filled with
-// the corresponding RiderData field. The "hand bone" naming for rd+0x318
-// reflects its use by the bomb HELD-snap and the fire/spike/ice aura spawn
-// helpers - the field is not directly named in the struct.
-void Rider_GetHandBonePos(GOBJ *gobj, Vec3 *out); // 0x80191ffc, reads rd[0x318..0x320]
-void Rider_GetForward(GOBJ *gobj, Vec3 *out);     // 0x80191ef8, reads rd->forward (rd+0x324)
-void Rider_GetUp(GOBJ *gobj, Vec3 *out);          // 0x80191f18, reads rd->up      (rd+0x330)
+void RiderGObj_GetHandBonePos(GOBJ *gobj, Vec3 *out); // 0x80191ffc, hand_bone_pos
+void RiderGObj_GetForward(GOBJ *gobj, Vec3 *out);     // 0x80191ef8, forward
+void RiderGObj_GetUp(GOBJ *gobj, Vec3 *out);          // 0x80191f18, up
 
-void Rider_SetCandyTimer(GOBJ *gobj, int duration); // 0x801929a4, stores duration in rd->candy_duration, enters rider state 47 (countdown timer)
+void RiderGObj_SetCandyTimer(GOBJ *gobj, int duration); // 0x801929a4, stores candy_duration and plays SFX 47
 
-AudioEmitter Rider_AllocAudioEmitter(int index); // 0x8005dbc8
+AudioEmitter Rider_AllocAudioEmitter(void); // 0x8005dbc8
 
 #endif

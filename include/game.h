@@ -44,7 +44,7 @@ typedef enum GamePLink
     GAMEPLINK_11,
     GAMEPLINK_ENEMY,   // dyna blade, tac, meteor, etc
     GAMEPLINK_ITEM,         // anything in ItemKind
-    GAMEPLINK_PROJECTILE,   // bomb, plasma bullet, flame, firework etc
+    GAMEPLINK_WEAPON,       // bomb, plasma bullet, flame, firework etc
     GAMEPLINK_SHADOW,       // circular shadow beneath most objects
     GAMEPLINK_EFFECTMODEL,
     GAMEPLINK_CAMWORLD,
@@ -66,8 +66,9 @@ typedef enum GameGXLink
     GAMEGX_MAP = 1,
     GAMEGX_MACHINE = 5,
     GAMEGX_RIDER = 6,
-    GAMEGX_ENEMY = 10,
+    GAMEGX_ENEMY = 9,
     GAMEGX_ITEM = 10,
+    GAMEGX_WEAPON = 11,
     GAMEGX_HUDORTHO = 18,
     GAMEGX_HUDMAP,
     GAMEGX_HUDMAPDOTS,
@@ -578,11 +579,11 @@ typedef struct TopRideStats // 0x34 = 52 bytes. see gmGetClearcheckerType1_2Ptr
     u8 x1;                  // 0x01, unknown
     u8 counters_02[3];      // 0x02, 3 byte-sized stat counters
     u8 pad_05;              // 0x05, padding (for halfword alignment)
-    u16 counter_06;         // 0x06, halfword counter (likely total laps)
+    u16 counter_06;         // 0x06, halfword counter
     u8 counters_08[37];     // 0x08, 37 byte-sized stat counters
-    u8 flags_2d;            // 0x2D, bitfield (7 bits used, likely per-course flags)
-    u8 flags_2e;            // 0x2E, bitfield (7 bits used, likely per-course flags)
-    u8 flags_2f;            // 0x2F, bitfield (7 bits used, likely per-course flags)
+    u8 flags_2d;            // 0x2D, bitfield, 7 bits used
+    u8 flags_2e;            // 0x2E, bitfield, 7 bits used
+    u8 flags_2f;            // 0x2F, bitfield, 7 bits used
     u8 counters_30[2];      // 0x30, 2 byte-sized stat counters
     u8 pad_32[2];           // 0x32, unused
 } TopRideStats;
@@ -615,7 +616,6 @@ typedef struct GameClearData // 0xF4 bytes per mode. see gmGetClearcheckerTypeP
         u8 is_new : 1;      // 0x01, raised when objective is completed, pending acknowledgement
     } clear[CLEAR_KIND_NUM];           // 0x7C
 } GameClearData;
-_Static_assert(sizeof(GameClearData) == 0xF4, "GameClearData must be 0xF4 bytes");
 
 // City Trial cross-game stat accumulators, overlaying the bytes right after the
 // City Trial (GMMODE_CITYTRIAL) GameClearData returned by gmGetClearcheckerTypeP.
@@ -711,7 +711,7 @@ typedef struct ClearCheckerUI
     Text *x0c;                   // 0x0C, premade-text slot 3, alpha-faded by Checklist_Update
     Text *x10;                   // 0x10, built in Checklist_Init from three subtexts
     GameMode mode : 8;           // 0x14, which tab is displayed (Checklist_Init writes it)
-    ClearCheckerPhase phase : 8; // 0x15, Gm_GetClearChecker returns this
+    ClearCheckerPhase phase : 8; // 0x15, Gm_GetClearCheckerPhase returns this
     u8 filler_option;            // 0x16, filler dialog option: 0 = confirm, 1 = cancel
     s8 cursor_col;               // 0x17, grid cursor column 0..11 (phys_slot = col + row*12); 0x81 until first placed
     s8 cursor_row;               // 0x18, grid cursor row 0..9; 0x81 until first placed
@@ -796,7 +796,7 @@ typedef struct GameData // 805359d8
     int xb8;                           // 0xb8
     int xbc;                           // 0xbc
     int xc0;                           // 0xc0
-    u8 stadium_option_to_kind[24];     // 0xc4, STKIND_NUM entries, menu option index -> StadiumKind (0xFF = none). In-game consumer unknown
+    u8 stadium_option_to_kind[24];     // 0xc4, STKIND_NUM entries, menu option index -> StadiumKind (0xFF = none)
     int xdc;                           // 0xdc
     int xe0;                           // 0xe0
     int xe4;                           // 0xe4
@@ -824,9 +824,9 @@ typedef struct GameData // 805359d8
         u8 x11b[16];  // 0x11b, read by no engine code, only cleared with the block
         u8 x12b;      // 0x12b
         int x12c;     // 0x12c
-        u8 x130;      // 0x134
-        u8 x131;      // 0x134
-        u8 x132;      // 0x134
+        u8 x130;      // 0x130
+        u8 x131;      // 0x131
+        u8 x132;      // 0x132
         u8 p_kind[4]; // 0x133
         u8 icon[4];   // 0x137
         u8 x13b;      // 0x13b
@@ -836,7 +836,7 @@ typedef struct GameData // 805359d8
         int x148;     // 0x148
         u8 x14c[3];   // 0x14c
         u8 slot_kind[4]; // 0x14f, per-slot CSS state: 0 = active human, 2 = CPU, 3 = inactive.
-                         //        Same encoding as city_select_ply.x215
+                         //        Same encoding as city_select_ply.slot_kind
         u8 x153[5];   // 0x153
         u8 x158;      // 0x158
         u8 x159;      // 0x159
@@ -873,13 +873,13 @@ typedef struct GameData // 805359d8
                                           //        bar; the bottom row while the panel is editing
         u8 panel_handicap[4];             // 0x1c2, per-panel handicap (0..4, "5 bars" bottom row when HMN)
         u8 panel_machine[4];              // 0x1c6, per-panel TR machine kind (0=Free Star, 1=Steer Star) - middle row "Control Type"
-        u8 panel_field_d[4];              // 0x1ca, per-panel UI param_13 (uninvestigated)
-        u8 x1ce;                          // 0x1ce, flag set to 1 by InitSelectData (extra-unlocks override?)
+        u8 panel_field_d[4];              // 0x1ca, per-panel UI param_13
+        u8 x1ce;                          // 0x1ce, flag set to 1 by InitSelectData
         u8 x1cf;                          // 0x1cf, flag set to 1 by InitSelectData
     } topride_select_ply;
     struct
     {
-        u8 x1d0;                        // 0x1d0
+        u8 mode;                        // 0x1d0, CityMode the screen was loaded for (CitySelect_LoadCityTrial / LoadStadium / LoadMachineSelect)
         u8 x1d1[3];                     // 0x1d1
         u8 x1d4;                        // 0x1d4
         u8 is_all_ready;                // 0x1d5, checks for start inputs when this is 1
@@ -898,8 +898,8 @@ typedef struct GameData // 805359d8
         u8 x209[4];                     // 0x209
         u8 x20d[4];                     // 0x20d
         u8 x211[4];                     // 0x211
-        u8 x215[4];                     // 0x215, unk, 00 = hmn controlled, 02 = cpu, 03 = none
-        u8 x219[4];                     // 0x219, prev value for x215. 
+        u8 slot_kind[4];                // 0x215, 0 = human, 2 = CPU, 3 = inactive
+        u8 x219[4];                     // 0x219, prev value for slot_kind
         u8 ply_pkind[4];                // 0x21d
         u8 ply_color[4];                // 0x221
         u8 ply_hmn_handicap[4];         // 0x225
@@ -912,7 +912,7 @@ typedef struct GameData // 805359d8
             u8 c_kind_arr[20]; // 0x236, 0x66, array of c_kind indices
         } machine_select;
         // Controller claims in multi-console play, set by CitySelect_MinorLoad and read and
-        // written only behind the session check at 0x8007b650.
+        // written only while Net_IsSessionActive.
         u8 x24a;             // 0x24a, debug-grid flag, set from the debug flags before the icons are built
         u8 claimed_pads[4];  // 0x24b, per console, bit k set when pad k is taken
         u8 pad_ordinal[4];   // 0x24f, per slot, the player's ordinal on its console
@@ -982,29 +982,30 @@ typedef struct GameData // 805359d8
     int x348;                        // 0x348
     int x34c;                        // 0x34c
     int x350;                        // 0x350
-    u8 x354;                         // 0x354, this gets copied to city_kind 
+    u8 airride_rule;                 // 0x354, AirRideRule; AirRide_CopySettingsToGame copies it to city_kind
     u8 x355;                         // 0x355
-    u16 x356;                        // 0x356
-    u16 x358;                        // 0x358
-    u8 x35a;                         // 0x35a, copied to 0xaa6
+    u16 airride_lap_total;           // 0x356, copied to race_lap_total
+    u16 airride_time_seconds;        // 0x358, copied to time_seconds
+    u8 x35a;                         // 0x35a, rule bits copied into 0xaa5 / 0xaa6
     u8 x35b;                         // 0x35b
-    u8 x35c;                         // 0x35c
+    u8 x35c;                         // 0x35c, nonzero skips the copy in AirRide_CopySettingsToGame
     AirRideMode airride_mode : 8;    // 0x35d
     u8 x35e;                         // 0x35e
-    u8 x35f;                         // 0x35f
+    u8 airride_player_slot;          // 0x35f, active player slot for Free Run / Time Attack (Gm_GetAirRidePlayerSlot)
     int x360;                        // 0x360
     int x364;                        // 0x364
     int x368;                        // 0x368
     int x36c;                        // 0x36c
     int x370;                        // 0x370
-    int topride_selected_course;     // 0x374, TopRideCourse index (0-6)
+    u8 topride_selected_course;      // 0x374, TopRideCourse index (0-6)
+    u8 x375[3];                      // 0x375
     int x378;                        // 0x378
     u8 x37c;                         // 0x37c
     u8 topride_course_valid;         // 0x37d, result of course unlock check
     u8 topride_extra_unlocks[3];     // 0x37e-0x380, booleans from clear_kinds 8, 9, 10
     TopRideMode topride_mode : 8;    // 0x381, 0=Race, 1=Time Attack, 2=Free Run
     u8 x382;                         // 0x382
-    u8 x383;                         // 0x383
+    u8 topride_player_slot;          // 0x383, active player slot for Time Attack (TopRide_GetTimeAttackPlayerSlot)
     int x384;                        // 0x384
     int x388;                        // 0x388
     int x38c;                        // 0x38c
@@ -1272,12 +1273,12 @@ typedef struct GameData // 805359d8
     u8 x84d[5];                      // 0x84d
     u8 player_finished_flag[5];      // 0x852, per-player "crossed the goal" flag; set to 1 by race3D_isFinished (Gm_GetPlayerFinishedFlag)
     u8 x857_ply[4];                  // 0x857, accessed by Ply_Get0x857 (8000981c)
-    u8 x858;                         // 0x85b
+    u8 x85b;                         // 0x85b
     int x85c;                        // 0x85c
     int x860;                        // 0x860
     int x864;                        // 0x864
     int player_lap_count[5];         // 0x868, per-player current lap; race3D_isFinished flags a finish once
-                                     //        this is no longer below GameData[0xa9a]
+                                     //        this is no longer below race_lap_total
     int x87c;                        // 0x87c
     int x880;                        // 0x880
     int x884;                        // 0x884
@@ -1351,8 +1352,8 @@ typedef struct GameData // 805359d8
     GOBJ *legendary_assembly_gobj;   // 0xa8c, the running assembly cinematic's controller, NULL when none
     int xa90;                        // 0xa90
     u8 city_kind;                    // 0xa94, 5 = main city trial. stadium modes are derived here @ 8004051c (0xE is destruction derby)
-    u8 xa95;                         // 0xa95, occupied player slots (p_kind != PKIND_NONE), Gm_GetPlayerNum
-    u8 view_num;                    // 0xa96, number of views to create?
+    u8 player_num;                   // 0xa95, occupied player slots (p_kind != PKIND_NONE), Gm_GetPlayerNum
+    u8 view_num;                     // 0xa96, split-screen view count (Gm_GetPlyViewNum)
     u8 stage_kind;                   // 0xa97, StageKind
     u8 bgm_override;                 // 0xa98, when this is not 1, it plays it as the song id
     u8 is_always_ura_bgm;            // 0xa99
@@ -1368,12 +1369,11 @@ typedef struct GameData // 805359d8
     u8 xaa4;                         // 0xaa4
     u8 xaa5_unk_damage : 1;          // 0xaa5, 0x80 (Gm_CheckUnkDamage)
     u8 xaa5_40 : 1;                  // 0xaa5, 0x40
-    u8 is_items_disabled : 1;        // 0xaa5, 0x20 (Gm_IsItemsDisabled)
+    u8 is_map_debug : 1;             // 0xaa5, 0x20 (Gm_IsMapDebug); reading it while set panics
     u8 is_damage_enabled : 1;        // 0xaa5, 0x10 (Gm_IsDamageEnabled)
     u8 is_perma_death_enabled : 1;   // 0xaa5, 0x08 (Gm_IsPermaDeathEnabled)
-    u8 xaa5_04 : 1;                  // 0xaa5, 0x04
-    u8 xaa5_02 : 1;                  // 0xaa5, 0x02
-    u8 xaa5_01 : 1;                  // 0xaa5, 0x01 (Gm_IsMachineHitboxEnabled), machine hit regions 1-3;
+    u8 xaa5_06 : 2;                  // 0xaa5, 0x06, 2-bit value read by zz_8000a1d8_
+    u8 is_machine_hitbox_enabled : 1; // 0xaa5, 0x01 (Gm_IsMachineHitboxEnabled), machine hit regions 1-3;
                                      //        1 in the city, stadium desc byte 4 bit 0x20 (clear for
                                      //        every stadium), 0 in Air Ride
     u8 xaa6_80 : 1;                  // 0xaa6, 0x80
@@ -1454,14 +1454,14 @@ typedef struct GameData // 805359d8
     int xd44;                        // 0xd44
     int xd48;                        // 0xd48
     int xd4c;                        // 0xd4c
-    struct                           // 0xd50, built by Checklist_BuildUnlockBitfields (80007af0)
-    {                                //
+    struct                           // 0xd50, LAN-session unlock snapshot: built by Checklist_BuildUnlockBitfields
+    {                                //        (80007af0) on connect, read instead of the save while Net_IsSessionActive
         u32 airride_unlock_lo;       // 0xd50, bits 0-31 of Air Ride reward unlock status
         u32 airride_unlock_hi;       // 0xd54, bits 32-45 of Air Ride reward unlock status
         u32 citytrial_unlock_lo;     // 0xd58, bits 0-31 of City Trial reward unlock status
         u32 citytrial_unlock_hi;     // 0xd5c, bits 32-43 of City Trial reward unlock status
-        u32 stadium_flags_cache;     // 0xd60, copy of GameData + 0x1510 (stadium unlock flags)
-        u32 xd64;                    // 0xd64, always 0
+        u32 stadium_flags_cache;     // 0xd60, copy of stadium_unlock_flags; session writes land here
+        u32 newlabel_flags_cache;    // 0xd64, session stand-in for stadium_newlabel_flags, cleared on build
     } unlock_cache;                  //
     AirRideClearData airride_clear;  // 0xd68, Air Ride clear checker (gmGetClearcheckerTypeP(GMMODE_AIRRIDE))
     TopRideClearData topride_clear;  // 0xe80, Top Ride clear checker (gmGetClearcheckerTypeP(GMMODE_TOPRIDE))
@@ -1469,13 +1469,14 @@ typedef struct GameData // 805359d8
     u8 x10bc[0x1510 - 0x10bc];       // 0x10bc
     u32 stadium_unlock_flags;        // 0x1510, stadium unlock bitmask (also poked via absolute 0x80536EE8)
     u32 stadium_newlabel_flags;      // 0x1514, stadium "new!" highlight bitmask (poked via absolute 0x80536EEC)
-    // actual size is 0x1518
 } GameData;
 
 typedef struct Game3dData
 {
     u8 plyview_num;                               // 0x0
     s8 plyview_lookup[4];                         // 0x1, -1 for not present?
+    s8 x5;                                        // 0x5, flag set to 1 / 0 by 0x80112af8 / 0x80112b0c, read by 3DHud_CObjLink
+    u8 x6[2];                                     // 0x6
     HSD_SObjDesc *hud_sobj;                       // 0x8
     GOBJ *hudcam_gobj;                            // 0xc
     int x10;                                      // 0x10
@@ -1729,9 +1730,7 @@ typedef struct Game3dData
     int x448;                                     // 0x448
     int x44c;                                     // 0x44c
     int x450;                                     // 0x450
-    u8 is_bike[5];                                // 0x454
-    u8 machine_kind[5];                           // 0x459
-    u8 prev_stadium_kind[5];                      // 0x45e
+    u8 x454[0x464 - 0x454];                       // 0x454
     int x464;                                     // 0x464
     int x468;                                     // 0x468
     int x46c;                                     // 0x46c
@@ -1814,10 +1813,7 @@ typedef struct Game3dData
     int x5a0;                                     // 0x5a0
     int x5a4;                                     // 0x5a4
     int x5a8;                                     // 0x5a8
-    u8 x5ac;                                      // 0x5ac
-    u8 stadium_kind;                              // 0x5ad
-    u8 x5ae;                                      // 0x5ae
-    u8 x5af;                                      // 0x5af
+    int x5ac;                                     // 0x5ac
     int x5b0;                                     // 0x5b0
     int x5b4;                                     // 0x5b4
     int x5b8;                                     // 0x5b8
@@ -1939,11 +1935,8 @@ typedef struct Game3dData
     int x824;                                     // 0x824
     int x828;                                     // 0x828
     int x82c;                                     // 0x82c
-    u8 x830;                                      // 0x830
-    u8 x831;                                      // 0x831
-    u8 x832;                                      // 0x832
-    u8 frames_in_second;                          // 0x833
-    int seconds_passed;                           // 0x834
+    int x830;                                     // 0x830
+    int x834;                                     // 0x834
     int x838;                                     // 0x838
     int x83c;                                     // 0x83c
     int x840;                                     // 0x840
@@ -2093,7 +2086,7 @@ typedef struct Game3dData
     int xc5c;                                     // 0xc5c
     struct                                        // 0xc60
     {
-        int x0;                                   // 0x4
+        int x0;                                   // 0x0
         int x4;                                   // 0x4
         GOBJ *score_gobj[4];                // 0x08
         GOBJ *machineicon_gobj[4];                // 0x18
@@ -2101,7 +2094,7 @@ typedef struct Game3dData
     int xc88;                                     // 0xc88
     struct                                        // 0xc8c
     {
-        int x0;                                   // 0x4
+        int x0;                                   // 0x0
         int x4;                                   // 0x4
         GOBJ *score_gobj[4];                // 0x08
         GOBJ *machineicon_gobj[4];                // 0x18
@@ -2134,6 +2127,7 @@ typedef struct Game3dData
     JOBJSet **legendary_hud_hydra[3];             // 0xdf4, ScInfSpHydra{A,B,C}{N}
     JOBJSet **legendary_hud_dragoon[3];           // 0xe00, ScInfSpDragoon{A,B,C}{N}
     GOBJ *legendary_hud_gobj[4];                  // 0xe0c, position-model element per viewport
+    u8 xe1c[0xe44 - 0xe1c];                       // 0xe1c
 } Game3dData;
 
 // Reward type encoding for RewardEntry.reward_type
@@ -2289,8 +2283,7 @@ typedef struct gmDataAll
 
 // Per-player gameplay-stat record that drives checklist completion. Embedded in
 // PlayerData at +0xB0 (PlayerData.stat_record); Ply_GetStats(ply)
-// returns &stc_playerdata[ply].stat_record. Offsets here are record-relative
-// (the doc's "stat+0xNNN").
+// returns &stc_playerdata[ply].stat_record. Offsets here are record-relative.
 typedef struct PlayerStats
 {
     int attack_use_num;                           // 0x0, states entered with a new nonzero attack cause < 27 (Ply_RecordAttackUsed)
@@ -2301,11 +2294,12 @@ typedef struct PlayerStats
     int enemy_defeat_by_method[0x1b];             // 0xe4, AR; [0xf]/[0x15]=exhaled star, [0x10]=Quick Spin
     u8 x150[0x1d8 - 0x150];
     int attack_num_ext[13];                       // 0x1d8, attack causes 27+, indexed by cause - 27
-    u8 x20c[0x330 - 0x20c];
+    u8 x20c[0x210 - 0x20c];
+    int enemy_defeat_by_kind[0x48];               // 0x210, by EnemyKind below the special kinds (Ply_RecordEnemyDefeat)
     u8 x330;                                      // 0x330, set by attacks whose AttackData byte 2 has 0x10 (charge/push states)
     u8 rivals_damaged_mask;                       // 0x331, per-rival "damaged this game" bits 0-4 (cell 0x4e)
     u8 x332[0x334 - 0x332];
-    int copy_obtain_count[COPYKIND_NUM];          // 0x334, times each CopyKind was granted this game (Rider_RecordCopyAbility)
+    int copy_obtain_count[COPYKIND_NUM];          // 0x334, times each CopyKind was granted this game (Ply_RecordCopyAbility)
     int copy_history[6];                          // 0x360, the last 6 CopyKinds granted, oldest first; COPY_HISTORY_NUM entries
     u8 copy_history_num;                          // 0x378, low 3 bits = ability-sequence flags, high 5 = copy_history entries
     u8 x379[0x37a - 0x379];
@@ -2338,12 +2332,12 @@ typedef struct PlayerStats
     float x61c;                                   // 0x61c, written by zz_8022fc60_
     float x620;                                   // 0x620, written by zz_8022fc60_
     float x624[7];                                // 0x624, zeroed by Ply_ResetGameStats
-    u8 yakumono_break[0x14];                      // 0x640, by desc_id - 0x15 (desc_id 0x15..0x28); [0x13] also pillar-timer-valid flag
+    u8 yakumono_break[0x14];                      // 0x640, by YakuKind - 0x15 (kinds 0x15..0x28); [0x13] also pillar-timer-valid flag
     u8 rail_bits[0xd];                            // 0x654, bit per rail id grabbed, any stage (AR Magma cell 0x6e)
     u8 zone_bits[0x3f];                           // 0x661, bit per dash/dash-gate/jump/super-jump zone touched (AR Magma boost panels, cell 0x70)
     int enemies_swallowed;                        // 0x6a0, AR (cells 0x0e, 0x04/0x05)
     u8 x6a4[0x6a8 - 0x6a4];
-    u8 swallow_by_actor[0x120];                   // 0x6a8, AR per-ACTORID swallow counter, stride 0x18
+    u8 swallow_by_actor[0x120];                   // 0x6a8, AR per-EnemyKind swallow counter, stride 0x18
     int consec_garbage_swallow;                   // 0x7c8, AR (cell 0x10)
     u8 x7cc[0x7d0 - 0x7cc];
     int swallowed_this_race;                      // 0x7d0, AR (cells 0x5f/0x62/0x65)
@@ -2357,7 +2351,7 @@ typedef struct PlayerStats
     int trapdoor_opens;                           // 0x7fc, AR Sky Sands (cell 0x6a)
     u32 objects_destroyed_num;                    // 0x800, props broken by ramming with the machine
                                                   //        (Machine_CollideWithBreakable); AR walls broken (cell 0x64)
-    u8 x804[0x808 - 0x804];
+    int item_collect_20s;                         // 0x804, items (kind > 2) collected while timer_20s runs
     int tac_stolen_items;                         // 0x808, CT (cell 0x34)
     u8 x80c[0x810 - 0x80c];
     int cliff_drops;                              // 0x810, AR (cell 0x5e)
@@ -2386,7 +2380,7 @@ typedef struct PlayerStats
     u8 x856[0x858 - 0x856];                   // 0x856
     u16 x_bit15 : 1;            // 0x858 (= PlayerData 0x908), bit 15 (MSB)
     u16 x908_flag6 : 1;         // bit 14 (byte 0x908, bit 6)
-    u16 x908_flag5 : 1;         // bit 13 (byte 0x908, bit 5)
+    u16 respawn_request : 1;    // bit 13 (byte 0x908, bit 5), Ply_GetRespawnRequest / Ply_SetRespawnRequest
     u16 hydra_piece_2 : 1;      // bit 12 (byte 0x908, bit 4)
     u16 hydra_piece_1 : 1;      // bit 11 (byte 0x908, bit 3)
     u16 hydra_piece_0 : 1;      // bit 10 (byte 0x908, bit 2)
@@ -2420,7 +2414,7 @@ typedef struct PlayerData
     GOBJ *machine_gobj;        // 0x40, Ply_GetMachineGObj
     union {                    // 0x44, live patch-adjusted stats. Round-trips with MachineData+0x94c:
                                //       seeded into the machine at (re)spawn and read back by
-                               //       cityTrial_getMasterStats. Ply_ClampStats clamps it on the
+                               //       MachineGObj_GetMasterStats. Ply_ClampStats clamps it on the
                                //       City->Stadium save.
         struct {
             float weight;
@@ -2441,17 +2435,17 @@ typedef struct PlayerData
                                //       City Trial CPU stat-budget sink, and Ply_ClampStats folds it into
                                //       stats[] at the City->Stadium save. Stays 0 without growth. Not the
                                //       machine base attributes, which load from vcDataLookup.
-    u8 player_color;           // 0x8C, plGetPlayerColor/plSetPlayerColor
+    u8 player_color;           // 0x8C, Ply_GetPlayerColor/Ply_SetPlayerColor
     u8 controller_index;       // 0x8D, Ply_GetControllerIndex. Setter (8022c6e4) also maintains the controller->slot reverse map at 0x805dd898 (port 4 -> excluded)
     u8 is_bike;                // 0x8E, Ply_GetMachineIsBike/Ply_SetMachineIsBike
     MachineKind machine_kind : 8; // 0x8F, class-relative: indexes the is_bike half of vcDataLookup, so
                                   //       it equals the VCKIND only for stars. Ply_GetMachineKindAbs resolves it.
-    u8 x90;                    // 0x90, set to this slot's own player index at spawn (8022c960)
+    u8 ply;                    // 0x90, this slot's own player index, set at spawn (8022c960)
     u8 x91;                    // 0x91, viewport/split-screen layout flag: (player_count >= 3) ? 1 : 0 (8022c990)
     u8 x92;                    // 0x92, viewport/split-screen layout tier: 0/1/2 for 1/2/3+ players (8022c9c0)
     u8 x93;                    // 0x93, HUD/stadium-round display mode 0-3 (8022c9f0)
     u8 x94[0x96 - 0x94];       // 0x94, unknown
-    s16 x96;                   // 0x96, set from a per-player float (truncated) at spawn (8022cac0); purpose unclear
+    s16 x96;                   // 0x96, set from a per-player float (truncated) at spawn (8022cac0)
     u8 x98[0xA8 - 0x98];       // 0x98, unknown
     int all_up_collected;      // 0xA8, Ply_GetAllUpCollected/Ply_SetAllUpCollected
     int cpu_level;             // 0xAC, signed CPU difficulty: -1 = not a CPU, else 0..8. Copied from
@@ -2508,7 +2502,6 @@ typedef struct grBoxGeneObj              // r13 + 0x608
     u8 subsequent_it_kind[40]; // 0x224
     u8 subsequent_chance[40];  // 0x24c
     u8 subsequent_num;         // 0x274
-    int x278;                  // 0x278
 } grBoxGeneObj;
 
 typedef struct grBoxGeneInfo // r13 + 0x610
@@ -2742,14 +2735,6 @@ typedef struct grBoxGeneInfo // r13 + 0x610
     float match_progress;             // 0x2a4, goes from 0 -> 1
     u8 flags_x2a8;                    // 0x2a8, see GRBOX_FLAG_*
     u8 x2a9[3];                       // 0x2a9
-    int x2ac;                         // 0x2ac
-    int x2b0;                         // 0x2b0
-    int x2b4;                         // 0x2b4
-    int x2b8;                         // 0x2b8
-    int x2bc;                         // 0x2bc
-    int x2c0;                         // 0x2c0
-    int x2c4;                         // 0x2c4
-    int x2c8;                         // 0x2c8
 } grBoxGeneInfo;
 
 // grBoxGeneInfo.flags_x2a8 bits. Every engine read is an lbz of that one byte, so
@@ -2807,7 +2792,6 @@ static LegendaryPieceData **stc_legendary_piece_data = (LegendaryPieceData **)(0
 static grBoxGeneObj **stc_grBoxGeneObj = (grBoxGeneObj **)(0x805dd0e0 + 0x608);
 static grBoxGeneInfo **stc_grBoxGeneInfo = (grBoxGeneInfo **)(0x805dd0e0 + 0x610);
 static itCommonDataAll **stc_it_common_data = (itCommonDataAll **)(0x805dd0e0 + 0x7f0);
-static cmMainParamCommon **stc_cm_main_param = (cmMainParamCommon **)0x8055747c;
 static gmDataAll **stc_gmdataall = (gmDataAll **)(0x805dd0e0 + 0x494);
 static int *stc_clearchecker_sfx_last_frame = (int *)(0x805dd0e0 + 0x4B0); // 0x805dd590, last frame ClearChecker_SetNewUnlock played its SFX (one-frame cooldown)
 static int *stc_city_machine_num = (int *)(0x805dd0e0 + 0x754); //
@@ -2816,9 +2800,9 @@ static u8 *stc_city_starting_machine = (u8 *)0x80495816;
 // allocated and iterated but dead - vanilla play targets slots 0-3.
 static PlayerData *stc_playerdata = (PlayerData *)0x8055a9f0;
 static VehicleBustEntry *stc_vehicle_bust_table = (VehicleBustEntry *)0x804B4C68; // 10 entries; read by Ply_AddDeath to set PlayerData.stat_record.vehicle_bust_mask
-static u8 *stc_clear_num = (u8 *)0x805d51d0;                          // array indexed by GMMODE, stores clear count per mode
+static u8 *stc_reward_num = (u8 *)0x805d51d0;                         // reward entries per mode (Checklist_GetRewardNum), indexed by GMMODE
 static RewardEntry **stc_reward_table_ptrs = (RewardEntry **)0x8049755C; // 3 pointers to per-mode reward tables. Indexed by GMMODE
-static u8 *stc_special_rewards = (u8 *)0x804AD270;                     // 5 special reward indices per mode (15 bytes total)
+static u8 *stc_filler_reward_indices = (u8 *)0x804AD270;               // 5 checkbox-filler reward indices per mode (15 bytes), indexed by GMMODE
 // 3 per-mode checklist audio preview tables of {reward_index, song_id} pairs,
 // 0xFF-terminated, indexed by GMMODE.
 static u8 **stc_audio_preview_tables = (u8 **)0x804AD2EC;
@@ -2846,6 +2830,7 @@ void Gm_HideHUD(); // 0x801126f4
 int Gm_IsInCity(); // 0x8000acb0
 int CityTrial_IsInStadium();  // 0x8000ad48, checks if city_kind is a stadium (7-18)
 u8 TitleScreen_GetAutoDemoKind();  // 0x8000af94, TitleScreenData.autodemo_slot
+int Gm_IsTitleMajor(void);          // 0x8000af5c, GameData.major_cur == MJRKIND_TITLE
 
 // True while the title screen's attract demo is playing a round. That round is a
 // real 3D game - City Trial, Air Ride or Top Ride, with a CPU in every slot and no
@@ -2860,22 +2845,25 @@ static inline int Gm_IsAutoDemo()
 
 GmIntroState Gm_GetIntroState(); // 0x8000a958
 CityMode Gm_GetCityMode(); // 0x8003f6cc
-AirRideMode Gm_GetAirRideMode();      // 0x8003d5f0 - returns GameData[0x35d]
-int Gm_GetAirRidePlayerSlot();         // 0x8003d644 - returns GameData[0x35f], active player slot for Free Run / Time Attack
+AirRideMode Gm_GetAirRideMode();      // 0x8003d5f0 - returns GameData.airride_mode
+int Gm_GetAirRidePlayerSlot();         // 0x8003d644 - returns GameData.airride_player_slot
 
-// GameData.city_kind while a race is set up from the Air Ride rules menu. City
-// Trial and the stadiums put their own, higher values in the same field.
+// GameData.city_kind in Air Ride: the rules-menu rule for a race, or the mode for
+// Time Attack and Free Run. City Trial and the stadiums put their own values in
+// the same field.
 typedef enum AirRideRule
 {
-    AIRRIDE_RULE_LAPS = 0,  // ends after Gm_GetRaceLapTotal() laps
-    AIRRIDE_RULE_TIME = 1,  // ends after Gm_GetRaceTimeLimitSeconds() seconds
+    AIRRIDE_RULE_LAPS = 0,        // ends after Gm_GetRaceLapTotal() laps
+    AIRRIDE_RULE_TIME = 1,        // ends after Gm_GetRaceTimeLimitSeconds() seconds
+    AIRRIDE_RULE_FREERUN = 3,     // AIRRIDEMODE_FREE
+    AIRRIDE_RULE_TIMEATTACK = 4,  // AIRRIDEMODE_TIME
 } AirRideRule;
 
-// Which rule ends the race (GameData.city_kind, 0xa94), an AirRideRule in Air Ride.
+// GameData.city_kind (0xa94), an AirRideRule in Air Ride.
 u8 Gm_GetCityKind();                  // 0x8000916c
-// GameData.is_items_disabled. fn_grGetItemData returns NULL when it holds, so
-// the stage's item spawner never starts.
-int Gm_IsItemsDisabled();             // 0x8000a2a0
+// GameData.is_map_debug. Prints "mapdebug error." and panics when the bit is set,
+// so it returns 0 in every retail round.
+int Gm_IsMapDebug();                  // 0x8000a2a0
 
 // Laps the race is configured for (GameData.race_lap_total, 0xa9a). Meaningful only
 // in a lap race - a timed race ends on Gm_GetRaceTimeLimitSeconds() instead.
@@ -2922,7 +2910,7 @@ int Gm_GetPlayerFreeRunTime(int ply);           // 0x80009fb8
 
 // Per-lap checklist pass, called only from AirRide_OnFinishRace (bl at 0x80010418).
 // For a human in AIRRIDEMODE_FREE runs AirRide_CheckFreeRunLapObjectives; bails while
-// Checklist_IsCacheValid, in a replay, or outside MJRKIND_AIR.
+// Net_IsSessionActive, in a replay, or outside MJRKIND_AIR.
 void AirRide_DispatchFreeRunObjectives(int ply);        // 0x8004a90c
 
 // Per-finish checklist pass, called only from race3D_isFinished (bl at 0x80010d68).
@@ -2942,16 +2930,19 @@ void AirRide_CheckFreeRunLapObjectives(int ply);        // 0x8004d8a8
 // Awards the City Trial cells for ten machine changes and for total drive time. Run
 // from Game_Think.
 void CityTrial_CheckFreeRunObjectives(void);    // 0x8004e660
-float Ply_GetCityStatNum(int ply, int stat_idx, int unk); // 0x8000ab48
+// use_saved nonzero reads GameData.city.ply_stats instead of PlayerData.stats.
+float Ply_GetCityStatNum(int ply, int stat_idx, int use_saved); // 0x8000ab48
 GOBJ *Ply_GetRiderGObj(int ply); // 0x8022cb74
 void Ply_GetPosition(int ply, Vec3 *pos); // 0x8022c568
 GOBJ *Ply_GetMachineGObj(int ply); // 0x8022d230
-int Ply_GetColor(int ply); // 0x800095c0
+int Ply_GetDescColor(int ply); // 0x800095c0, GameData.ply_desc[ply].color
+u8 Ply_GetPlayerColor(int ply); // 0x8022c67c, PlayerData.player_color
+void Ply_SetPlayerColor(int ply, int color); // 0x8022c694
 int Ply_GetControllerIndex(int ply); // 0x8022c6ac, PlayerData.controller_index
-int Ply_CheckIfCPU(int ply); // 0x8000948c
+PKind Ply_GetDescPKind(int ply); // 0x8000948c, GameData.ply_desc[ply].p_kind
 int Ply_IsViewOn(int ply); // 0x800098c0
 int Ply_GetViewIndex(int ply); // 0x80009908
-RiderKind Ply_GetRiderKind2(int ply); // 0x800094c4
+RiderKind Ply_GetDescRiderKind(int ply); // 0x800094c4, GameData.ply_desc[ply].rider_kind
 PKind Ply_GetPKind(int ply); // 0x8022c858
 RiderKind Ply_GetRiderKind(int ply); // 0x8022c880
 void Ply_SetRiderKind(int ply, RiderKind kind); // 0x8022c898
@@ -2975,27 +2966,28 @@ static inline MachineKind Ply_GetMachineKindAbs(int ply)
 void Ply_AddDeath(int ply, DmgLog *dmg_log, int is_bike, int class_index); // 0x8022f648
 // All three fold (is_bike, class slot) into an absolute MachineKind themselves,
 // with no bounds check, and the two getters sum their whole array.
-void Ply_IncrementGetOnMachineNum(int ply, GOBJ *machine_gobj); // 0x8022f5bc, PlayerStats.machine_change_count
+void Ply_IncrementGetOnMachineNum(int ply, GOBJ *machine_gobj); // 0x8022f5bc, PlayerStats.machine_mount_kind_num
 int Ply_GetMachineChangeCount(int ply);                         // 0x8022f19c, sums it
 int Ply_GetKONum(int ply);                                      // 0x8022f2a0, sums PlayerStats.kills_by_machine
 // The enemy counterpart of Ply_AddDeath. attacker_log is the victim's
-// strongest-attacker record; its byte 3 is the attack-method index that keys
+// strongest-attacker record; attack_data.kind is the attack method that keys
 // enemy_defeat_by_method (0xe = Tornado, 0xf/0x15 = exhaled star, 0x10 = Quick
 // Spin, 0x11/0x12/0x13 = Firework / Sensor Bomb / Gold Spike). Also bumps
-// enemies_defeated and the per-ACTORID defeat counter.
-void Ply_RecordEnemyDefeat(int ply, void *attacker_log, GOBJ *enemy); // 0x8023205c, credits ply with an enemy kill; reached only from 0x802022ec
+// enemies_defeated and enemy_defeat_by_kind.
+void Ply_RecordEnemyDefeat(int ply, DmgLog *attacker_log, GOBJ *enemy); // 0x8023205c, credits ply with an enemy kill; reached only from 0x802022ec
 // The swallow counterpart: bumps the swallow fields for an enemy passing
-// EventActor_IsChecklistEnemy and never touches the defeat counters.
+// EventActorGObj_IsChecklistEnemy and never touches the defeat counters.
 void Ply_RecordEnemySwallow(int ply, GOBJ *enemy); // 0x80230cec
 void Ply_SetDamagedDynaBlade(int ply);     // 0x80231160, PlayerStats +0x84c bit 0x01
 void Ply_SetTrampledByDynaBlade(int ply);  // 0x80231120, PlayerStats +0x84c bit 0x02
 // Sets the attacker's PlayerStats +0x84c bit 0x80 while timer_10s still runs.
 void Ply_RecordRivalDamage10Sec(int attacker, int victim); // 0x8022ec84
-// Run by Weapon_StateChange on an attack-cause change: bumps the attacker's
-// attacks-used counts. Causes 1..0x1a index a bounded array; causes >= 0x1b land at
-// PlayerStats +0x16c + cause*4 unchecked, which from 0x29 up overwrites the
-// per-actor defeat counters.
-void Ply_RecordAttackUsed(GOBJ *attacker, void *attack_block, void *prev_attack_block); // 0x80231bdc
+// Run by RiderStateChange, MachineStateChange and Weapon_StateChange on an
+// attack-cause change: bumps the attacks-used counts of the player owning the rider
+// or machine GObj. Causes 1..0x1a index a bounded array; causes >= 0x1b land at
+// PlayerStats +0x16c + cause*4 unchecked, which from 0x29 up overwrites
+// enemy_defeat_by_kind.
+void Ply_RecordAttackUsed(GOBJ *attacker, AttackData *attack, AttackData *prev_attack); // 0x80231bdc
 void Ply_IncrementSpinPanelCount(int ply); // 0x80230f4c, PlayerStats +0x7f4
 // Per frame: ticks the 20 s / 10 s round timers and adds the ridden machine's
 // grounded or airborne drive time while it moves at least 0.02 per frame.
@@ -3003,11 +2995,15 @@ void Ply_TickTimeStats(int ply);     // 0x80231200
 void Ply_UpdateAllOffMachines(void); // 0x8022df1c, the all-players-off-machine run behind PlayerStats +0x840
 // Kirby Melee's score source: bumps the game manager's per-player enemy-KO
 // counter at (*0x805dd570)+0xd0.
-void GameManager_AddEnemyKO(int ply, int actor_id); // 0x80010fd8
-void Ply_AddStadiumEnemyKO(int ply, int actor_id);  // 0x8022d758, wraps GameManager_AddEnemyKO
+void GameManager_AddEnemyKO(int ply, int enemy_kind); // 0x80010fd8
+void Ply_AddStadiumEnemyKO(int ply, int enemy_kind);  // 0x8022d758, wraps GameManager_AddEnemyKO
 void Ply_SetHP(int ply, float hp); // 0x8022ca38
+// Respawn request, PlayerData+0x908 bit 0x20. Respawner_Update sets it at 30 on its
+// 150-frame fall-death countdown; Machine_CheckRespawnRequest acts on it and clears it.
+int Ply_GetRespawnRequest(int ply); // 0x8022cc64
+void Ply_SetRespawnRequest(int ply, int on); // 0x8022cc80
 int Ply_GetAllUpCollected(int ply); // 0x8022d024
-int Ply_SetAllUpCollected(int ply, int num); // 0x8022d03c
+void Ply_SetAllUpCollected(int ply, int num); // 0x8022d03c
 
 // Per-player live machine stats (PlayerData.stats, +0x44).
 void Ply_GetAllStats(int ply, float *out_stats);                        // 0x8022cf6c, copies PlayerData.stats[9] into out_stats
@@ -3021,39 +3017,44 @@ void Ply_SetStatAux(int ply, float *stats);                           // 0x8022d
 int Ply_GetCpuLevel(int ply);                                           // 0x8022d7b0, signed CPU level (-1 = not a CPU, else 0..8); reads PlayerData.cpu_level (+0xAC)
 void Ply_SetCpuLevel(int ply, int level);                               // 0x8022d798, writes PlayerData.cpu_level (+0xAC)
 
+// Frames Game_Think has run this round: the game manager's counter at (*0x805dd570)+0x0,
+// bumped at the top of every Game_Think in all 3D modes.
+int Gm_GetRoundFrames(void);                                            // 0x800132b8
 // City Trial passive CPU stat growth (see gmGameParams.ct_cpu_stat_* tables).
-int Gm_GetCityTrialFrame(void);                                         // 0x800132b8, current City Trial frame counter
 void CityTrial_GrowCpuStats(void);                                      // 0x80015a00, per-tick: drains each CPU's cpu_stat_budget pool into random stat_aux entries
 
 void Gm_FadeOutMusic(int frame_duration); // 0x80061df0, fades the main BGM out for a siren event
 void Gm_FadeInMusic(int frame_duration);  // 0x80062004, resumes the main BGM, fades it back in and fades the secondary BGM out
 int Gm_GetPlyViewNum();                   // 0x800092b4
-// Clear Checker core
 u8 Checklist_GetRewardNum(GameMode gm);                                // 0x80049c20, returns number of rewards for a mode
 u8 Checklist_GetClearKindFromRewardIndex(GameMode gm, u8 reward_index); // 0x80049c84, returns clear_kind for a reward index
 int ClearChecker_CheckUnlocked(GameMode gm, u8 reward_index);          // 0x80049e24, checks has_reward bit for a reward index's clear_kind
 void ClearChecker_SetNewUnlockSilent(GameMode gm, u8 clear_kind);     // 0x80049fcc, marks clear_kind newly completed without SFX (Top Ride checklist evaluator path)
 void ClearChecker_SetNewUnlock(GameMode gm, u8 clear_kind);            // 0x8004a054, marks clear_kind as newly completed
-int ClearChecker_GetFrameIndex(void);                                   // 0x80005ce0, returns current frame index used for SFX cooldown in SetNewUnlock
+int Gm_GetEngineFrames(void);                                           // 0x80005ce0, HSD_Update.engine_frames; the clock of SetNewUnlock's SFX cooldown
 u8 ClearChecker_GetKindClear(GameMode gm, u8 clear_kind);              // 0x8004a130, returns status byte for a clear_kind
 int ClearChecker_CheckForNewUnlocks(GameMode gm);                      // 0x8004a1a4, scans for is_new && !is_unlocked
-// Sets has_reward on reward cells, then builds the visible grid: for each of the
-// 120 physical slots it reverse-maps grid_mapping to a clear_kind, picks a
-// cell-state model from the clear[] bits, and creates a cell GObj at
+// Sets has_reward on reward cells, granting a filler (both filler counts capped at
+// 5) for each one listed in stc_filler_reward_indices, then builds the visible grid:
+// for each of the 120 physical slots it reverse-maps grid_mapping to a clear_kind,
+// picks a cell-state model from the clear[] bits, and creates a cell GObj at
 // MainMenuData+0xf0c[slot]. The 12-column / 120-cell layout is hardcoded here.
 void Checklist_SetRewardFlagOnUnlocks();                              // 0x8017df5c
-void Checklist_BuildUnlockBitfields();                                  // 0x80007af0, caches unlock status into GameData + 0xD50 bitfields
-int Checklist_IsCacheValid();                                           // 0x8007b650, returns 1 if unlock bitfield cache is valid
-int Checklist_CheckCachedUnlock_AirRide(s8 reward_index);               // 0x80007e34, fast bit-test against cached Air Ride unlock bitfield
-int Checklist_CheckCachedUnlock_CityTrial(s8 reward_index);             // 0x80007e8c, fast bit-test against cached City Trial unlock bitfield
+void Checklist_BuildUnlockBitfields();                                  // 0x80007af0, snapshots unlock status into GameData.unlock_cache when a LAN session connects
+// True while a LAN multi-console session runs (net manager 0x80552a30, +0x1c). Unlock
+// queries then read GameData.unlock_cache, and checklist and stadium-unlock writes
+// skip the save.
+int Net_IsSessionActive(void);                                          // 0x8007b650
+int Checklist_CheckCachedUnlock_AirRide(s8 reward_index);               // 0x80007e34, bit-test against GameData.unlock_cache (Air Ride)
+int Checklist_CheckCachedUnlock_CityTrial(s8 reward_index);             // 0x80007e8c, bit-test against GameData.unlock_cache (City Trial)
 // The City Trial reward indices its select screen gates the four special characters on.
 #define CITYTRIAL_REWARD_DRAGOON    30
 #define CITYTRIAL_REWARD_HYDRA      34
 #define CITYTRIAL_REWARD_DEDEDE     35
 #define CITYTRIAL_REWARD_METAKNIGHT 36
-GameClearData *gmGetClearcheckerTypeP(GameMode mode);                   // 0x800076a0, returns ClearCheckerData for mode
-GameClearData *gmGetClearcheckerP();                                    // 0x80006c20, returns base ClearCheckerData (Air Ride)
-u8 Gm_GetClearChecker();                                                // 0x8017cf14, returns ClearCheckerUI.phase (+0x15) of the live checklist screen
+GameClearData *gmGetClearcheckerTypeP(GameMode mode);                   // 0x800076a0, returns the GameClearData for mode
+GameClearData *gmGetClearcheckerP();                                    // 0x80006c20, returns the Air Ride GameClearData
+ClearCheckerPhase Gm_GetClearCheckerPhase(void);                        // 0x8017cf14, ClearCheckerUI.phase (+0x15) of the live checklist screen
 // Builds the checklist screen for a mode. fresh_flag 1 gives the new-unlock
 // presentation (animates is_new cells), 0 gives browse with animation skipped.
 void Checklist_Init(int mode, int fresh_flag);                        // 0x801822f4
@@ -3089,8 +3090,9 @@ void ClearChecker_ResetAllData(void);                                    // 0x80
 int ClearChecker_ShouldShowNewUnlocks(GameMode gm);                      // 0x8000c6f0, returns 1 if mode has new unlocks pending display
 void ClearChecker_MarkNewUnlocksShown(GameMode gm);                      // 0x8000c734, marks new unlocks as displayed for mode
 
-// Grant a checkbox filler for the given mode. checkbox_filler_num is uncapped (u8, max 255).
-// checkbox_filler_list_len controls the displayed filler icons in the UI (capped at 5).
+// Grant a checkbox filler for the given mode. Unlike vanilla's grant, which caps both
+// counts at 5, this leaves checkbox_filler_num uncapped (u8, max 255);
+// checkbox_filler_list_len, the filler icons shown in the UI, still caps at 5.
 static inline void Checklist_GrantFiller(GameMode mode)
 {
     GameClearData *clear_data = gmGetClearcheckerTypeP(mode);
@@ -3101,30 +3103,26 @@ static inline void Checklist_GrantFiller(GameMode mode)
     }
 }
 
-// Top Ride
-s8 TopRide_GetSelectedCourse(void);                                      // 0x8000b2b8, returns currently selected Top Ride course index (0-6)
+u8 TopRide_GetSelectedCourse(void);                                      // 0x8000b2b8, returns currently selected Top Ride course index (0-6)
 void TopRide_SetSelectedCourse(int course);                              // 0x8000b2dc, sets selected Top Ride course index
 void TopRide_SetCourseValid(int valid);                                  // 0x8000b5ac, sets GameData.topride_course_valid
 void TopRide_SetExtraUnlocks(int unlock0, int unlock1, int unlock2);     // 0x8000b5dc, sets GameData.topride_extra_unlocks[0..2]
 TopRideMode TopRide_GetMode(void);                                       // 0x8003ea9c, returns Top Ride mode (0=Race, 1=Time, 2=Free)
-int TopRide_GetTimeAttackPlayerSlot(void);                               // 0x8003eaf0, returns active player slot for Top Ride Time Attack
+int TopRide_GetTimeAttackPlayerSlot(void);                               // 0x8003eaf0, returns GameData.topride_player_slot
 TopRideStats *TopRide_GetStats(void);                                    // 0x80287040, returns TopRideStats pointer (via gmGetClearcheckerType1_2Ptr)
 PlayerStats *Ply_GetStats(int ply);                                      // 0x8022d248, returns &stc_playerdata[ply].stat_record
 PlayerStats *Ply_GetStatRecordBase(int ply);                             // 0x8022d260, same base as Ply_GetStats
 // Single producer of PlayerStats.item_collect[]. Called from one site, on the
 // common collect path inside Machine_OnTouchItem, with the instance kind already
-// clamped to its base kind. Also maintains the Tac aggregate (src_tag 4) and the
-// first-20-seconds aggregate (kind > 2).
+// clamped to its base kind. Also maintains tac_stolen_items (src_tag 4) and
+// item_collect_20s (kind > 2).
 void Ply_IncrementItemCollectNum(int ply, ItemKind kind, int src_tag); // 0x8022fbcc
 // Drop-side partner of the above, called by Rider_TickDropAllUp and Rider_SpawnDropPatchSeq
 // after a successful throw. Guards ply < 5 and kind != -1 but NOT the upper bound, so a kind
 // past item_collect[0x45] writes off the end of PlayerStats.
 void Ply_DecrementItemCollectNum(int ply, ItemKind kind);              // 0x8022fb58
-u8 Ply_GetYakumonoBreakCount(int ply, int desc_id);                      // 0x8022fccc, PlayerStats.yakumono_break[desc_id]; returns 0 outside desc_id 0x15..0x28
+u8 Ply_GetYakumonoBreakCount(int ply, YakuKind kind);                    // 0x8022fccc, PlayerStats.yakumono_break[kind - 0x15]; returns 0 outside kinds 0x15..0x28
 
-// Top Ride Kirby (player) structs and globals live in topride.h.
-
-// Clear Checker reward query callers
 int AirRide_CheckCourseUnlocked(s8 input);                              // 0x8000c0e0, checks reward index 34 (Nebula Belt) when input==8
 // Clearchecker machine-unlock query (reward indices 19-31, machines 0x09-0x15).
 // Only reached via the title-screen attract demo, not real CPU gameplay.
@@ -3140,13 +3138,13 @@ int AirRide_CheckCharacterUnlocked(s8 character);                       // 0x800
 int CityTrial_CheckLegendaryMachineUnlocked(int machine);               // 0x8000c508, maps 4->34 (Hydra), 8->30 (Dragoon)
 int AirRide_CheckBonusUnlocked(s8 bonus);                               // 0x8000c584, maps 1->35 (Bonus Movie), 2->36 (Ending)
 int Pause_CheckStatsUnlocked();                                         // 0x8000c768, checks City Trial reward index 43
-int Gm_IsGrKindCity(StageKind stage_kind);  // 0x80262574 - takes StageKind (validates 0..59, indexes the stage-def table at +0x30)
+int Stage_IsCity(StageKind stage_kind);     // 0x80262574 - stage-def word +0x30 (asserts 0..59); nonzero only for the city
 int Gm_IsDestructionDerby(); // 0x80191900
-void CitySelect_Cursor6Update(int ply, int color_idx); // 0x8015f440
+void CitySelect_Cursor6Update(int ply); // 0x8015f440
 void AirRideSelect_Cursor6Update(int ply, int color_idx); // 0x80154874
 // Air Ride (GameData +0x10a) and City Trial (+0x1d0) select screens. RaceUpdate runs for
 // AirRideMode 0 and FreeTimeUpdate for the rest; the three City Trial loads store their
-// screen index (0, 1, 2) at +0x1d0. The color changers step to the next unlocked color,
+// CityMode in city_select_ply.mode. The color changers step to the next unlocked color,
 // backward when the flag is set, and return 1.
 void CSS_airRide_InitSelectData(void);             // 0x80028754
 void CSS_airRide_RaceUpdate(void);                 // 0x80028888
@@ -3173,12 +3171,13 @@ void Gm_ResumeAllSFX(); // 0x80061a88
 // Resolves gravity at a world position: writes the unit down direction into
 // *out, returns the strength scalar (fall-acceleration). Uses the stage's
 // gravity zones (grgravity.c) if any apply, else the global StageNode gravity.
-float Gm_GetDownVector(Vec3 *pos, Vec3 *out); // 0x800ceb18
+float Gr_GetDownVector(Vec3 *pos, Vec3 *out); // 0x800ceb18
 
-void Gm_SetCameraNormal(); // 0x800bc17c
+// Puts every player camera back into its normal mode.
+void PlyCam_SetAllNormal(); // 0x800bc17c
 int Gm_IsDamageEnabled(); // 0x8000a188
-u8 Gm_IsMachineHitboxEnabled(void); // 0x8000a200, GameData.xaa5_01
-u8 Gm_GetPlayerNum(void); // 0x80009208, GameData.xa95
+u8 Gm_IsMachineHitboxEnabled(void); // 0x8000a200, GameData.is_machine_hitbox_enabled
+u8 Gm_GetPlayerNum(void); // 0x80009208, GameData.player_num
 int Gm_IsReplay(); // 0x8000aac4
 
 void Pad_StopRumbleAll(); // 0x80071d7c
@@ -3187,7 +3186,6 @@ int hash_32(const void *data, int size);
 int hash_32_str(const void *data);
 void Gm_LoadGroundFGMBank(GroundKind gr_kind); // 0x8005a474
 
-// Legendary Machine Pieces (Dragoon & Hydra)
 void LegendaryPieces_Init();                                               // 0x800ecfac, initializes piece spawn data for City Trial
 int CityItemSpawn_CheckToSpawnLegendaryPiece(float match_progress);        // 0x800ed2f0, checks if a piece should spawn based on match progress
 void CityItemSpawn_SpawnLegendaryPiece(GOBJ *box, int area, int param_3);  // 0x800ed384, spawns the next legendary piece into a carrier box PowerUp_SpawnFromSky just made
@@ -3205,7 +3203,10 @@ int Ply_GetDragoonPieceMask(int ply);                                    // 0x80
 void Ply_SetDragoonPieceMask(int ply, int mask);                         // 0x8022cd8c
 void Ply_OnLegendaryPieceCollect(int ply, int piece_count);                // 0x8027a4e8, plays SFX based on piece collection progress
 void Ply_MarkLegendaryMachineAssembled(int ply, int machine_index);        // 0x80231198, marks legendary machine as assembled (0=Dragoon, 1=Hydra)
-void Ply_PlayFGM(int fgm_id, int ply, int param_3);                       // 0x80277c84, plays a positional sound effect for a player
+// Plays entry sfx_idx of the player sound table at 0x804b9138 (12 bytes each, FGM id
+// first), panned to the player's viewport; arg2 nonzero plays it through
+// zz_80061880_ instead. Returns 1 when it played.
+int Ply_PlayFGM(int sfx_idx, int ply, int arg2);                         // 0x80277c84
 // The burn sound, played only when a Rail Fire station's hit lands on a machine or a rider.
 void Ply_PlayRailFireHitSFX(int ply);                                     // 0x8027aa1c
 
@@ -3236,7 +3237,6 @@ void City_SpawnMiscItems(int *desc, ...);                                // 0x80
 // throws once, when enough damage has landed.
 void CityItem_Throw(ItemKind item_kind, int spawn_group, Vec3 *position, Vec3 *throw_dir, int item_flags, f32 elev_angle, f32 speed); // 0x80253ce4
 
-// Legendary Machine Assembly
 typedef struct LegendaryAssemblyParams
 {
     int machine_index;    // 0x00, 0 = Dragoon, 1 = Hydra
@@ -3279,7 +3279,13 @@ void LegendaryMachine_PreloadAssemblyArchives(GroundKind gr_kind);        // 0x8
 // freeze, then a second interval at a scaled engine speed. Independent of the
 // assembly cinematic at GameData.legendary_assembly_gobj, which cancels it before starting.
 void LegendaryPiece_InitHitstopPool(void);                              // 0x80284004
-void LegendaryPiece_CreateHitstop(int freeze_frames, int slow_frames, f32 speed); // 0x8028406c
+typedef struct LegendaryHitstopDesc
+{
+    int freeze_frames; // 0x0
+    int slow_frames;   // 0x4
+    f32 speed;         // 0x8
+} LegendaryHitstopDesc;
+void LegendaryPiece_CreateHitstop(LegendaryHitstopDesc *desc);            // 0x8028406c
 void LegendaryPiece_HitstopThink(GOBJ *gobj);                           // 0x80284190
 void LegendaryPiece_DestroyHitstop(void *state);                        // 0x80284140
 void LegendaryPiece_FreeHitstopState(void *state);                      // 0x80284040
