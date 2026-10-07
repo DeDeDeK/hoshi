@@ -120,11 +120,12 @@ typedef struct HUDElementData // created by HUD_AddElementData
         } city_stat_bar;
         struct
         {   
-            int x14;                // 0x14
-            int x18;                // 0x1c
-            int x1c;                // 0x1c
-            int ply;                // 0x20
-            Vec3 ply_offset[2];    // 0x24
+            int ply;                // 0x14, the pausing player, tracked from Gm_CheckPaused; also x1c's anim frame
+            JOBJ *x18;              // 0x18
+            JOBJ *x1c;              // 0x1c
+            JOBJ *x20;              // 0x20, hidden in city mode 2
+            Vec3 ply_offset[4];     // 0x24, starting translations of j
+            JOBJ *j[4];             // 0x54
         } city_pause;
     };
 } HUDElementData;
@@ -135,11 +136,8 @@ typedef struct HUDElementCommonData
 {
     int x0;            // 0x0
     HUDKind kind;      // 0x4
-    u8 x8_80 : 1;      // 0x8, 0x80
-    u8 x8_40 : 1;      // 0x8, 0x40
-    u8 x8_20 : 1;      // 0x8, 0x20
-    u8 x8_10 : 1;      // 0x8, 0x10
-    u8 ply : 2;        // 0x8, 0x0c
+    u8 ply : 4;        // 0x8, 0xf0, HUD_AddElementData's ply
+    u8 view : 2;       // 0x8, 0x0c, HUD_AddElementData's view
     u8 is_visible : 1; // 0x8, 0x02
     u8 x8_01 : 1;      // 0x8, 0x01
     int xc;            //
