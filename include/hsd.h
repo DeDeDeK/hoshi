@@ -435,6 +435,7 @@ void HSD_VIPostRetraceCB(int retrace_count); // 0x80410dfc
 void HSD_UpdateAllCObjs(); // 0x8042a1a8
 _HSD_ImageDesc *GX_AllocImageData(_HSD_ImageDesc *image_desc, int width, int height, int fmt); // 0x8028b050, allocates the image buffer from the HSD heap into image_desc
 u64 Pad_GetDown(int pad); // 0x8000ecf0
+u64 Pad_GetRepeat(int pad); // 0x8000ed10, presses plus held auto-repeat; menus move cursors with it
 u64 Pad_GetRapidHeld(int pad); // 0x8000ed30
 u64 Pad_GetHeld(int pad); // 0x8000ecd0
 void Pad_StartRumble(int pad, int unk, int kind, int duration); // 0x80071d00, make unk = 0

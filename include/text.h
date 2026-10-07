@@ -462,7 +462,7 @@ static float Text_GetStringWidth(char *s, float scale)
 /*** Functions ***/
 int Text_CreateCanvas(int sis_idx, int no_create_cam_gobj, int gobj_entityclass, int gobj_plink, int gobj_ppriority, int gxlink, int gxpri, int cobj_gxpri); // 0x8044f674 - returns the canvas index within sis_idx; unless no_create_cam_gobj, also builds a camera GObj drawing gxlink at cobj_gxpri
 Text *Text_CreateText(int sis_idx, int canvas_idx); // 0x8044fa70
-Text *Text_CreateTextManual(int sis_idx, int canvas_idx, float pos_x, float pos_y, float pos_z, float limit_x, float limit_y); // 0x8044f128
+Text *Text_CreateTextManual(int sis_idx, int canvas_idx, float pos_x, float pos_y, float pos_z, float limit_x, float limit_y); // 0x8044f128, leaves alloc null: Text_AddSubtext needs Text_CreateText
 void Text_Destroy(Text *text); // 0x8044f350
 int Text_AddSubtext(Text *text, float xPos, float yPos, char *string, ...); // 0x8044fec4
 void Text_SetScale(Text *text, int subtext, float x, float y); // 0x80450774

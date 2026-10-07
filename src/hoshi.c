@@ -765,6 +765,7 @@ void Mod_CopyFromSave(GlobalMod *mod)
         switch (this_option->kind)
         {
         case (OPTKIND_VALUE):
+        case (OPTKIND_NUM):
         {
             Option_CopyFromSave(mod, "", this_option);
             break;
@@ -787,6 +788,7 @@ void Mod_CopyToSave(GlobalMod *mod)
         switch (this_option->kind)
         {
         case (OPTKIND_VALUE):
+        case (OPTKIND_NUM):
         {
             Option_CopyToSave(mod, "", this_option);
             break;

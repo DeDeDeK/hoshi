@@ -30,12 +30,12 @@ struct OptionDesc
     char *description;
     OptionKind kind : 16;
     MenuPriority pri : 15;
-    unsigned int no_save : 1; // OPTKIND_VALUE: keep this option out of the memory card block
+    unsigned int no_save : 1; // OPTKIND_VALUE/NUM: keep this option out of the memory card block
     int *val;
     int min;
     union
     {
-        int max;
+        int max;              // OPTKIND_NUM, inclusive; a saved NUM spans at most 256 values
         int value_num;
     };
     void (*on_change)(int val);
