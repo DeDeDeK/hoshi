@@ -159,9 +159,12 @@ int PlyCam_OnFootThink(CamData *cam, int pad_index);            // 0x800cb3b4, k
 void PlyCam_OnFootEnter(CamData *cam, int *unk);                // 0x800cc050, kind 6 on-enter
 void PlyCam_OnFootSolve(CamData *cam, int is_first_frame);      // 0x800cb500, kind 6 per-frame solve into xc0
 void PlyCam_OnFootBlend(CamData *cam);                          // 0x800cbec8, kind 6 smoothing of xc0 into xe8
+void PlyCam_ReplayEnter(CamData *cam, int *args);               // 0x800c89f0, kind 3 on-enter
+int PlyCam_ReplayThink(CamData *cam, int pad_index);            // 0x800c754c, kind 3 input think; ORs every human pad
+void PlyCam_CollectEyeHitboxes(GOBJ *cam_gobj);                 // 0x800cd5e4, attack regions containing the eye
 void PlyCam_GetFullscreenScissor(CamScissor *out);              // 0x80068574
-void PlyCam_Get2PScissor(int view_index, CamScissor *out); // 0x80068588
-void PlyCam_Get4PScissor(int view_index, CamScissor *out); // 0x800685ac
+void PlyCam_Get2PScissor(int screen, CamScissor *out);          // 0x80068588, GameData.ply_view_desc[].screen
+void PlyCam_Get4PScissor(int screen, CamScissor *out);          // 0x800685ac
 
 // Scripted cinematic camera, on a spare slot (5-31) of cam_gobjs. The anchor's
 // world matrix is sampled once and every eye/interest key transformed through it,
@@ -171,4 +174,7 @@ void PlyCam_Get4PScissor(int view_index, CamScissor *out); // 0x800685ac
 int PlyCam_CreateAnimCamera(int ply, JOBJ *anchor, void *desc, int open_frames, int restore_frames); // 0x800b9c74
 void PlyCam_DestroySlot(int slot);                              // 0x800b94c8, destroys the camera GObj and clears the slot
 int PlyCam_FindFreeSlot(void);                                  // 0x800b9370, first free slot in 5-31
+// Takes a free slot, letterboxes it over the cameras sharing `screen` and switches it to
+// kind 3 (replay). Returns the slot.
+int PlyCam_CreateReplayCamOnScreen(int ply, int controller_idx, int lod, int screen, int flag); // 0x800b94e8
 #endif

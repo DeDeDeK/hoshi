@@ -143,6 +143,8 @@ static volatile int *stc_meteor_event_data = (volatile int *)(0x805dd0e0 + 0x654
 static volatile int *stc_meteor_spawn_count = (volatile int *)(0x805dd0e0 + 0x658);       // 0x805dd738
 
 void CityEvent_ModifyItemFallDesc(EventKind evkind); // 0x800ed784
+// Event end: rebuilds the box pools from the stage table via CityItemSpawn_InitItemFallChances.
+void CityEvent_RestoreItemFallDesc(EventKind evkind); // 0x800ed800
 // Gates on IsInCity || IsInStadium, then calls stadiumPrediction.
 void CityEvent_ShowHudText(int event_kind, int hud_display_frames); // 0x80113fb4
 // Creates or replaces the event HUD text object from a SIS entry, storing it at

@@ -39,7 +39,6 @@ char *strrchr(const char *, int); // 0x803b7df8
 #define xstr(s) #s
 
 // #define INFINITY ((float)(HUGE_ENUF * HUGE_ENUF))
-// #define M_PI (3.14159265358979323846)
 #define M_1DEGREE (0.0174533)
 #define M_NAN ((float)(INFINITY * 0.0F))
 
@@ -606,12 +605,12 @@ s32 DVDReadAbsAsyncPrio(DVDCommandBlock *block, void *addr, s32 length, s32 offs
 int File_Read(int entrynum, int file_offset, void *buffer, int read_size, int flags, int unk_index, FileReadCallback cb, void *cb_arg2); // 0x80446acc, just use 0x21 for flags if dram, 0x23 if aram, 1 for unk_index
 // Completion callback for File_Read: sets *stc_file_read_done to 1, asserting first
 // that the read reported no error. Clear the flag before the read and spin on
-// File_Wait afterwards to turn File_Read into a blocking one - buffer and read_size
+// File_PollReadDone afterwards to turn File_Read into a blocking one - buffer and read_size
 // must be 32-byte aligned, file_offset a multiple of 32.
 void File_ReadDone(int request_id, void *arg, void *staging, int error); // 0x80058e1c
 // Pumps the file task queue (DoTasks) and returns *stc_file_read_done, so a
-// `while (File_Wait() == 0);` loop both drives and waits for an outstanding read.
-int File_Wait(); // 0x80058e60
+// `while (File_PollReadDone() == 0);` loop both drives and waits for an outstanding read.
+int File_PollReadDone(); // 0x80058e60
 static int *stc_file_read_done = (int *)0x805dd5a8;
 int File_CopyFromARAMToDRAM(int entrynum, int file_offset, void *buffer, int read_size, int flags, int unk_index);                                          // 0x80059228, just use 0x21 for flags if dram, 0x23 if aram, 1 for unk_index
 // Reads the whole file into buffer, writes size to *out_size. ".dat" is appended ONLY when

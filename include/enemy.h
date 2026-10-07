@@ -90,7 +90,7 @@ typedef enum EnemyKind
     // Special / Event actors
     ENEMYKIND_SP_BROOM_HATTER       = 0x48, // flags=2
     ENEMYKIND_SP_SWORD_KNIGHT       = 0x49, // flags=2
-    ENEMYKIND_SP_WADDLE_DEE_TRUCK   = 0x4A, // flags=2
+    ENEMYKIND_SP_WADDLE_DEE_TRUCK   = 0x4A, // flags=2, the cart; 0x16 is its Waddle Dee driver
     ENEMYKIND_SP_GORDO              = 0x4B, // flags=3, event gordo
     ENEMYKIND_TAC                   = 0x4C,
     ENEMYKIND_DYNA_BLADE            = 0x4D,
@@ -943,6 +943,18 @@ void Meteor_Landing(EnemyData *ed); // 0x8021ea5c
 // 16 and creates the impact VFX and audio fade.
 void Meteor_HitTransition(EnemyData *ed); // 0x8021e7c4
 
+// The Waddle Dee Truck is two actors: the Waddle Dee driver (0x16) and the cart it
+// rides (0x4A), which Init spawns as its child and which mirrors each of the
+// driver's states. Driver states 15 drive, 17/18 look back, 19/20 the two
+// lean-turns; the cart enters 14-17 alongside them.
+void DeeTruck_Init(EnemyData *ed);              // 0x802186e4
+void DeeTruck_EnterTurnA(EnemyData *ed);        // 0x80218d94
+void DeeTruck_EnterTurnB(EnemyData *ed);        // 0x80218e0c
+void DeeTruckCart_EnterDrive(EnemyData *cart);    // 0x8021a2d4
+void DeeTruckCart_EnterLookBack(EnemyData *cart); // 0x8021a350
+void DeeTruckCart_EnterTurnA(EnemyData *cart);    // 0x8021a3bc
+void DeeTruckCart_EnterTurnB(EnemyData *cart);    // 0x8021a428
+
 float Enemy_DistToPlayer(int ply, Vec3 *pos); // 0x801fffa4, distance from pos to ply's rider; FLT_MAX with no rider
 // Rumbles ply's controller through Rider_TriggerRumble; returns 1 when ply has no
 // rider. Enemy damage flows through the HitColl pipeline instead.
@@ -1071,7 +1083,7 @@ void Enemy_LoadCommonParams(void); // 0x801fd580
 //   - ids/weights: Enemy_SpawnerDecide (0x800f1a14) and the mode-2 picker
 //     (0x800f0efc)
 // location_index indexes the stage enemy-position table (GrObj+0x138, stride
-// 0x24 of three Vec3s) via loadEnemy_spawnXYLocation; the resulting position /
+// 0x24 of three Vec3s) via grGetEnemyPosition; the resulting position /
 // direction / ground-normal are stored into the runtime per-position extended
 // data, NOT into this entry.
 typedef struct EnemySpawnEntry
@@ -1150,7 +1162,7 @@ typedef struct EnemySpawnData
     short pad02;                // 0x02
     EnemySpawnEntry *spawn_entries; // 0x04, primary spawn table (stride 0x38)
     int x08;                    // 0x08
-    int **secondary_table;      // 0x0C, pointer-array of meta-enemy sub-tables (may be NULL)
+    short **secondary_table;    // 0x0C, pointer-array of meta-enemy sub-tables of {short id, short weight} pairs (may be NULL)
     EnemySpawnConfig *config;   // 0x10
 } EnemySpawnData;
 

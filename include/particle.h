@@ -99,6 +99,7 @@ const u8 *Ptcl_ProgReadF32(const u8 *prog, f32 *out);    // 0x8042bbd8
 // that installs banks, so re-resolve a descriptor rather than caching it. Which
 // archive lands in which bank is a literal at the install site.
 #define PTCL_BANK_VEHICLE 0 // EfPtclVehicle.dat, which machine animation banks name their trails out of
+#define PTCL_BANK_YAKUMONO 5 // the yakumono bank, home of the item box bursts 50000..50005
 static u32 *const stc_ps_generator_count = (u32 *)0x8058C608;
 static u8 ***const stc_ps_generator_desc = (u8 ***)0x8058C708;
 // Installs EfPtclVehicle.dat as PTCL_BANK_VEHICLE. Returns 0 when the archive is missing.

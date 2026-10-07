@@ -310,7 +310,7 @@ struct AXLive
 };
 
 // One FGM script command: an opcode byte then a 24-bit operand whose delay /
-// payload split depends on the opcode. FGMinstance_UpdateScript (0x80441760)
+// payload split depends on the opcode. FGMInstance_UpdateScript (0x80441760)
 // runs them, dispatching through the table at 0x80508aa0.
 typedef enum FGMScriptOp
 {
@@ -337,7 +337,7 @@ typedef struct SSMHeader
 // The vanilla banks tile global sound indices 0..614 with no gap.
 #define SSM_VANILLA_SOUND_NUM 615
 
-// One loaded sound, in the audio heap. Audio_AllocPID (0x80448f08) finds it by
+// One loaded sound, in the audio heap. Sound_PlayIndex (0x80448f08) finds it by
 // hashing `index` into stc_ssm_sound_hash; an index no bank claims is never
 // found and the sound drops.
 typedef struct SSMSound
@@ -533,7 +533,7 @@ typedef struct
     s16 ig;                 // 0x40, is also a sound generator, used for sfx's that come from pinfo.ssm (bank 0)
     s16 sg;                 // 0x42, "sound generator". is used to match with FGMInstances that use this data. this function determines/gets it 8005d6dc 
     u16 volume;             // 0x44, doesnt play if this is under 10? 8005f558
-    u16 pitch;              // 0x46
+    s16 pitch;              // 0x46, cents
     u16 pan;                // 0x48,
     u16 spa;                // 0x4a, spatial attenuation? higher = more positional based?
     u16 x4c;                // 0x4c
@@ -573,7 +573,7 @@ typedef struct
 
 typedef struct Audio3D
 {
-    int x0;                         // 0x80538088, not sure, initialized num? seems to always be 1
+    int language;                   // 0x80538088, 0 none, 1 jp, 2 us; set by Audio_ChangeLanguage
     int x4[3];                      // 0x04
     int largest_ssm_sizes[9];       // 0x10, ARAM carved per SSM slot. FGM_IndexLargestSSMSize
                                     //       (0x8005b8d8) writes it unbounded, so past slot 8 it
@@ -608,10 +608,10 @@ typedef struct Audio3D
     int x17a18;                         // 8054faa0
     int x17a1c;                         // 8054faa4, is limited to 300 @ 800614f8
     int x17a20;                         // 8054faa8
-    int tick_num;                       // 8054faac, incremented by AudioEmitter_Think
+    int tick_num;                       // 8054faac, incremented by Audio_ManagerThink
 } Audio3D;
 
-static u16 **stc_audio_track_unk = (u16 **)0x805de440;      // 0x1360(r13), 
+static u16 **stc_audio_track_unk = (u16 **)0x805de440;      // 0x1360(r13), per-track cap on concurrent FGM instances, set by AudioTrack_SetVoiceLimit
 static int *stc_audio_track_num = (int *)0x805de444;        // 0x1364(r13), number of audio tracks in audio_track_unk. determined by 80059e50 
 static int *stc_audio_track_blacklist = (int *)0x805de450;  // 0x1370(r13), bitfield. (1 << audio_track) is AND'd with this value, if the flag is present it does not create the sfx
 
@@ -631,7 +631,7 @@ static int *stc_fgm_bank_num = (int *)0x805de46c;               // 0x138C(r13), 
 // chained .ssm chunks. The arrays below are packed back to back, so their 32
 // entries are a hard ceiling; retail carves 9.
 static SSMHeader *stc_ssm_load_header = (SSMHeader *)0x80596da0; // hsd_SynthSFXLoadBuf, header of the file being read
-static SSMChunk **stc_ssm_slot_chunks = (SSMChunk **)0x80596dc0; // per slot, newest first
+static SSMChunk **stc_ssm_slot_chunks = (SSMChunk **)0x80596dc0; // per slot, oldest first; FGM_UnkCallback appends
 static u32 *stc_ssm_slot_aram = (u32 *)0x80597040;               // hsd_SynthSFXBank, per-slot ARAM write cursor
 static SSMSound **stc_ssm_sound_hash = (SSMSound **)0x805970c0;  // 32 buckets, keyed by index & 0x1f
 static u32 *stc_ssm_slot_end = (u32 *)0x80597140;                // hsd_SynthSFXBankHead, slot k spans [k], [k+1]
@@ -662,7 +662,7 @@ void AudioHeap_SetAllocAndFree(void *alloc_func, void *free_func); // 0x804479d4
 // Carves the next SSM slot out of the ARAM sample arena, returning its index or
 // -1 when the arena or the 32 slots are exhausted. Prefer it over
 // FGM_IndexLargestSSMSize (0x8005b8d8), which also records the size in Audio3D.
-int FGM_GetNextLargestSSMSizeIndex(int aram_size);                            // 0x80448274
+int FGM_AllocSSMSlot(int aram_size);                                          // 0x80448274
 
 // Fired as each queued bank lands, with the file's DVD entrynum and the arg
 // passed to FGM_QueueLoad.

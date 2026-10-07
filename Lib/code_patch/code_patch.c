@@ -150,6 +150,19 @@ void _CodePatch_OverwriteApply(int *dol_addr, int instr)
     *dol_addr = instr;
     TRK_FlushCache(dol_addr, 4); // flush cache
 }
+void _CodePatch_ReplaceImmediate(int *dol_addr, int imm)
+{
+    _CodePatch_OverwriteApply(dol_addr, (*dol_addr & 0xFFFF0000) | (imm & 0xFFFF));
+}
+void _CodePatch_ReplaceAddress(int *lis_addr, int *addi_addr, const void *target)
+{
+    // addi sign-extends its immediate, so the high half carries the borrow
+    int lo = (int)target & 0xFFFF;
+    int hi = ((unsigned int)target >> 16) + ((lo & 0x8000) ? 1 : 0);
+
+    _CodePatch_ReplaceImmediate(lis_addr, hi);
+    _CodePatch_ReplaceImmediate(addi_addr, lo);
+}
 void _CodePatch_ReplaceCall(int *dol_addr, void *func_addr)
 {
     *dol_addr = BRANCH_CREATE(dol_addr, func_addr, 1);

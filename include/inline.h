@@ -19,7 +19,7 @@
 // #include <math.h>
 
 /*** Macros ***/
-#define GetElementsIn(arr) sizeof(arr) / sizeof(arr[0])
+#define GetElementsIn(arr) (sizeof(arr) / sizeof((arr)[0]))
 #define STR_HELPER(x) #x
 #define STR(x) STR_HELPER(x)
 
@@ -285,6 +285,12 @@ static inline float lerp(float start, float end, float t)
         t = 1;
 
     return start + t * (end - start);
+}
+
+// Eases t in [0, 1] so it leaves 0 and arrives at 1 with zero slope.
+static inline float smoothstep(float t)
+{
+    return t * t * (3.0f - 2.0f * t);
 }
 
 static inline int abs(int x)
@@ -803,6 +809,23 @@ static int RandomInRange(int min, int max)
     return min + HSD_Randi(max - min + 1);
 }
 
+// Fisher-Yates over `count` elements of `size` bytes each, one HSD_Randi per swap.
+static inline void RandomShuffle(void *arr, int count, int size)
+{
+    u8 *base = arr;
+    for (int i = count - 1; i > 0; i--)
+    {
+        u8 *a = base + i * size;
+        u8 *b = base + HSD_Randi(i + 1) * size;
+        for (int k = 0; k < size; k++)
+        {
+            u8 t = a[k];
+            a[k] = b[k];
+            b[k] = t;
+        }
+    }
+}
+
 static int RandomBitInField(u32 bitfield)
 {
     int count = 0;
@@ -847,6 +870,56 @@ static int RandomBitInField(u32 bitfield)
 // {
 //     return (((a) > (b)) ? (a) : (b));
 // }
+
+// Immediate-mode state for vertex-colored translucent geometry in `cam`'s view: color
+// and alpha straight from each vertex, depth-tested without depth writes, no culling.
+// `dst` is GX_BL_INVSRCALPHA for ordinary alpha and GX_BL_ONE for additive;
+// `render_flags` is HSD_StateInitDirect's.
+static inline void GX_BeginXlu(COBJ *cam, int render_flags, GXBlendFactor dst)
+{
+    HSD_StateInitDirect(GX_VTXFMT0, render_flags);
+    GXSetNumTevStages(1);
+    GXSetTevOrder(GX_TEVSTAGE0, GX_TEXCOORD_NULL, GX_TEXMAP_NULL, GX_COLOR0A0);
+    GXSetTevOp(GX_TEVSTAGE0, GX_PASSCLR);
+    GXSetNumTexGens(0);
+    GXSetNumChans(1);
+    GXSetChanCtrl(GX_COLOR0, GX_DISABLE, Vertex, Vertex, GX_LIGHT_NULL, GX_DF_NONE, GX_AF_NONE);
+    GXSetChanCtrl(GX_ALPHA0, GX_DISABLE, Vertex, Vertex, GX_LIGHT_NULL, GX_DF_NONE, GX_AF_NONE);
+    GXSetAlphaCompare(GX_ALWAYS, 0, GX_AOP_AND, GX_ALWAYS, 0);
+    GXSetBlendMode(GX_BM_BLEND, GX_BL_SRCALPHA, dst, GX_LO_CLEAR);
+    GXSetZMode(GX_ENABLE, GX_LEQUAL, GX_DISABLE);
+    GXSetCullMode(GX_CULL_NONE);
+    GXLoadPosMtxImm(&cam->view_mtx, GX_PNMTX0);
+}
+
+// A camera's view matrix is the rigid world->view transform [R | t]. Its first two
+// rows are the camera's right and up axes in world space, and the eye is -R^T t, so
+// every split-screen viewport faces its own billboards.
+static inline void COBJ_GetViewAxes(COBJ *cam, Vec3 *right, Vec3 *up)
+{
+    float (*m)[4] = cam->view_mtx;
+    *right = (Vec3){ m[0][0], m[0][1], m[0][2] };
+    *up = (Vec3){ m[1][0], m[1][1], m[1][2] };
+}
+
+static inline void COBJ_GetViewEye(COBJ *cam, Vec3 *out)
+{
+    float (*m)[4] = cam->view_mtx;
+    float tx = m[0][3], ty = m[1][3], tz = m[2][3];
+    out->X = -(m[0][0] * tx + m[1][0] * ty + m[2][0] * tz);
+    out->Y = -(m[0][1] * tx + m[1][1] * ty + m[2][1] * tz);
+    out->Z = -(m[0][2] * tx + m[1][2] * ty + m[2][2] * tz);
+}
+
+// One vertex at P + u * R + v * U, in `rgb` with alpha `a`.
+static inline void GX_BillboardVert(const Vec3 *P, const Vec3 *R, const Vec3 *U,
+                                    float u, float v, GXColor rgb, u8 a)
+{
+    GXPosition3f32(P->X + u * R->X + v * U->X,
+                   P->Y + u * R->Y + v * U->Y,
+                   P->Z + u * R->Z + v * U->Z);
+    GXColor4u8(rgb.r, rgb.g, rgb.b, a);
+}
 
 static void GX_DrawLine(Vec3 *start, Vec3 *end, u8 width, GXColor *color)
 {
@@ -1078,33 +1151,38 @@ static char* SOInetNtoP(int af, void* src, char* dst, u32 len) {
 // Spawns an item at ply's machine and, except for fake patches, collects it at once
 // through Machine_OnTouchItem. A fake patch hurts through the damage log, which only
 // takes effect on a natural collision frame, so it is left for the next frame's
-// collision pass. The item data tables must be loaded (Item_CheckIsLoaded()).
-static inline void SpawnItemPlayer(int ply, ItemKind kind)
+// collision pass. The item data tables must be loaded (Item_CheckIsLoaded()). Returns 1
+// if the item spawned, 0 with no machine or no free item slot.
+static inline int SpawnItemPlayer(int ply, ItemKind kind)
 {
     GOBJ *mg = Ply_GetMachineGObj(ply);
-    if (!mg) return;
+    if (!mg) return 0;
     MachineData *md = mg->userdata;
     ItemDesc desc;
     Item_InitDesc(&desc, kind, 1.0f, 0, &md->pos, &md->up, &md->forward,
                   -1, -1, 1, 3, -1, -1);
     GOBJ *item_gobj = CityItem_Create(&desc);
-    if (!item_gobj) return;
+    if (!item_gobj) return 0;
 
     if (kind < ITKIND_ACCELFAKE || kind > ITKIND_WEIGHTFAKE)
     {
         ItemData *id = item_gobj->userdata;
         Machine_OnTouchItem(md, id);
     }
+    return 1;
 }
 
-// Spawns the item for every human player, under SpawnItemPlayer's requirements.
-static inline void SpawnItemHumans(ItemKind kind)
+// Spawns the item for every human player, under SpawnItemPlayer's requirements. Returns
+// how many spawned.
+static inline int SpawnItemHumans(ItemKind kind)
 {
+    int spawned = 0;
     for (int i = 0; i < PLY_NUM; i++)
     {
         if (Ply_GetPKind(i) == PKIND_HMN)
-            SpawnItemPlayer(i, kind);
+            spawned += SpawnItemPlayer(i, kind);
     }
+    return spawned;
 }
 
 #endif

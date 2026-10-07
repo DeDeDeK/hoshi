@@ -198,9 +198,16 @@ typedef struct TopRideKirbyRecord
     TopRideKirby *kirby; // 0x04
 } TopRideKirbyRecord;
 
-// Top Ride's per-kirby checklist evaluator. TopRide_CheckForNewUnlocks (0x802ac850)
-// calls it once a frame for every occupied slot, right after TopRide_KirbyMgrUpdate,
-// from a single bl at 0x802acd4c. A human's active_item_kind is consumed here.
+// Per-frame updates of two Top Ride session classes (RTTI names GameModeNormal and
+// GameModeTuning). The session builder at 0x802a09e4 picks Tuning for GameSession+0x38
+// == 4 and Normal for every kind but 3 and 4.
+void TopRide_GameModeNormalUpdate(void *game_mode); // 0x8029c650
+void TopRide_GameModeTuningUpdate(void *game_mode); // 0x802ac850
+
+// Top Ride's per-kirby checklist evaluator, called once a frame for every occupied slot
+// right after TopRide_KirbyMgrUpdate - from 0x8029cb74 in TopRide_GameModeNormalUpdate
+// and 0x802acd4c in TopRide_GameModeTuningUpdate. A human's active_item_kind is
+// consumed here.
 void TopRide_CheckPerCourseObjectives(TopRideKirbyRecord *rec); // 0x802b88f4
 
 // Per-slot player kind, stored at GameData[slot*9 + 0xD20]. Discriminates
@@ -311,6 +318,7 @@ typedef enum TopRideKirbyStateId
 #define TR_KSTATE_VT_BURN        ((void *)0x804d964c)
 #define TR_KSTATE_VT_FREEZE      ((void *)0x804d953c)
 #define TR_KSTATE_VT_CONFUSE     ((void *)0x804d9434)
+#define TR_KSTATE_VT_GRIND       ((void *)0x804d91f8) // LIGHT's grind rail
 #define TR_KSTATE_VT_SHORTCUT    ((void *)0x804d90e8)
 #define TR_KSTATE_VT_TRANSPARENT ((void *)0x804da304)
 #define TR_KSTATE_VT_SPEEDUP     ((void *)0x804dbcf8)

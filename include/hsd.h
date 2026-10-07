@@ -165,7 +165,9 @@ struct HSD_Pad
     float x38;           // 0x38
     float x3c;           // 0x3c
     u8 x40;              // 0x40
-    s8 status;           // 0x41   0 = plugged, -1 = unplugged
+    u8 x41;              // 0x41
+    u8 x42;              // 0x42
+    s8 status;           // 0x43, 0 = plugged, -1 = unplugged
 };
 
 struct HSD_Pads

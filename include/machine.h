@@ -172,7 +172,7 @@ static const char *const MachineKind_Names[VCKIND_NUM] = {
 };
 
 // The star class's per-machine handling block, authored at vcData+0x14 and copied
-// by Machine_CopyCommonAttributes into MachineAttrWork.handling. The bike class
+// by Machine_Star_CopyAttributes into MachineAttrWork.handling. The bike class
 // authors a 0x108-byte block there instead (MachineAttrWorkWheel.handling).
 typedef struct vcHandlingAttr
 {
@@ -216,7 +216,7 @@ typedef struct vcHandlingAttr
 
 // The star class's live attribute block, allocated per machine by
 // Machine_AllocAttrStruct and reached through MachineData.attr.
-// Machine_CopyCommonAttributes refills both halves - `common` from the class archive's
+// Machine_Star_CopyAttributes refills both halves - `common` from the class archive's
 // vcDataKindStar.attr, `handling` from the machine's own vcData->handling_attr - and
 // Machine_ApplyStarStatScaling then scales fields in place from the patch stats.
 typedef struct MachineAttrWork
@@ -228,7 +228,7 @@ typedef struct MachineAttrWork
 
 
 // The bike class's layout of MachineData.attr, filled by the class's attribute copy
-// (0x801f3c94).
+// (Machine_Wheel_CopyAttributes, 0x801f3c94).
 typedef struct MachineAttrWorkWheel
 {
     u8 common[0x1c];         // 0x000, from vcDataKindStar.attr
@@ -266,23 +266,32 @@ typedef struct vcDataKindStar
 // envelope Machine_UpdateAudioEmitter (0x801dce60) and its helpers apply per frame. A kind
 // whose engine_idle_floor is 0.0 stays inaudible while parked, which is every star but Bulk,
 // Wagon, Turbo, Jet and Formula.
+#define MACHINE_AUDIO_SFX_NUM 13
+
 typedef struct MachineAudioParams
 {
-    int engine_loop_sfx;        // 0x00, constant engine loop, -1 on the wing machines. Created by
-                                //       Machine_UpdateEngineLoop at volume 0.0, never by the spawn path
-    int charge_loop_sfx[3];     // 0x04, charge gauge loops, chosen by charge_value against
-                                //       charge_loop_split; only one plays at a time
-    int boost_sfx_l;            // 0x10, boost release, loudest tier; -1 where the kind has none
-    int boost_sfx_m;            // 0x14
-    int boost_sfx_s;            // 0x18
-    int surface_loop_sfx;       // 0x1c, surface loop, started by Machine_PlaySpawnSound (0x801dccec).
-                                //       Replaced by the shared rail loop only while riding a rail
-    int rumble_loop_sfx;        // 0x20
-    int quick_spin_sfx;         // 0x24
-    int engine_start_sfx;       // 0x28, one shot as the machine is mounted
-    int surface_start_sfx;      // 0x2c, played alongside it
-    int overheat_loop_sfx;      // 0x30, SFX_engine_overh1/2/3, played once by Machine_ChargeUpdate
-                                //       (0x801ca4c0) on auto-discharge
+    union
+    {
+        struct
+        {
+            int engine_loop_sfx;    // 0x00, constant engine loop, -1 on the wing machines. Created by
+                                    //       Machine_UpdateEngineLoop at volume 0.0, never by the spawn path
+            int charge_loop_sfx[3]; // 0x04, charge gauge loops, chosen by charge_value against
+                                    //       charge_loop_split; only one plays at a time
+            int boost_sfx_l;        // 0x10, boost release, loudest tier; -1 where the kind has none
+            int boost_sfx_m;        // 0x14
+            int boost_sfx_s;        // 0x18
+            int surface_loop_sfx;   // 0x1c, surface loop, started by Machine_InitAudioLoops (0x801dccec).
+                                    //       Replaced by the shared rail loop only while riding a rail
+            int rumble_loop_sfx;    // 0x20
+            int quick_spin_sfx;     // 0x24
+            int engine_start_sfx;   // 0x28, one shot as the machine is mounted
+            int surface_start_sfx;  // 0x2c, played alongside it
+            int overheat_loop_sfx;  // 0x30, SFX_engine_overh1/2/3, played once by Machine_ChargeUpdate
+                                    //       (0x801ca4c0) on auto-discharge
+        };
+        int sfx[MACHINE_AUDIO_SFX_NUM]; // 0x00, the thirteen FGM ids above, in order
+    };
     float surface_speed_max;    // 0x34, |MachineData+0x36c| is clamped here before driving the rest
     float surface_pitch_coef;   // 0x38, cents per unit of that clamped speed
     float surface_pitch_base;   // 0x3c, cents at zero speed, so the loop is pitched down at rest
@@ -458,6 +467,9 @@ typedef struct vcModelData
     JOBJDesc *shadow_root;                // 0x28, flat silhouette drawn on the ground
 } vcModelData;                            // 0x2c
 
+#define VCSTAR_PARTICLE_SLOT_NUM  7
+#define VCWHEEL_PARTICLE_SLOT_NUM 2
+
 // Star-class animation bank. Each slot pairs a joint animation with the material
 // animation played alongside it; both may be NULL. The particle slots name the
 // machine's exhaust by index into bank 0, stc_ps_generator_desc[0], with -1 for none;
@@ -477,9 +489,16 @@ typedef struct vcAnimationStar
     void *charge_matanim;       // 0x24
     void *stop_anim;            // 0x28
     void *stop_matanim;         // 0x2c
-    int unk_particle[2];        // 0x30
-    int moving_particle[2];     // 0x38
-    int boosting_particle[3];   // 0x40
+    union
+    {
+        struct
+        {
+            int unk_particle[2];      // 0x30
+            int moving_particle[2];   // 0x38
+            int boosting_particle[3]; // 0x40
+        };
+        int particle[VCSTAR_PARTICLE_SLOT_NUM]; // 0x30, the seven generator ids above, in order
+    };
     int particle_bone[3];       // 0x4c, joint indices the particles spawn from
     int flags;                  // 0x58
     float particle1_speed[3];   // 0x5c
@@ -494,8 +513,15 @@ typedef struct vcAnimationStar
 typedef struct vcAnimationWheel
 {
     void *anim[4][2];           // 0x00
-    int cruise_particle;        // 0x20, spawned on the timer below at two bone pairs
-    int boost_particle;         // 0x24, spawned at all four bones
+    union
+    {
+        struct
+        {
+            int cruise_particle;  // 0x20, spawned on the timer below at two bone pairs
+            int boost_particle;   // 0x24, spawned at all four bones
+        };
+        int particle[VCWHEEL_PARTICLE_SLOT_NUM]; // 0x20, both generator ids, in order
+    };
     int particle_bone[4];       // 0x28, indices into the machine's joint table, -1 for none
     float cruise_timer[2][2];   // 0x38, {first-pair frame, period}, riding and not
 } vcAnimationWheel;             // 0x48
@@ -575,7 +601,7 @@ typedef struct MachineData
     GOBJ *rider_unk2;                     // 0xc
     int is_bike;                          // 0x10
     int exist_num;                        // 0x14, unique per object, from a counter bumped in Machine_Create
-    u8 city_spawn_slot;                   // 0x18, its City Trial spawn slot, set by Machine_RegisterHitReaction (0x801e0158)
+    u8 city_spawn_slot;                   // 0x18, its City Trial spawn slot, set by Machine_ClaimSpawnSlot (0x801e0158)
     u8 formation_slot;                    // 0x19, Machine Formation flight slot 0-4, MACHINE_FORMATION_NONE otherwise
     u8 x1a[2];                            // 0x1a
     int x1c;                              // 0x1c
@@ -789,7 +815,7 @@ typedef struct MachineData
     int x34c;                             // 0x34c
     int x350;                             // 0x350
     Vec3 world_velocity;                  // 0x354, measured displacement this frame (pos - prev_pos, by
-                                          //        Machine_ShadowThink). Ground truth rather than commanded
+                                          //        Machine_EndFrameThink). Ground truth rather than commanded
                                           //        motion, so collisions and slope drag are already folded in.
                                           //        Its magnitude is the current speed. Rider-spawned weapons inherit it.
     int x360;                             // 0x360
@@ -833,9 +859,7 @@ typedef struct MachineData
     int x3e0;                             // 0x3e0
     int x3e4;                             // 0x3e4
     Vec3 pos;                             // 0x3e8
-    int x3f4;                             // 0x3f4
-    int x3f8;                             // 0x3f8
-    int x3fc;                             // 0x3fc
+    Vec3 pos_prev;                        // 0x3f4, pos latched by Machine_EndFrameThink
     int x400;                             // 0x400
     int x404;                             // 0x404
     int x408;                             // 0x408
@@ -844,9 +868,7 @@ typedef struct MachineData
     int x414;                             // 0x414
     Vec3 forward;                         // 0x418, heading unit vector
     Vec3 up;                              // 0x424, up vector
-    int x430;                             // 0x430
-    int x434;                             // 0x434
-    int x438;                             // 0x438
+    Vec3 left;                            // 0x430, up x forward, the model's +X axis
     int x43c;                             // 0x43c
     int x440;                             // 0x440
     int x444;                             // 0x444
@@ -1002,7 +1024,8 @@ typedef struct MachineData
     HurtData *hurt_data;                  // 0x660, passed as first arg to Machine_ApplyHurt. Created by Machine_InitHurtData
     struct                                //
     {                                     //
-        Vec2 stick;                       // 0x664
+        float stick_y;                    // 0x664, rider lstick.Y after the rider's response curve
+        float stick_x;                    // 0x668, rider lstick.X after the rider's response curve
         int buttons;                      // 0x66c
         u8 tilt_timer_x;                  // 0x670
         u8 tilt_timer_y;                  // 0x671
@@ -1157,7 +1180,7 @@ typedef struct MachineData
         int x894;                           // 0x894
         int x898;                           // 0x898
         int x89c;                           // 0x89c
-        int x8a0;                           // 0x8a0
+        FGMInstance rumble_loop_fgm;        // 0x8a0
         FGMInstance skid_fgm_instance;      // 0x8a4
     } audio;
     float respawn_pos[3];                 // 0x8a8, checkpoint as mpColl spline params: segment index, progress,
@@ -1284,12 +1307,12 @@ typedef struct MachineData
     void (*phys_cb)(struct MachineData *md);    // 0xbdc, run by Machine_PhysicsThink
     void (*envcoll_cb)(struct MachineData *md); // 0xbe0, run by Machine_EnvCollThink (0x801c65a8)
     void (*xbe4)(struct MachineData *md);       // 0xbe4, run by the priority-6 proc (0x801c6668); cleared on state change
-    void (*hit_cb)(struct MachineData *md);     // 0xbe8, run by Machine_HitThink (0x801c66d0); cleared on state change
+    void (*hit_cb)(struct MachineData *md);     // 0xbe8, run by Machine_PostTransformThink (0x801c66d0); cleared on state change
     // The current sub-state's callbacks, copied from its MachineSubStateDesc
     void (*sub_anim_cb)(struct MachineData *md);  // 0xbec
     void (*sub_input_cb)(struct MachineData *md); // 0xbf0
     void (*sub_phys_cb)(struct MachineData *md);  // 0xbf4
-    void (*xbf8)(struct MachineData *md);       // 0xbf8, run by Machine_ChargeThink (0x801c5fe0); cleared on state change
+    void (*xbf8)(struct MachineData *md);       // 0xbf8, run by Machine_FrameStartThink (0x801c5fe0); cleared on state change
     int xbfc;                             // 0xbfc
     int xc00;                             // 0xc00
     int xc04;                             // 0xc04
@@ -1360,7 +1383,11 @@ typedef struct MachineData
     // From 0x1b48 each state keeps its own variables; these names are FallDeath's use,
     // written by Machine_SetFallDead (0x801e6520) and Machine_RespawnStateEntry (0x801e1ae8).
     // Machine_OnKO stores the rider ply at 0x1b48 instead.
-    int fall_ground_handle;               // 0x1b48, zone index from mpColl_GetDeadZoneIndex (Machine_SetFallDead arg)
+    union
+    {
+        int fall_ground_handle;           // 0x1b48, zone index from mpColl_GetDeadZoneIndex (Machine_SetFallDead arg)
+        int rail_id;                      // 0x1b48, rail states: the grind rail ridden, the id Ply_MarkRailUsed takes on a grab
+    };
     float respawn_spline_params[3];       // 0x1b4c, mpColl spline params (segment index / progress / Y offset)
     int fall_respawn_timer;               // 0x1b58, VcCommon param +0x16c (300); fallback FallDeath countdown, stops the machine at 0
     Vec3 respawn_pos_world;               // 0x1b5c, respawn world position (written by Machine_RespawnStateEntry)
@@ -1444,7 +1471,9 @@ typedef struct MachineClassDesc
     void *x3c;                           // 0x3c
     void *x40;                           // 0x40
     MachineProc on_enter_hit_reaction;   // 0x44, called by Machine_OnEnterHitReaction
-    void *x48[9];                        // 0x48
+    void *x48;                           // 0x48
+    MachineProc round_start;             // 0x4c, Machine_ClassRoundStart, at the round's GO
+    void *x50[7];                        // 0x50
     MachineProc enter_fall_dead;         // 0x6c, called by Machine_SetFallDead
     void *x70;                           // 0x70
     MachineProc enter_ko;                // 0x74, called by Machine_OnKO
@@ -1552,7 +1581,7 @@ void Machine_Wheel_PushAddCharge(double rate, MachineData *md);     // 0x801f5f2
 void Machine_AdjustAttributes(MachineData *md); // 0x801c7278
 // The star class's copy_attr. Refills md->attr: `common` (0xac bytes) from
 // vcDataKindStar.attr, then `handling` from md->vcData->handling_attr at attr+0xac.
-void Machine_CopyCommonAttributes(MachineData *md); // 0x801e812c
+void Machine_Star_CopyAttributes(MachineData *md); // 0x801e812c
 // Allocates md->attr. Called once as a machine is created.
 void Machine_AllocAttrStruct(MachineData *md); // 0x801c71a8
 // Index into MachineData.stats.values and the four parallel stat arrays; also the
@@ -1637,6 +1666,15 @@ static MachineStarProc *stc_machine_star_think_handler = (MachineStarProc *)0x80
 // per-kind table.
 void Machine_Wheel_Init(MachineData *md);  // 0x801f3b54
 void Machine_Wheel_Think(MachineData *md); // 0x801f5390
+// The round's GO for one machine, from Ply_RoundStartAll: nothing in common state 4,
+// otherwise Machine_ClassRoundStart.
+void Machine_RoundStart(GOBJ *machine_gobj); // 0x801c7698
+void Machine_ClassRoundStart(MachineData *md); // 0x801e1e84, MachineClassDesc.round_start if set
+// Each class's MachineClassDesc.round_start. The star leaves VCSTATE_READY for its riding
+// state and VCSTATE_READYPUSH through Machine_EnterCharge; the bike exits each of its four
+// READY states.
+void Machine_Star_RoundStart(MachineData *md);  // 0x801eeeb4
+void Machine_Wheel_RoundStart(MachineData *md); // 0x801f92b8
 void Machine_GivePatch(MachineData *, PatchKind, int num); // 0x801cacf4
 void Machine_GiveAllUp(MachineData *, int num); // 0x801cad40
 void Machine_OnTouchItem(MachineData *, ItemData *); // 0x801db34c
@@ -1711,7 +1749,7 @@ void Machine_GiveDamage(MachineData *md, float damage, int *hit); // 0x801e1ee8
 void Machine_DropPatchesOnDamage(MachineData *md, int *hit, float stat_array[9], int damage); // 0x801e09ac
 void Machine_CalcDeflectDir(int *hit, Vec3 *fallback, Vec3 *out); // 0x801e0a44, Hit_CalcDeflectDir
 // No-op unless the machine holds an event formation slot: releases the slot, then
-// runs Machine_RegisterHitReaction and Machine_OnEnterHitReaction.
+// runs Machine_ClaimSpawnSlot and Machine_OnEnterHitReaction.
 void Machine_EnterHitReaction(MachineData *md);        // 0x801e05bc
 // Machine-vs-machine bumps. A real bump calls Machine_EnterHitReaction on the other
 // machine (bl at 0x801dacb8) and then on this one (0x801dacc0).
@@ -1752,8 +1790,9 @@ void Machine_UpdateEngineLoop(MachineData *md);        // 0x801dcb18
 // |MachineData+0x36c|. Only while riding a rail does the id come from the shared
 // ground table rather than the row.
 void Machine_UpdateSurfaceLoop(MachineData *md);       // 0x801dc80c
-// Clears the six loop handles and starts the surface loop, engine loop and emitter.
-void Machine_PlaySpawnSound(MachineData *md);          // 0x801dccec
+// Clears the loop handles, then starts the surface loop (the rail's ground loop on
+// a rail) and the engine loop, both at volume 0.
+void Machine_InitAudioLoops(MachineData *md);          // 0x801dccec
 // One shot on charge release, on track2 (+0x84c) at full volume. Picks
 // boost_sfx_l/m/s by charge_value against the row's thresholds, and is silent
 // below boost_thresh_min.

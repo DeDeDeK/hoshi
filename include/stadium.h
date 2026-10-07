@@ -90,9 +90,9 @@ typedef struct StadiumResults
     u8 ply_placement[4];   // 0xbc8, from GameData.player_finish_rank; 0 = 1st
     u8 ply_finished[4];    // 0xbcc, from GameData.player_finished_flag; crossed the goal
     int ply_race_time[4];  // 0xbd0, from GameData.player_finish_time; frames @60fps, 0 = DNF
-    int ply_freerun_time[4]; // 0xbe0, from GameData.player_free_run_time
+    int ply_freerun_time[4]; // 0xbe0, from GameData.player_best_lap_time
     int ply_lap_count[4];  // 0xbf0, from GameData.player_lap_count
-    u8 xc00[4];            // 0xc00, from GameData+0xa30; validity gate - must be 0 to record
+    u8 rank_skip[4];       // 0xc00, from GameData+0xa30; nonzero = the rankers skip this slot
     int ply_points[4];     // 0xc04, from GameData.destruction_derby_ko_num; polymorphic
                            //        score - Target Flight points / Derby KOs / Melee KOs
     float ply_dist[4];     // 0xc14, from GameData.player_race_distance; METRES
