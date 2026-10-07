@@ -769,6 +769,79 @@ typedef struct TopRideConfig
 
 #define TOPRIDE_ITEM_RULE_ZERO 3
 
+// The three rules screens keep their working state here while they run, and copy it to
+// and from the mode's settings fields on load and exit. A value row's index is the
+// position of the value in the row's list, not the stored setting. wrap_timer and
+// wrap_value hold a number or stadium row's wrap-around for 8 frames before it lands.
+// long_lockout ignores input for the first 30 scene frames instead of 5.
+typedef struct AirRideRuleMenuData
+{
+    u8 page;               // 0x00
+    u8 row[2];             // 0x01, cursor row per page
+    u8 x3;                 // 0x03
+    s16 input_delay;       // 0x04, frames left before input is read again
+    u8 rule;               // 0x06, AirRideRule, laps or time
+    u8 x7;                 // 0x07
+    s16 laps;              // 0x08, 0 = Recommended, 1-99
+    s16 time_minutes;      // 0x0a, 1-99
+    u8 speed_help : 2;     // 0x0c, 0xc0, None / Weak / Strong
+    u8 damage : 1;         // 0x0c, 0x20, None / On
+    u8 enemies : 1;        // 0x0c, 0x10, On / Off
+    u8 tempo : 2;          // 0x0c, 0x0c, Normal / Slow
+    u8 course_select : 2;  // 0x0c, 0x03, On / Off / Loser
+    s8 wrap_timer;         // 0x0d
+    s16 wrap_value;        // 0x0e
+    u8 is_lan;             // 0x10, Net_IsSessionActive at load; drops the Loser course option
+    u8 long_lockout;       // 0x11
+} AirRideRuleMenuData;
+
+// Top Ride builds its row list at load (TopRideRules_BuildRows), dropping options and
+// whole rows whose checklist unlock is missing.
+typedef struct TopRideRuleMenuData
+{
+    u8 page;                 // 0x00
+    u8 row[2];               // 0x01, cursor row per page
+    s8 option;               // 0x03, option index on the selected row
+    s16 input_delay;         // 0x04
+    u8 row_num[2];           // 0x06
+    u8 row_kind[2][5];       // 0x08, RuleRowKind
+    u8 value_num[2][5];      // 0x12
+    u8 option_id[2][5][4];   // 0x1c, index into stc_topride_rule_option
+    s16 laps;                // 0x44, 0 = Recommended, 0-99
+    u8 items : 2;            // 0x46, 0xc0, Off / Few / Normal / Many
+    u8 speed_help : 2;       // 0x46, 0x30, None / Weak / Strong
+    u8 camera : 2;           // 0x46, 0x0c, Normal / Fixed
+    u8 tempo : 2;            // 0x46, 0x03, Normal / Slow
+    u8 course_select : 2;    // 0x47, 0xc0, On / Off / Loser
+    u8 camera_angle : 2;     // 0x47, 0x30, Normal / Diagonal / Side
+    u8 features : 2;         // 0x47, 0x0c, Off / Normal / Many
+    u8 item_kind : 2;        // 0x47, 0x03, Normal / Attack / Mystery
+    s8 wrap_timer;           // 0x48
+    u8 x49;                  // 0x49
+    s16 wrap_value;          // 0x4a
+    u8 long_lockout;         // 0x4c
+    u8 x4d;                  // 0x4d
+} TopRideRuleMenuData;
+
+typedef struct CityRuleMenuData
+{
+    u8 row;                     // 0x00
+    u8 page;                    // 0x01, always 0
+    s16 input_delay;            // 0x02
+    s16 time_minutes;           // 0x04, 3-7
+    s8 stadium_option;          // 0x06, index into stadium_option_kind
+    u8 tempo : 2;               // 0x07, 0xc0, Normal / Slow
+    u8 events : 1;              // 0x07, 0x20, On / Off
+    u8 x7_1f : 5;               // 0x07
+    u8 stadium_option_kind[9];  // 0x08, Shuffle (0), then StadiumGroup + 1 for each unlocked group
+    u8 stadium_option_num;      // 0x11
+    s8 wrap_timer;              // 0x12
+    u8 x13;                     // 0x13
+    s16 wrap_value;             // 0x14
+    u8 long_lockout;            // 0x16
+    u8 x17;                     // 0x17
+} CityRuleMenuData;
+
 typedef struct GameData // 805359d8
 {
     int x0;                            // 0x0
@@ -790,33 +863,10 @@ typedef struct GameData // 805359d8
     int x50;                           // 0x50
     int x54;                           // 0x54
     int x58;                           // 0x58
-    int x5c;                           // 0x5c
-    int x60;                           // 0x60
-    int x64;                           // 0x64
-    int x68;                           // 0x68
-    int x6c;                           // 0x6c
-    int x70;                           // 0x70
-    int x74;                           // 0x74
-    int x78;                           // 0x78
-    int x7c;                           // 0x7c
-    int x80;                           // 0x80
-    int x84;                           // 0x84
-    int x88;                           // 0x88
-    int x8c;                           // 0x8c
-    int x90;                           // 0x90
-    int x94;                           // 0x94
-    int x98;                           // 0x98
-    int x9c;                           // 0x9c
-    int xa0;                           // 0xa0
-    int xa4;                           // 0xa4
-    int xa8;                           // 0xa8
-    int xac;                           // 0xac
-    int xb0;                           // 0xb0
-    int xb4;                           // 0xb4
-    int xb8;                           // 0xb8
-    int xbc;                           // 0xbc
-    int xc0;                           // 0xc0
-    u8 stadium_option_to_kind[24];     // 0xc4, STKIND_NUM entries, menu option index -> StadiumKind (0xFF = none)
+    AirRideRuleMenuData airride_rules; // 0x5c, Air Ride rules screen (minor 3)
+    TopRideRuleMenuData topride_rules; // 0x6e, Top Ride rules screen (minor 4)
+    CityRuleMenuData city_rules;       // 0xbc, City Trial rules screen (minor 5)
+    u8 xd4[8];                         // 0xd4
     int xdc;                           // 0xdc
     int xe0;                           // 0xe0
     int xe4;                           // 0xe4
@@ -829,9 +879,9 @@ typedef struct GameData // 805359d8
         u8 cursor;             // 0xf8, current grid cursor on the Top Ride course-select screen (0-6 = course, 7 = random)
         u8 xf9[5];             // 0xf9-0xfd
         u16 used_history_mask; // 0xfe, bitmask of recently-picked courses (vanilla anti-repeat for the random button)
+        u8 x100;               // 0x100
+        s8 laps[TOPRIDE_NUM];  // 0x101, per grid position, -1 for the random button (its entry lands on 0x108)
     } topride_course_select;           // 0xf8
-    int x100;                          // 0x100
-    int x104;                          // 0x104
     struct
     {
         u8 x108;      // 0x108
@@ -1005,27 +1055,42 @@ typedef struct GameData // 805359d8
     u8 x355;                         // 0x355
     u16 airride_lap_total;           // 0x356, copied to race_lap_total
     u16 airride_time_seconds;        // 0x358, copied to time_seconds
-    u8 x35a;                         // 0x35a, rule bits copied into 0xaa5 / 0xaa6
+    u8 airride_speed_help : 2;       // 0x35a, 0xc0, 0 none, 1 weak, 2 strong
+    u8 airride_damage : 1;           // 0x35a, 0x20
+    u8 airride_enemies : 1;          // 0x35a, 0x10
+    u8 airride_tempo : 2;            // 0x35a, 0x0c, 1 normal, 2 slow
+    u8 x35a_03 : 2;                  // 0x35a, 0x03
     u8 x35b;                         // 0x35b
     u8 x35c;                         // 0x35c, nonzero skips the copy in AirRide_CopySettingsToGame
     AirRideMode airride_mode : 8;    // 0x35d
     u8 x35e;                         // 0x35e
     u8 airride_player_slot;          // 0x35f, active player slot for Free Run / Time Attack (Gm_GetAirRidePlayerSlot)
-    int x360;                        // 0x360
+    u8 x360;                         // 0x360
+    u8 x361;                         // 0x361
+    u8 airride_course_selection;     // 0x362, 0 on, 1 off (skips the course select), 2 loser picks
+    u8 x363;                         // 0x363
     int x364;                        // 0x364
     int x368;                        // 0x368
     int x36c;                        // 0x36c
     int x370;                        // 0x370
     u8 topride_selected_course;      // 0x374, TopRideCourse index (0-6)
-    u8 x375[3];                      // 0x375
-    int x378;                        // 0x378
-    u8 x37c;                         // 0x37c
+    u8 topride_laps;                 // 0x375, 0 = the course's recommended count
+    u8 topride_item_amount;          // 0x376, 0 normal, 1 many, 2 few, 3 none
+    u8 topride_item_kind;            // 0x377, 0 normal, 1 mystery, 2 attack
+    u8 topride_features;             // 0x378, 0 off, 1 normal, 2 many
+    u8 topride_speed_help;           // 0x379, 0 none, 1 weak, 2 strong
+    u8 topride_camera;               // 0x37a, 0 normal, 1 fixed
+    u8 topride_camera_angle;         // 0x37b, 0 normal, 1 diagonal, 2 side
+    u8 topride_tempo;                // 0x37c, 1 normal, 2 slow
     u8 topride_course_valid;         // 0x37d, result of course unlock check
     u8 topride_extra_unlocks[3];     // 0x37e-0x380, booleans from clear_kinds 8, 9, 10
     TopRideMode topride_mode : 8;    // 0x381, 0=Race, 1=Time Attack, 2=Free Run
     u8 x382;                         // 0x382
     u8 topride_player_slot;          // 0x383, active player slot for Time Attack (TopRide_GetTimeAttackPlayerSlot)
-    int x384;                        // 0x384
+    u8 x384;                         // 0x384
+    u8 x385;                         // 0x385
+    u8 topride_course_selection;     // 0x386, 0 on, 1 off, 2 loser picks
+    u8 x387;                         // 0x387
     int x388;                        // 0x388
     int x38c;                        // 0x38c
     int x390;                        // 0x390
@@ -2843,6 +2908,28 @@ CityMode Gm_GetCityMode(); // 0x8003f6cc
 AirRideMode Gm_GetAirRideMode();      // 0x8003d5f0 - returns GameData.airride_mode
 int Gm_GetAirRidePlayerSlot();         // 0x8003d644 - returns GameData.airride_player_slot
 
+// Accessors for the rules-screen settings the rules screens load and save.
+s8 AirRide_GetCourseSelect(void);          // 0x8003d698, GameData.airride_course_selection
+void AirRide_SetCourseSelect(s8 value);    // 0x8003d668
+s8 TopRide_GetLaps(void);                  // 0x8000b30c, GameData.topride_laps
+void TopRide_SetLaps(s8 value);            // 0x8000b330
+s8 TopRide_GetItemAmount(void);            // 0x8000b360, GameData.topride_item_amount
+void TopRide_SetItemAmount(s8 value);      // 0x8000b384
+s8 TopRide_GetItemKind(void);              // 0x8000b3b4, GameData.topride_item_kind
+void TopRide_SetItemKind(s8 value);        // 0x8000b3d8
+s8 TopRide_GetFeatures(void);              // 0x8000b408, GameData.topride_features
+void TopRide_SetFeatures(s8 value);        // 0x8000b42c
+s8 TopRide_GetSpeedHelp(void);             // 0x8000b45c, GameData.topride_speed_help
+void TopRide_SetSpeedHelp(s8 value);       // 0x8000b480
+s8 TopRide_GetCamera(void);                // 0x8000b4b0, GameData.topride_camera
+void TopRide_SetCamera(s8 value);          // 0x8000b4d4
+s8 TopRide_GetCameraAngle(void);           // 0x8000b504, GameData.topride_camera_angle
+void TopRide_SetCameraAngle(s8 value);     // 0x8000b528
+s8 TopRide_GetTempo(void);                 // 0x8000b558, GameData.topride_tempo
+void TopRide_SetTempo(s8 value);           // 0x8000b57c
+s8 TopRide_GetCourseSelect(void);          // 0x8003eb44, GameData.topride_course_selection
+void TopRide_SetCourseSelect(s8 value);    // 0x8003eb14
+
 // GameData.city_kind in Air Ride: the rules-menu rule for a race, or the mode for
 // Time Attack and Free Run. City Trial and the stadiums put their own values in
 // the same field.
@@ -3127,6 +3214,18 @@ void TopRide_SetCourseValid(int valid);                                  // 0x80
 void TopRide_SetExtraUnlocks(int unlock0, int unlock1, int unlock2);     // 0x8000b5dc, sets GameData.topride_extra_unlocks[0..2]
 TopRideMode TopRide_GetMode(void);                                       // 0x8003ea9c, returns Top Ride mode (0=Race, 1=Time, 2=Free)
 int TopRide_GetTimeAttackPlayerSlot(void);                               // 0x8003eaf0, returns GameData.topride_player_slot
+int TopRide_GetCourseDefaultLaps(int course);                            // 0x80312680
+
+// Course-select grid position (0-7) -> grid value: the course, or TOPRIDE_GRID_RANDOM for
+// the random button. Read only by TopRide_CourseSelectInit (0x8003d0dc),
+// TopRide_CourseSelectThink (0x8003c8bc) and TopRide_CourseSelectRandomInit (0x8003c754).
+// The grid value is also the animation frame of the position's icon and of the preview
+// panorama, and both models key frame TOPRIDE_GRID_LOCKED to a locked state vanilla never
+// shows: the gray "no" icon, and a blank panorama and course name.
+#define TOPRIDE_GRID_NUM 8
+#define TOPRIDE_GRID_RANDOM 8
+#define TOPRIDE_GRID_LOCKED 9
+static s8 *stc_topride_course_grid = (s8 *)0x805d51a8;
 TopRideStats *TopRide_GetStats(void);                                    // 0x80287040, returns TopRideStats pointer (via gmGetClearcheckerType1_2Ptr)
 PlayerStats *Ply_GetStats(int ply);                                      // 0x8022d248, returns &stc_playerdata[ply].stat_record
 PlayerStats *Ply_GetStatRecordBase(int ply);                             // 0x8022d260, same base as Ply_GetStats

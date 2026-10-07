@@ -85,7 +85,7 @@ int Settings_SortCallback(const void *a, const void *b)
     if (oa->pri != ob->pri)
         return oa->pri - ob->pri;
 
-    // 2. Compare OptionKind descending
+    // 2. Compare OptionKind ascending
     if (oa->kind != ob->kind)
         return (int)oa->kind - (int)ob->kind;
 
@@ -677,7 +677,7 @@ JOBJ *Option_Create(OptionDesc *desc, OptionData *op)
             text->is_depth_compare = 1;
 
             if (desc->kind == OPTKIND_VALUE)
-                Text_AddSubtext(text, 0, -15, desc->value_names[*desc->val]);
+                Text_AddSubtext(text, 0, -15, "%s", desc->value_names[*desc->val]);
             else if (desc->kind == OPTKIND_NUM)
                 Text_AddSubtext(text, 0, -15, "%d", *desc->val);
 
@@ -839,9 +839,10 @@ void Menu_GetSaveSize(MenuDesc *desc, int *size)
             break;
         }
         case (OPTKIND_VALUE):
+        case (OPTKIND_NUM):
         {
             if (!desc->options[opt_idx]->no_save)
-                (*size) += 3;
+                (*size) += sizeof(MenuSave);
             break;
         }
         }
@@ -863,9 +864,10 @@ void Option_GetSaveSize(OptionDesc *desc, int *size)
         break;
     }
     case (OPTKIND_VALUE):
+    case (OPTKIND_NUM):
     {
         if (!desc->no_save)
-            (*size) += 3;
+            (*size) += sizeof(MenuSave);
         break;
     }
     }
@@ -904,6 +906,16 @@ void Menu_ExecOptionChange(MenuDesc *desc)
         }
     }
 }
+// A saved row holds a u8 index: the value itself for OPTKIND_VALUE, its offset from min
+// for OPTKIND_NUM.
+static int Option_GetSaveBase(OptionDesc *desc)
+{
+    return (desc->kind == OPTKIND_NUM) ? desc->min : 0;
+}
+static int Option_GetSaveCount(OptionDesc *desc)
+{
+    return (desc->kind == OPTKIND_NUM) ? desc->max - desc->min + 1 : desc->value_num;
+}
 void Option_CopyFromSave(GlobalMod *mod, char *menu_name, OptionDesc *desc)
 {
     if (desc->no_save)
@@ -919,14 +931,14 @@ void Option_CopyFromSave(GlobalMod *mod, char *menu_name, OptionDesc *desc)
         // copy save value
         if (save[i].hash == opt_hash)
         {
-            // a hash collision or a shortened value list keeps the default
-            if (save[i].val >= desc->value_num)
+            // a hash collision or a shortened value range keeps the default
+            if (save[i].val >= Option_GetSaveCount(desc))
             {
                 LOG_DEBUG("%s save val %d out of range.\n", desc->name, save[i].val);
                 return;
             }
             LOG_DEBUG("copying val %d from save for option %s.\n", save[i].val, desc->name);
-            *desc->val = save[i].val;
+            *desc->val = Option_GetSaveBase(desc) + save[i].val;
             return;
         }
         else if (save[i].hash == (u16)-1)
@@ -955,6 +967,7 @@ void Menu_CopyFromSave(GlobalMod *mod, char *menu_name, MenuDesc *desc)
             break;
         }
         case (OPTKIND_VALUE):
+        case (OPTKIND_NUM):
         {
             Option_CopyFromSave(mod, menu_name, this_option);
             break;
@@ -966,6 +979,13 @@ void Option_CopyToSave(GlobalMod *mod, char *menu_name, OptionDesc *desc)
 {
     if (desc->no_save)
         return;
+
+    int save_val = *desc->val - Option_GetSaveBase(desc);
+    if (save_val < 0 || save_val > 0xFF)
+    {
+        LOG_WARN("%s value %d does not fit a save row.", desc->name, *desc->val);
+        return;
+    }
 
     // hash this option name
     u16 opt_hash = Option_Hash(menu_name, desc->name);
@@ -980,7 +1000,7 @@ void Option_CopyToSave(GlobalMod *mod, char *menu_name, OptionDesc *desc)
             LOG_DEBUG(" %s hash found, update value %d in save.\n",
                       desc->name,
                       *desc->val);
-            save[i].val = *desc->val;
+            save[i].val = save_val;
             break;
         }
         else if (save[i].hash == (u16)-1)
@@ -988,7 +1008,7 @@ void Option_CopyToSave(GlobalMod *mod, char *menu_name, OptionDesc *desc)
             // free space, insert it
             LOG_DEBUG(" %s hash created (%04X), copying value %d to save.", desc->name, opt_hash, *desc->val);
             save[i].hash = opt_hash;
-            save[i].val = *desc->val;
+            save[i].val = save_val;
             break;
         }
     }
@@ -1004,6 +1024,7 @@ void Menu_CopyToSave(GlobalMod *mod, char *menu_name, MenuDesc *desc)
         switch (this_option->kind)
         {
         case (OPTKIND_VALUE):
+        case (OPTKIND_NUM):
         {
             Option_CopyToSave(mod, menu_name, this_option);
             break;

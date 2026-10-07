@@ -10,9 +10,9 @@ typedef enum MinorKind
     MNRKIND_TITLESCREEN,           //
     MNRKIND_OPENING,               //
     MNRKIND_MAINMENU,              //
-    MNRKIND_AIRRIDESETINGS,        //
-    MNRKIND_4,                     //
-    MNRKIND_CITYSETTINGS,          // City Trial Settings
+    MNRKIND_AIRRIDESETINGS,        // Air Ride rules screen (AirRideRules_*)
+    MNRKIND_4,                     // Top Ride rules screen (TopRideRules_*)
+    MNRKIND_CITYSETTINGS,          // City Trial rules screen (CityRules_*)
     MNRKIND_AIRRIDEMAPSELECT,      //
     MNRKIND_TOPRIDECOURSESELECT,   // Top Ride course select
     MNRKIND_AIRRIDEPLYSELECT,      //
@@ -135,7 +135,19 @@ struct ScMenuCommon
         GOBJ *ScMenCursor1_gobj[2][6];      // 0x324
         u8 x354[0x24];                      // 0x354
         GOBJ *ScMenOpdelpanel_gobj;         // 0x378
-        u8 x37c[0x144];                     // 0x37c
+        u8 x37c[8];                         // 0x37c
+        JOBJSet **ScMenOpdelwin_scene_models; // 0x384, the data delete Yes/No window
+        GOBJ *ScMenOpdelwin_gobj;           // 0x388
+        union
+        {
+            u8 x38c[0x134]; // 0x38c
+            struct
+            {
+                u8 x38c[0xf8];                                // 0x38c
+                JOBJSet **ScMenSelmapCursorm2d_scene_models;  // 0x484
+                GOBJ *icon_gobj[8];                           // 0x488, per grid position
+            } topride_course_select;
+        };
     } main;
     struct
     {
@@ -510,97 +522,33 @@ struct ScMenuCommon
     int xd34;                    // 0xd34
     int xd38;                    // 0xd38
     int xd3c;                    // 0xd3c
-    int xd40;                    // 0xd40
-    int xd44;                    // 0xd44
-    int xd48;                    // 0xd48
-    int xd4c;                    // 0xd4c
-    int xd50;                    // 0xd50
-    int xd54;                    // 0xd54
-    int xd58;                    // 0xd58
-    int xd5c;                    // 0xd5c
-    int xd60;                    // 0xd60
-    int xd64;                    // 0xd64
-    int xd68;                    // 0xd68
-    int xd6c;                    // 0xd6c
-    int xd70;                    // 0xd70
-    int xd74;                    // 0xd74
-    int xd78;                    // 0xd78
-    int xd7c;                    // 0xd7c
-    int xd80;                    // 0xd80
-    int xd84;                    // 0xd84
-    int xd88;                    // 0xd88
-    int xd8c;                    // 0xd8c
-    int xd90;                    // 0xd90
-    int xd94;                    // 0xd94
-    int xd98;                    // 0xd98
-    int xd9c;                    // 0xd9c
-    int xda0;                    // 0xda0
-    int xda4;                    // 0xda4
-    int xda8;                    // 0xda8
-    int xdac;                    // 0xdac
-    int xdb0;                    // 0xdb0
-    int xdb4;                    // 0xdb4
-    int xdb8;                    // 0xdb8
-    int xdbc;                    // 0xdbc
-    int xdc0;                    // 0xdc0
-    int xdc4;                    // 0xdc4
-    int xdc8;                    // 0xdc8
-    int xdcc;                    // 0xdcc
-    int xdd0;                    // 0xdd0
-    int xdd4;                    // 0xdd4
-    int xdd8;                    // 0xdd8
-    int xddc;                    // 0xddc
-    int xde0;                    // 0xde0
-    int xde4;                    // 0xde4
-    int xde8;                    // 0xde8
-    int xdec;                    // 0xdec
-    int xdf0;                    // 0xdf0
-    int xdf4;                    // 0xdf4
-    int xdf8;                    // 0xdf8
-    int xdfc;                    // 0xdfc
-    int xe00;                    // 0xe00
-    int xe04;                    // 0xe04
-    int xe08;                    // 0xe08
-    int xe0c;                    // 0xe0c
-    int xe10;                    // 0xe10
-    int xe14;                    // 0xe14
-    int xe18;                    // 0xe18
-    int xe1c;                    // 0xe1c
-    int xe20;                    // 0xe20
-    int xe24;                    // 0xe24
-    int xe28;                    // 0xe28
-    int xe2c;                    // 0xe2c
-    int xe30;                    // 0xe30
-    int xe34;                    // 0xe34
-    int xe38;                    // 0xe38
-    int xe3c;                    // 0xe3c
-    int xe40;                    // 0xe40
-    int xe44;                    // 0xe44
-    int xe48;                    // 0xe48
-    int xe4c;                    // 0xe4c
-    int xe50;                    // 0xe50
-    int xe54;                    // 0xe54
-    int xe58;                    // 0xe58
-    int xe5c;                    // 0xe5c
-    int xe60;                    // 0xe60
-    int xe64;                    // 0xe64
-    int xe68;                    // 0xe68
-    int xe6c;                    // 0xe6c
-    int xe70;                    // 0xe70
-    int xe74;                    // 0xe74
-    int xe78;                    // 0xe78
-    int xe7c;                    // 0xe7c
-    int xe80;                    // 0xe80
-    int xe84;                    // 0xe84
-    int xe88;                    // 0xe88
-    int xe8c;                    // 0xe8c
-    int xe90;                    // 0xe90
-    int xe94;                    // 0xe94
-    int xe98;                    // 0xe98
-    int xe9c;                    // 0xe9c
-    int xea0;                    // 0xea0
-    int xea4;                    // 0xea4
-    int xea8;                    // 0xea8
+    // Rules screens (MnSelruleAll.dat), shared by the three modes' rules minors. Rows are
+    // indexed [page][row], value slots [page][row][slot] with slot 0 the collapsed value.
+    struct
+    {
+        HSD_SObjDesc *sobj;                          // 0xd40, ScMenSelrule_scene_data
+        JOBJSet **ScMenSelruleBg_scene_models;       // 0xd44, Bg, Bgm2d or BgCt by mode
+        GOBJ *bg_gobj;                               // 0xd48
+        JOBJSet **ScMenSelrulePanel_scene_models;    // 0xd4c
+        GOBJ *panel_gobj;                            // 0xd50
+        JOBJSet **ScMenSelruleFpos_scene_models;     // 0xd54
+        GOBJ *fpos_gobj[2];                          // 0xd58, per page, the row anchors
+        JOBJSet **ScMenSelruleFrame_scene_models;    // 0xd60
+        GOBJ *frame_gobj[2][5];                      // 0xd64, row name plate
+        JOBJSet **ScMenSelruleFrame2_scene_models;   // 0xd8c
+        GOBJ *frame2_gobj[2];                        // 0xd90, "Additional Rules" page button
+        JOBJSet **ScMenSelruleCpos_scene_models;     // 0xd98
+        GOBJ *cpos_gobj[2][5];                       // 0xd9c, value slot anchors
+        JOBJSet **ScMenSelruleContents_scene_models; // 0xdc4
+        GOBJ *contents_gobj[2][5][5];                // 0xdc8, value labels
+        JOBJSet **ScMenSelruleNum_scene_models;      // 0xe90
+        GOBJ *num_gobj;                              // 0xe94
+        JOBJSet **ScMenSelruleStadium_scene_models;  // 0xe98
+        GOBJ *stadium_gobj;                          // 0xe9c
+        JOBJSet **ScMenSelruleCursor_scene_models;   // 0xea0
+        GOBJ *cursor_gobj;                           // 0xea4
+        int xea8;                                    // 0xea8
+    } rules;
     int xeac;                    // 0xeac
     GOBJ *ScMenTitleBg_gobj;     // 0xeb0
     int xeb4;                    // 0xeb4
@@ -643,7 +591,17 @@ struct ScMenuCommon
         JOBJSet *ScMenClearcheckerWin_scene_models;      // 0x1128
         GOBJ *win_gobj;                                  // 0x112c
     } clearchecker;
-    u8 x1130[0x118];             // 0x1130
+    // MnDialogueAll.dat, the memory card prompt's window. Nothing else in the menu scenes
+    // touches these slots.
+    struct
+    {
+        HSD_SObjDesc *sobj;                          // 0x1130, ScMenDialogue_scene_data
+        JOBJSet **ScMenDialogueBg_scene_models;      // 0x1134
+        GOBJ *bg_gobj;                               // 0x1138
+        JOBJSet **ScMenDialogueCursor_scene_models;  // 0x113c
+        GOBJ *cursor_gobj[2];                        // 0x1140, left and right choice
+    } dialogue;
+    u8 x1148[0x100];             // 0x1148
     struct
     {
         JOBJSet **Kicon_jobjset; // 0x1248
@@ -874,6 +832,12 @@ void _AirRideSelect_CreateSIcon(s8 ckind, s8 index); // 0x80151644
 void AirRideSelect_GetIconPos(s8 index, Vec3 *out);  // 0x80151020
 void AirRideSelect_GetIconScale(Vec3 *out);          // 0x80150fcc
 void AirRideSelect_CreateIPos(void);                 // 0x801510fc
+
+// Top Ride course select. grid_value is a stc_topride_course_grid entry, used as the
+// animation frame.
+void TopRide_CourseSelectCreateIcon(s8 pos, s8 grid_value);  // 0x801339f0
+void _TopRide_CourseSelectCreateIcon(s8 pos, s8 grid_value); // 0x8014e8d4
+void TopRide_CourseSelectSetPanorama(s8 grid_value);         // 0x8014e0d0
 
 void CitySelect_LayoutMachineIcons(s8 count);              // 0x801355f4
 void _CitySelect_LayoutMachineIcons(s8 count);             // 0x8015bd14
