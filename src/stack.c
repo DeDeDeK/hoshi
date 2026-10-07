@@ -267,11 +267,11 @@ CODEPATCH_HOOKCREATE(0x803d5994, "", PreHSD_DecodeOSReportLog, "b 0x8\t\n", 0)
 
 void Stack_ApplyPatches()
 {
-    CODEPATCH_REPLACEINSTRUCTION(0x8043ff60, 0x60000000); // skip setting exception handler
+    CODEPATCH_REPLACEINSTRUCTION(0x8043ff60, PPC_NOP); // skip setting exception handler
     CODEPATCH_REPLACEINSTRUCTION(0x8043f848, 0x48000268); // skip over pad check on crash
-    CODEPATCH_REPLACEINSTRUCTION(0x8043fd58, 0x60000000); // skip unknown XFB call that gets stuck?
+    CODEPATCH_REPLACEINSTRUCTION(0x8043fd58, PPC_NOP); // skip unknown XFB call that gets stuck?
 
-    CODEPATCH_REPLACEINSTRUCTION(0x8043fd40, 0x60000000); // skip osreport end so stack dump can add to it
+    CODEPATCH_REPLACEINSTRUCTION(0x8043fd40, PPC_NOP); // skip osreport end so stack dump can add to it
 
     // inject code to log stack information
     CODEPATCH_HOOKAPPLY(0x8007d8b4);
@@ -283,7 +283,7 @@ void Stack_ApplyPatches()
 
     // display OSReportLog when invoking debug console before sysdolphin initializes 
     CODEPATCH_HOOKAPPLY(0x803d5994);
-    CODEPATCH_REPLACEINSTRUCTION(0x803d601c, 0x60000000); // skip OSReporting the crash message (again)
+    CODEPATCH_REPLACEINSTRUCTION(0x803d601c, PPC_NOP); // skip OSReporting the crash message (again)
 
     return;
 }

@@ -71,6 +71,8 @@ typedef struct MainMenuData
     u8 depth;                             // 0x37, either 0 or 1. used to get cursor value above
     MainMenuSubmenuKind submenu_kind : 8; // 0x38, 0 = air ride, 1 = top ride, 2 = city, 3 = options, etc
     MajorKind major_kind : 8;             // 0x39,
+    u8 next_screen;                       // 0x3a, GameData.x2b menu screen the picked option leads to (MainMenu_GetNextScreen)
+    u8 x3b;                               // 0x3b, cursor row indexing the next_screen table
     int x3c;                              // 0x3c
     int x40;                              // 0x40
     int x44;                              // 0x44

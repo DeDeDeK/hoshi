@@ -886,8 +886,8 @@ void CitySelect_CreateIPos(void);                          // 0x8015bbb8
 // Repainting one select panel after its color changes. Storing the color byte
 // alone does not redraw anything - the engine always pairs the store with the
 // matching update call, passing the panel's kind as the anim kind. City Trial
-// substitutes 5 for that kind when city_select_ply.mode is 2, the slot's x1d4 bit
-// is clear and ply_pkind is 4. The frame helper is shared by all three select screens and the
+// substitutes 5 for that kind when city_select_ply.mode is 2, the slot has no controller
+// attached (active_pad_mask bit clear) and ply_pkind is 4. The frame helper is shared by all three select screens and the
 // player HUDs.
 s8 Gm_GetColorAnimFrame(s8 color);                           // 0x80009630
 void CitySelect_UpdatePlayer(s8 ply, s8 pkind, s8 frame);    // 0x801354d4

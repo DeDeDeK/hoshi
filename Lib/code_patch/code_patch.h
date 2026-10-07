@@ -5,6 +5,10 @@ void _CodePatch_HookApply(int *dol_addr, void *hook_func);
 void _CodePatch_OverwriteApply(int *dol_addr, int instr);
 void _CodePatch_ReplaceCall(int *dol_addr, void *func_addr);
 void _CodePatch_ReplaceFunc(int *dol_addr, void *func_addr);
+void _CodePatch_ReplaceImmediate(int *dol_addr, int imm);
+void _CodePatch_ReplaceAddress(int *lis_addr, int *addi_addr, const void *target);
+
+#define PPC_NOP 0x60000000
 
 #define BRANCH_CREATE(src, dst, is_link) (0x48000000 | (is_link ? 1 : 0) | (((int)dst - (int)src) & ~(0xfc000000)));
 
@@ -57,6 +61,10 @@ typedef enum HookKind
 #define CODEPATCH_REPLACEINSTRUCTION(_dol_addr, _instr) _CodePatch_OverwriteApply((int *)(_dol_addr), (_instr))
 #define CODEPATCH_REPLACECALL(_dol_addr, _func) _CodePatch_ReplaceCall((int *)(_dol_addr), (void *)(_func))
 #define CODEPATCH_REPLACEFUNC(_dol_addr, _func) _CodePatch_ReplaceFunc((int *)(_dol_addr), (void *)(_func))
+// Rewrites the low 16 bits of the instruction, keeping its opcode and registers.
+#define CODEPATCH_REPLACEIMMEDIATE(_dol_addr, _imm) _CodePatch_ReplaceImmediate((int *)(_dol_addr), (_imm))
+// Points the lis / addi pair that forms an address at _target instead.
+#define CODEPATCH_REPLACEADDRESS(_lis_addr, _addi_addr, _target) _CodePatch_ReplaceAddress((int *)(_lis_addr), (int *)(_addi_addr), (_target))
 
 typedef enum CodePatchKind
 {

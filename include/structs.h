@@ -95,7 +95,6 @@ typedef struct CamData CamData;
 typedef struct PlayerCamData PlayerCamData;
 
 // Text
-typedef struct SISData SISData;
 typedef struct TextHeapCell TextHeapCell;
 typedef struct Text Text;
 typedef struct TextCanvas TextCanvas;

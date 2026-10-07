@@ -126,6 +126,17 @@ typedef enum RiderStatus
     RDSTATE_PANICSPINSTART,
     RDSTATE_PANICSPINLOOP,
     RDSTATE_PANICSPINEND,
+    RDSTATE_SWORDATTACK1START,      // entered by Rider_FindAutoAttackTarget
+    RDSTATE_SWORDATTACK1,
+    RDSTATE_SWORDATTACK1END,        // a target found here chains SWORDATTACK2
+    RDSTATE_SWORDATTACK2,
+    RDSTATE_SWORDATTACK2END,        // and here SWORDATTACK3
+    RDSTATE_SWORDATTACK3,
+    RDSTATE_SWORDATTACK3END,
+    RDSTATE_BOMBRUN,                // bomb held; A enters BOMBPUSHSTART
+    RDSTATE_BOMBPUSHSTART,
+    RDSTATE_BOMBPUSH,               // throw charge builds; releasing A throws
+    RDSTATE_BOMBTHROW,
     RDSTATE_MIKESING = 97,          // singing blast (Effect 0x5a5a2 / SFX 0x2006b)
     RDSTATE_MIKEEND,
     RDSTATE_LOSEABILITY = 104,
@@ -903,7 +914,11 @@ typedef struct RiderData
     u8 x824_04 : 1;                     // 0x824, 0x04
     u8 x824_02 : 1;                     // 0x824, 0x02
     u8 x824_01 : 1;                     // 0x824, 0x01
-    u8 x825;                            // 0x825
+    u8 x825_80 : 1;                     // 0x825, 0x80
+    u8 x825_40 : 1;                     // 0x825, 0x40, set by Rider_RoundStart
+    u8 x825_20 : 1;                     // 0x825, 0x20
+    u8 x825_10 : 1;                     // 0x825, 0x10
+    u8 x825_0f : 4;                     // 0x825, 0x0f
     u8 x826_80 : 1;                     // 0x826
     u8 x826_40 : 1;                     // 0x826
     u8 x826_20 : 1;                     // 0x826
@@ -1040,10 +1055,10 @@ typedef struct RiderData
     int x9e8;                           // 0x9e8
     int x9ec;                           // 0x9ec
     struct
-    { 
-        int is_bike;                    // 0x9f0
-        MachineKind kind;               // 0x9f4
-    } machine_saved;                    // used to remember your actual machine when an ability changes your machine
+    {
+        int is_bike;                    // 0x9f0, Sword: auto-attack cooldown, reloaded from jump_param+0x1b8
+        MachineKind kind;               // 0x9f4, Sword: bit 0x80 blocks the auto-attack scan during a swing
+    } machine_saved;                    // per-ability scratch; Wheel and Wing save the ridden machine here
     int x9f8;                           // 0x9f8
     int x9fc;                           // 0x9fc
     int xa00;                           // 0xa00
@@ -1106,7 +1121,32 @@ typedef struct RiderData
 } RiderData;
 
 
-static rdDataKirby **stc_rdDataKirby = (rdDataKirby **)0x80559fa8;
+// Per-RiderKind behavior. A kind is its own status table plus these hooks; Dedede's
+// and Meta Knight's fill the same shape Kirby's does. Fields past 0x3c are unmapped.
+typedef struct RiderKindDesc
+{
+    RiderStateDesc *state_table;                        // 0x00, -> RiderData.state_table
+    void (*on_load)(int a, int b);                      // 0x04, after Rider_LoadFile loads the archive
+    void (*on_preload)(int a, int b);                   // 0x08, after Rider_PreloadKindArchive queues it
+    void (*on_create)(RiderData *rd);                   // 0x0c, Rider_Create, before the hurt data
+    void (*load_model)(RiderData *rd);                  // 0x10, Rider_Create, model part visibility
+    void *x14[2];                                       // 0x14
+    void (*gx)(RiderData *rd, int pass);                // 0x1c, Rider_GX, after the body draws
+    void *x20[2];                                       // 0x20
+    void (*on_state_change)(RiderData *rd);             // 0x28, RiderStateChange, before the new status installs
+    void *x2c[4];                                       // 0x2c
+    int (*resolve_mstatus)(RiderData *rd, int mstatus); // 0x3c, RiderStateChange's mstatus remap
+    void *x40[4];                                       // 0x40
+    void (*round_start)(RiderData *rd);                 // 0x50, Rider_KindRoundStart, at the round's GO
+    void *x54[5];                                       // 0x54
+} RiderKindDesc; // 0x68
+
+static RiderKindDesc **stc_rider_kind_desc = (RiderKindDesc **)0x804adbd8; // [RDKIND_NUM]
+// {archive filename, rdData public} per RiderKind, back to back with stc_rider_kind_desc.
+static char **stc_rider_archive_names = (char **)0x804adbc0; // [RDKIND_NUM * 2]
+// Copied into RiderData.rdDataKirby by Rider_InitData, so a rider reads its rdData off
+// itself from then on.
+static rdDataKirby **stc_rdDataKirby = (rdDataKirby **)0x80559fa8; // [RDKIND_NUM]
 static rdDataCommon **stc_rd_common_data = (rdDataCommon **)(0x805dd0e0 + 0x730);
 static RiderCommonParam **stc_rider_param = (RiderCommonParam **)(0x805dd0e0 + 0x734);
 
@@ -1137,6 +1177,7 @@ static CopyWheelTable *stc_copy_wheel_melee = (CopyWheelTable *)0x804af738;  // 
 // The on-foot counterpart of Machine_ActOnHitCollision, including its Rail Fire
 // station case (bl Ply_PlayRailFireHitSFX at 0x80196668).
 void Rider_ActOnHitCollision(RiderData *rd); // 0x8019655c
+void Rider_CheckEventCollision(RiderData *rd); // 0x8019649c, off the machine only: event actors' attacks against the rider
 void RiderGObj_CPUThink(GOBJ *gobj);      // 0x8018fc58, rider proc: if CPU, runs the AI update
 // Allocates rd->cpu. ai_state 0 picks the profile with Rider_CPUSelectProfile.
 void Rider_CPUInit(RiderData *rd, int ai_state, int difficulty); // 0x80262d6c
@@ -1236,7 +1277,7 @@ int Rider_GiveAbility(RiderData *, CopyKind); // 0x801a81a4
 int Rider_CheckUnableAbility(RiderData *); // 0x80191798, 1 while grants must be queued (x823 bit 0x01)
 // With a copy ability or power-up held, calls cb_status_remove then cb_ability_remove,
 // skipping NULL ones. Rider_GiveAbility runs it before every grant. The teardowns end
-// in revertKirbyModel (0x801a7d70), which removes the hat, clears cb_ability_remove
+// in Rider_RevertCopyAbility (0x801a7d70), which removes the hat, clears cb_ability_remove
 // and runs Rider_TeardownCopyAbility (copy_kind = -1, poof effect and SFX). It does
 // not play the spit-out animation; RiderState_LoseAbilityEnter does.
 void Rider_AbilityRemoveModel(RiderData *); // 0x80191554
@@ -1270,10 +1311,24 @@ void RiderScript_SetVariable(RiderData *rd, void *script);      // 0x8019b98c
 void RiderState_GetOnStarEnter(GOBJ *machine_gobj, RiderData *rd); // 0x801ba054
 // Neutral riding status (RDSTATE_RUN). Last resort of the interrupt chain.
 void RiderState_StarWaitEnter(RiderData *); // 0x801ab1a0
+// The round's GO for one rider, from Ply_RoundStartAll: nothing on foot
+// (RDSTATE_FREEMOVE), otherwise Rider_KindRoundStart, then sets x825_40.
+void Rider_RoundStart(GOBJ *rider_gobj); // 0x80191c38
+void Rider_KindRoundStart(RiderData *rd); // 0x8019f850, RiderKindDesc.round_start if set
+// Each kind's RiderKindDesc.round_start: RDSTATE_READY enters RiderState_StarWaitEnter and
+// each READYPUSH state its own exit. Dedede's and Meta Knight's first call one more kind
+// function.
+void Rider_Kirby_RoundStart(RiderData *rd);      // 0x801ab0f0
+void Rider_Dedede_RoundStart(RiderData *rd);     // 0x801be86c
+void Rider_MetaKnight_RoundStart(RiderData *rd); // 0x801c1f90
 // Ends a machine charge and spends it on a boost (RDSTATE_PUSHEND), from the
 // A-release interrupt check and the full-charge hold status's think.
 // MachineData.charge_value still holds the charge on entry. Kirby only.
 void RiderState_StarChargeReleaseEnter(RiderData *); // 0x801abc64
+// Its two callers. The interrupt check enters it and returns 1 unless A is still held;
+// the full-charge hold status's think enters it once the full-charge window ends.
+int Rider_IASACheck_ChargeRelease(RiderData *rd); // 0x801abc2c
+void AS_StarChargeFullThink(RiderData *rd);       // 0x801abea0
 void RiderState_LoseAbilityEnter(RiderData *); // 0x801b0adc
 void Rider_GiveIntangibility(RiderData *, int time); // 0x80195f68
 void Rider_GiveInvincibility(RiderData *, int time); // 0x80195f28
@@ -1292,6 +1347,9 @@ int Rider_IsMachineDead(RiderData *);       // 0x801943e4, can only be called be
 // count scaled by stats, no all-ups; 2 = forward, count scaled by stats, all
 // remaining all-ups.
 void Rider_DropPatches(RiderData *, float stat_array[9], int drop_mode); // 0x8019d330
+// Rider_TickDropPatches' all-up branch: throws one legendary piece per cooldown while
+// allups_dropped is positive and returns the new patch_drop_count.
+int Rider_TickDropAllUp(RiderData *rd); // 0x8019d55c
 // A mode-0 Rider_DropPatches when a single hit's damage exceeds
 // RiderCommonParam.patch_drop_damage_min (8.0). pos and dir are ignored.
 // Run for a hit on foot and, through RiderGObj_DropPatchesOnDamage, for one on a
@@ -1313,7 +1371,7 @@ void Rider_StartCopyWheel(RiderData *rd, int copy_kind); // 0x801ae550
 // Picks a random starting ability and starts the wheel; returns 1 if it started.
 int Rider_StartRandomCopyWheel(RiderData *rd); // 0x801ae4ec
 int RiderGObj_GiveRandomAbility(GOBJ *gobj); // 0x80191fb8, GOBJ wrapper for Rider_StartRandomCopyWheel
-int RiderGObj_CheckCanReceivePowerUp(GOBJ *gobj); // 0x80192688, returns 1 if rider can receive a power-up (checks lower 4 bits of rd->x825 are clear)
+int RiderGObj_CheckCanReceivePowerUp(GOBJ *gobj); // 0x80192688, returns 1 if rider can receive a power-up (checks rd->x825_0f is clear)
 int RiderGObj_GivePowerUp(GOBJ *gobj, PowerUpKind kind); // 0x801926ac, gives rider a power-up if rider is Kirby, returns 1 on success
 int Rider_TryGivePowerUp(RiderData *rd, PowerUpKind kind); // 0x801a828c, checks unable, queues into x460 or calls Rider_GivePowerUpByKind
 int Rider_GivePowerUpByKind(RiderData *rd, PowerUpKind kind); // 0x801a8304, removes current ability and initializes power-up kind (0-3), returns 1 on success
@@ -1369,6 +1427,29 @@ void RiderState_MetaKnightQuickSpinEnter(RiderData *rd, int dir); // 0x801c3f90
 // but not their air control.
 int  RiderState_DededeQuickSpinInterrupt(RiderData *rd);     // 0x801c05a8
 int  RiderState_MetaKnightQuickSpinInterrupt(RiderData *rd); // 0x801c3f40
+// Dedede's auto-attack. InitAutoAttack installs AutoAttackThink as the per-frame check
+// (RiderData+0x914), which enters the hammer swing (status 52) once
+// Rider_FindAutoAttackTarget sees a target; status 54 installs AutoAttackChainThink,
+// whose hit enters the second swing (status 55).
+void Rider_Dedede_InitAutoAttack(RiderData *rd, int keep_cooldown); // 0x801c0d28
+void Rider_Dedede_AutoAttackThink(RiderData *rd);                   // 0x801c0b50
+void Rider_Dedede_AutoAttackChainThink(RiderData *rd);              // 0x801c0bbc
+void RiderState_DededeAttackEnter(RiderData *rd);                   // 0x801c0dd8
+void RiderState_DededeAttack2Enter(RiderData *rd);                  // 0x801c123c
+// Calls on_found(rd) for the first rider, machine, enemy or object overlapping detect.
+// Shared by Dedede, Meta Knight and the Sword ability's auto-swing.
+void Rider_FindAutoAttackTarget(RiderData *rd, void *detect, void *on_found); // 0x8019f288
+
+// Rider_LoadFile's archive step for one kind: loads stc_rider_archive_names[kind] into
+// stc_rdDataKirby[kind] if empty, then runs the kind's on_load.
+void Rider_LoadKindArchive(RiderKind kind, int a, int b);    // 0x80190468
+void Rider_PreloadKindArchive(RiderKind kind, int a, int b); // 0x80192bd8
+// The motion entry {FigaTree, script, flags} for mstatus, out of the {count, entries}
+// runs at rdData+0x0c.
+void *Rider_GetMotionDesc(RiderData *rd, int mstatus); // 0x80199734
+// Binds RiderData+0x34's FigaTree over model_parts and requests frame at rate.
+void Rider_ApplyMotionAnim(RiderData *rd, float frame, float rate); // 0x80198934
+
 // Rider-side entries into the machine spins, through the ridden machine at +0x3f4.
 // The three quick-spin enters call the first; two rider statuses call the second.
 void Rider_MachineEnterQuickSpin(RiderData *rd, int dir);              // 0x80193c20

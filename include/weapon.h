@@ -352,6 +352,11 @@ typedef struct WeaponData
 // in the rider's hand" and needs a Weapon_StateChange before physics or
 // detonation runs.
 GOBJ *Weapon_Create(WeaponDesc *desc); // 0x8021f428
+// Weapon_Create's prio-10 proc. On a hit it calls the vtable's on_hit.
+void Weapon_Proc10_HitReact(GOBJ *wp_gobj); // 0x8021fcd4
+// The WeaponData destructor every ending runs through: frees the HurtData and EfGroups,
+// runs the kind's aux_a, then frees the rest.
+void Weapon_UserDataDtor(WeaponData *wp); // 0x8021ff54
 
 // Transitions to the given state entry index. Does NOT touch physics velocity -
 // set that first, mirroring vanilla throw() ordering. anim_frame/anim_rate are

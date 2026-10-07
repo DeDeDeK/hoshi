@@ -782,8 +782,8 @@ struct HSD_Fog
 // sky-preset entry (preset+0x18). Interpolated per-frame by AreaLight_Lerp
 // (lbarealight.c) into the live AreaLight at GrObj+0x718.
 //
-// Color fields are packed RGBA8888 u32 (high byte = R) - that's how
-// GXColor_Lerp (0x80079c04) loads/stores them with single lwz/stw.
+// Color fields are packed RGBA8888 u32 (high byte = R), a GXColor's byte order, which
+// GXColor_Lerp (0x80079c04) lerps channel by channel.
 typedef struct AreaLightData
 {
     u32 header;          // 0x00 metadata (raw-copied)
@@ -918,7 +918,7 @@ void JObj_SetAllAOBJRateByFlags(JOBJ *j, int flags, float rate); // 0x800550bc
 void JObj_AddFigaTreeAnim(JOBJ *joint, void *figatree);  // 0x8006e2c0
 float FigaTree_GetEndFrame(void *figatree);              // 0x8006e58c, +0x08, or 0 when NULL
 // The engine's general "place a JObj in the world": builds a TRS matrix from an
-// orthonormal basis (right = forward x up, normalized) scaled by scale, translates
+// orthonormal basis (X = up x forward, Y = up, Z = forward) scaled by scale, translates
 // it to pos and stamps it on the joint.
 void JObj_SetFromBasis(f32 scale, JOBJ *joint, Vec3 *forward, Vec3 *up, Vec3 *pos); // 0x80054414
 void JObj_SetAllAOBJLoopByFlags(JOBJ *j, int flags); // 0x800550f4
@@ -973,7 +973,7 @@ void COBJ_GetInterest(COBJ *cobj, Vec3 *interest); // 0x80401768
 float COBJ_GetEyeDistance(COBJ *cobj); // 0x80401a9c
 void CObj_SetMtxDirty(COBJ *cobj); // 0x804026a8
 void COBJ_GetViewingMtx(COBJ *cobj, Mtx *out); // 0x80402704
-Mtx *COBJ_SetupViewingMtx(COBJ *cobj); // 0x80401014
+void COBJ_SetupViewingMtx(COBJ *cobj); // 0x80401014
 int COBJ_IsPositionVisible(COBJ *cobj, Vec3 *pos, Vec3 *out, int check_scissor); // 0x80067438
 Vec3 *COBJ_ProjectPoint(COBJ *cobj, Vec3 *pos, Vec3 *out, int unk); // 0x800644ac - returns the out vector, weird
 GOBJ *GObj_Create(int entity_class, int p_link, int p_priority); // 0x80428f28
@@ -985,7 +985,8 @@ void GObj_SetPLink(GOBJ *gobj, int p_link, u8 p_priority); // 0x804293f4
 void GObj_AddGXLink(GOBJ *gobj, void *cb, int gx_link, int gx_pri); // 0x80429690
 void GObj_DestroyGXLink(GOBJ *gobj); // 0x80429774 - unlinks from its gx list and resets gx_link to 0xff
 GOBJProc *GObj_AddProc(GOBJ *gobj, void *callback, int priority); // 0x804288a4
-void GObj_RemoveProc(GOBJ *gobj); // 0x80428ad8
+void GObj_RemoveProc(GOBJ *gobj); // 0x80428ad8 - frees every proc on the GObj
+void GObj_FreeProc(GOBJProc *proc); // 0x8042898c - frees one; a proc freeing itself is deferred until its callback returns
 void GObj_AddObject(GOBJ *gobj, u8 obj_kind, void *object); // 0x80429c14
 void GObj_FreeObject(GOBJ *gobj); // 0x80429cb0 - destroys hsd_object by obj_kind and clears it
 void GObj_AddUserData(GOBJ *gobj, int userDataKind, void *destructor, void *userData); // 0x80429d0c

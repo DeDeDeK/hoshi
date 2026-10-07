@@ -1,6 +1,8 @@
 #ifndef MEX_H_TEXT
 #define MEX_H_TEXT
 
+#include <string.h>
+
 #include "inline.h"
 #include "structs.h"
 #include "datatypes.h"
@@ -61,17 +63,14 @@ typedef enum TextAlignKind
     TEXTALIGN_RIGHT,
 } TextAlignKind;
 
-// Per-SIS-slot glyph bank, used at render time for character codes >= 0x4000.
-// Codes < 0x4000 use the master Latin bank baked into main.dol at 0x8050a040
-// (image, 256 * 0x200) and 0x80509dc0 (kerning, 320 * 2). Most SIS files leave
-// these pointers null and rely entirely on the master bank; only SisSmmenu.dat
-// (Japanese kana) and a few icon-carrying files (SisClrChk*, SisSelply*) have
-// real per-slot glyph data.
-struct SISData
-{
-    u8 *image_data_arr;   // I4 32x32 glyphs, stride 0x200, indexed by (code - 0x4000) & 0xFF
-    u8 *kerning_data_arr; // {u8 left_pad, u8 right_edge} per glyph, stride 0x2
-};
+// One entry of a loaded SIS archive's root table, which Text_InitPremadeText (0x8044f8c8)
+// indexes by premade-text id. Entries 0 and 1 double as the slot's glyph bank for
+// character codes >= 0x4000: I4 32x32 glyph images (stride 0x200, indexed by
+// (code - 0x4000) & 0xFF), then {u8 left_pad, u8 right_edge} kerning pairs. Codes below
+// 0x4000 use the master Latin bank in main.dol at 0x8050a040 (image, 256 * 0x200) and
+// 0x80509dc0 (kerning, 320 * 2). Most SIS files leave both null; only SisSmmenu.dat
+// (Japanese kana) and a few icon-carrying files (SisClrChk*, SisSelply*) fill them.
+typedef u8 *SISEntry;
 
 struct TextHeapCell
 {
@@ -120,7 +119,7 @@ struct Text
     u8 is_depth_compare;    // 0x4C, if 1, GX_LEQUAL Z mode (text z-tests). If 0, always on top.
     u8 hidden;              // 0x4D, non-zero -> Text_GX early-returns.
     u8 is_scissor;          // 0x4E, enables the per-quad scissor_* clip rect.
-    u8 sis_id;              // 0x4F, index into stc_sis_data[5] for per-SIS image/kerning bank (codes >= 0x4000).
+    u8 sis_id;              // 0x4F, index into stc_sis_data[5] for the per-SIS glyph bank (codes >= 0x4000).
 
     Text *next;             // 0x50, intrusive next in stc_text_first chain.
     GOBJ *gobj;             // 0x54, owning Text GObj (gobj->userdata at +0x2C points back here).
@@ -499,6 +498,55 @@ static COBJDesc *stc_text_cobjdesc = (COBJDesc *)0x805096a0; // ortho 640x480 ca
 
 // Sis Library
 static HSD_Archive **stc_sis_archives = (HSD_Archive **)0x8059a848; // array of 5 sis file archive pointers
-static SISData **stc_sis_data = (SISData **)0x8059a85c;             // array of 5 currently loaded sis data, indexed by sis_id
+static SISEntry **stc_sis_data = (SISEntry **)0x8059a85c;           // root tables of the 5 loaded sis files, indexed by sis_id
+
+// One character as SIS text at p: a space or newline as its command, anything else as its
+// two-byte glyph code, nothing for a character the font has no code for. Returns the
+// position past it, or NULL when it would run past end.
+static inline u8 *Text_WriteSisChar(u8 *p, u8 *end, char c)
+{
+    if (c == ' ' || c == '\n')
+    {
+        if (p + 1 > end)
+            return NULL;
+        *p++ = c == ' ' ? TEXTCMD_SPACE : TEXTCMD_LINEBREAK;
+        return p;
+    }
+
+    int cmd = Text_CharToCommand(c);
+    if (cmd == -1)
+        return p;
+    if (p + 2 > end)
+        return NULL;
+    *p++ = (u8)(cmd >> 8);
+    *p++ = (u8)cmd;
+    return p;
+}
+
+// A string as SIS text from p, stopping at the first character that would run past end.
+// Returns the position past the last one written.
+static inline u8 *Text_WriteSisString(u8 *p, u8 *end, const char *str)
+{
+    for (; *str != '\0'; str++)
+    {
+        u8 *next = Text_WriteSisChar(p, end, *str);
+        if (next == NULL)
+            break;
+        p = next;
+    }
+    return p;
+}
+
+// Point SIS slot sis_id at dst, a copy of the num entries just loaded there, so entries the
+// caller keeps in dst past num are reachable by index. A slot already on dst is left alone.
+static inline void Text_ExtendSis(int sis_id, SISEntry *dst, int num)
+{
+    SISEntry *loaded = stc_sis_data[sis_id];
+
+    if (loaded == NULL || loaded == dst)
+        return;
+    memcpy(dst, loaded, num * sizeof(dst[0]));
+    stc_sis_data[sis_id] = dst;
+}
 
 #endif

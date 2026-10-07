@@ -329,7 +329,7 @@ void Yakumono_Preload(void);                                                   /
 // are 0x24 bytes = position plus two orientation/scale vectors. CT breakables
 // take their real per-prop transforms from the collision-record pool instead.
 int grGetYakumonoposNum(void);                                                 // 0x800d1434
-void loadYakumonoLocations(int index, Vec3 *out0, Vec3 *out1, Vec3 *out2);     // 0x800d145c
+void grGetYakumonoPosition(int num, Vec3 *pos, Vec3 *fwd, Vec3 *up);          // 0x800d145c
 
 // Finds the placed-instance record whose jobj matches `key`.
 GrCollRecord *grScene_FindInstanceByKey(GrCollParam *gcp, int key);            // 0x800d7954

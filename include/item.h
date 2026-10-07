@@ -349,7 +349,7 @@ typedef struct ItemAnimEntry
 
 typedef struct ItemModelDesc
 {
-    JOBJ *j;                    // 0x00, model root
+    JOBJDesc *j;                // 0x00, model root
     u32 flag;                   // 0x04, render flag (0x02000000 flat panels; 0x03/0x05/0x0b000000 legendary/skinned pieces)
     int parts[3];               // 0x08, per-group "item parts" counts; Item_InitPartsModel
                                 //       (0x80252824, reached from CityItem_Create) asserts each <= 11
@@ -595,7 +595,7 @@ typedef struct ItemData
     int x1b8;                   // 0x1b8
     int x1bc;                   // 0x1bc
     int x1c0;                   // 0x1c0
-    float x1c4;                 // 0x1c4
+    float gravity_strength;     // 0x1c4, Gr_GetDownVector's return, refreshed by CityItem_UpdateGravity
     Vec3 fall_dir;              // 0x1c8, gravity/down direction vector, used for ground raycasting
     // 0x1d4, seeded from ItemDesc, then owned by the collision code:
     //   1  = airborne (falling, tossed, bouncing) - Item_SetAirborne
@@ -817,12 +817,16 @@ static TopRideItemMgr **stc_topride_itemmgr = (TopRideItemMgr **)(0x805dd0e0 + 0
 // collected on kirby collision. Vanilla callers pass flag1=0, flag2=1.
 void TopRideItem_SpawnAtPosition(TopRideItemMgr *mgr, int item_kind, Vec3 *pos, Vec3 *orient, uint flag1, uint flag2); // 0x8034bf50
 
-// Returns a pointer to the per-item data blob for a TopRide item kind (0..21).
-// Offset +0x10 of the returned struct is the float spawn weight used by the
-// weighted-random pickers in TopRideItem_SpawnTimed and TopRideItem_PartyBallUpdate.
-// Out-of-range kinds fall through to `return kind` (invalid pointer), so only
-// call with 0..TRITEM_NUM-1.
-const void *TopRideItem_GetDataByIndex(int kind); // 0x8034d204
+// Per-item data blob for a Top Ride item kind.
+typedef struct TopRideItemData
+{
+    u8 x00[0x10];       // 0x00
+    float spawn_weight; // 0x10, read by the weighted pickers in TopRideItem_SpawnTimed and TopRideItem_PartyBallUpdate
+} TopRideItemData;
+
+// Out-of-range kinds fall through to `return kind` (an invalid pointer), so only call
+// with 0..TRITEM_NUM-1.
+const TopRideItemData *TopRideItem_GetDataByIndex(int kind); // 0x8034d204
 
 typedef struct TopRideKirby TopRideKirby;
 
@@ -838,10 +842,12 @@ void TopRide_KirbyApplyItem(TopRideKirby *kirby, int item_kind); // 0x802d8cb4
 // spawn_flags: 0x2 patch, 0x4 box.
 ItemKind CityItemSpawn_GetRandomItemID(BoxKind box_kind, ItemGroup group, int spawn_flags); // 0x800eb7e4
 // Creates a City Trial item GObj, allocates ItemData and initializes every
-// subsystem. desc->kind must be -1 or below ITKIND_NUM or it asserts; the bound
-// check is the `cmpwi r4,69` at 0x8024efb4, so custom kinds need that immediate
+// subsystem. desc->kind must be in [0, ITKIND_NUM) or it asserts; the upper
+// bound is the `cmpwi r4,69` at 0x8024efb4, so custom kinds need that immediate
 // patched higher. Top Ride uses TopRideItem_Create (0x8034ad08) instead.
 GOBJ *CityItem_Create(ItemDesc *desc);                // 0x8024eef4
+// Fills the item's ItemData from desc: kind, threshold category, itData, state table.
+void CityItem_InitData(GOBJ *item_gobj, ItemDesc *desc); // 0x8024eaf4
 // spawn_type defaults to 0, up/forward may be NULL, and box_color/box_size/spawn_area/
 // spawn_coll_kind are usually -1. is_airborne -1 skips the ground raycast. coll_kind:
 // 3 = point collision (most items), 1 = alloc CollData, 0 = requires one (dangerous).
@@ -958,6 +964,8 @@ GOBJ *PowerUp_SpawnFromSky(ItemKind kind, int box_color, int box_size, Vec3 *pos
 // wins when set; otherwise the kind comes from the box color's pool and the count
 // (1 / 2 / 4) from box_size, but only for vanilla patch kinds 3..0x12.
 void Box_OutcomeLogic(ItemData *id);                   // 0x80250ae8
+// Box_OutcomeLogic's per-item yaw offset in degrees: 0, 180, 90, -90. A 0 skips the rotation.
+static const float *const stc_box_slot_yaw = (const float *)0x80489f48;
 // The box's hit / break particle burst: picks one of the six yakumono-bank effects
 // 50000..50005 from ItemData.kind and is_break, then Effect_SpawnSync's it onto joint
 // 1 in anchor mode 205. Returns the effect id, which the caller sign-extends into

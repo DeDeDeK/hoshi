@@ -243,7 +243,7 @@ typedef struct GrData // exists in the stage file
     int x8;                         // 0x08
     ModelSection *model_section;    // 0x0c - terrain + backdrop JObj descs
     GrModelMotion *motion;          // 0x10, pointer placed at runtime
-    void *spline;          // 0x14
+    void *lights;          // 0x14 - three NULL-terminated LightGroup* chains: +0x00 stage, +0x04 rider, +0x08 secondary
     GrCollisionNode *coll_node; // 0x18 - baked map collision, sized into GrObj.coll_max by grColl_CountArrays
     int x1c;               // 0x1c
     void *pos_node;        // 0x20 - placed positions: +0x08 enemy positions by EnemyposId (0xC stride),
@@ -335,7 +335,7 @@ void grGetDashGateZoneParam(int zone, void *out1, void *out2, void *out3, void *
 void grGetSuperJumpZoneParam(int zone, int *out1, int *out2, int *out3);                    // 0x800d24fc - kind 7; out3 may be NULL
 void grGetJumpZoneParam(int zone, int *out1, int *out2, int *out3);                         // 0x800d25a8 - kind 9; out3 may be NULL
 int grGetSpinZoneParam(int zone);                                                            // 0x800d2654 - kind 10; returns param_index != 0
-void grGetLocalDeadZoneParam(int zone, void *out1, void *out2, void *out3);                 // 0x800d50f8 - kind 25, via loadLocalDeadLocations
+void grGetLocalDeadZoneParam(int zone, void *out1, void *out2, void *out3);                 // 0x800d50f8 - kind 25, via grGetLocalDeadPosition
 void grZone_BuildRecord(int arg0, int arg1, GrCollParam *gcp, GrCollisionNode *node, GrJoint **joints, int zone); // 0x800dcf08 - GrCollZone -> 0x140 runtime record
 
 // Narrowphase primitives, both taking a triangle index into GrCollParam.tri and
@@ -454,6 +454,10 @@ StageKind Gm_GetCurrentStageKind();  // 0x800092d8 - reads GameData.stage_kind (
 StageKind stGetCurrentStageKind();   // 0x80261ECC - reads the r13[0x7F8] StageKind cache (same value)
 GroundKind Gr_GetCurrentGrKind();    // 0x800d1d3c - reads (*stc_grobj)->gr_kind (+0x04): the physical ground
 GroundKind Gm_GetGrKindFromStageKind(StageKind stage_kind); // 0x80261ce8 - StageKind -> physical GroundKind
+// Magma Flows' 12 grounded Boost Panels as a zone-index bitset laid out like
+// PlayerStats.zone_bits, which Ply_GetAllBoostPanelsUsedFlag ANDs against it, or
+// NULL off GR_HEAT2.
+u8 *GrMagma_GetBoostPanelRefMask(void); // 0x800d5740
 int stGetCurrentStageKind_ItemposId(); // 0x802623e8 - Stage.dat row +0x24, the GrData.item index
 // Returns GrData.item[ItemposId], or NULL when the stage has no item node or
 // Gm_IsMapDebug() holds.
