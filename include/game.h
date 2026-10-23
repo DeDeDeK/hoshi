@@ -28,6 +28,8 @@ typedef enum GameEntity
     GAMEENTITY_EFFECT = 25,   // model-effect GObj, in the GAMEPLINK_EFFECTMODEL bucket
 } GameEntity;
 
+// Each commented list holds GObjs of that one class, whose create functions attach the
+// userdata before returning, so a walk needs no class or NULL-userdata check.
 typedef enum GamePLink
 {
     GAMEPLINK_SYS,
@@ -38,13 +40,13 @@ typedef enum GamePLink
     GAMEPLINK_CITYMACHINESPAWN,
     GAMEPLINK_6, // effect probably
     GAMEPLINK_STAGE,
-    GAMEPLINK_YAKUMONO,
-    GAMEPLINK_MACHINE,
-    GAMEPLINK_RIDER,
+    GAMEPLINK_YAKUMONO,     // YAKUMONO_GOBJ_KIND
+    GAMEPLINK_MACHINE,      // GAMEENTITY_MACHINE
+    GAMEPLINK_RIDER,        // GAMEENTITY_RIDER
     GAMEPLINK_11,
-    GAMEPLINK_ENEMY,   // dyna blade, tac, meteor, etc
-    GAMEPLINK_ITEM,         // anything in ItemKind
-    GAMEPLINK_WEAPON,       // bomb, plasma bullet, flame, firework etc
+    GAMEPLINK_ENEMY,        // class 21: dyna blade, tac, meteor, etc
+    GAMEPLINK_ITEM,         // GAMEENTITY_ITEM: anything in ItemKind
+    GAMEPLINK_WEAPON,       // WEAPON_GOBJ_KIND: bomb, plasma bullet, flame, firework etc
     GAMEPLINK_SHADOW,       // circular shadow beneath most objects
     GAMEPLINK_EFFECTMODEL,
     GAMEPLINK_CAMWORLD,
@@ -1218,9 +1220,10 @@ typedef struct GameData // 805359d8
     int x5f8;                        // 0x5f8
     int x5fc;                        // 0x5fc
     int x600;                        // 0x600
-    int x604;                        // 0x604
-    int x608;                        // 0x608
-    int x60c;                        // 0x60c
+    // Vs. King Dedede's HP race, set at scene load and refreshed by vsDedede_CPU_Cheating.
+    float dedede_hp_start;           // 0x604, King Dedede's machine HP at scene load
+    float challenger_hp_start;       // 0x608, the other players' summed machine HP at scene load
+    float dedede_hp_margin;          // 0x60c, Dedede's HP fraction minus the challengers'; 0 elsewhere
     int x610;                        // 0x610
     int x614;                        // 0x614
     int x618;                        // 0x618
@@ -1352,9 +1355,9 @@ typedef struct GameData // 805359d8
     int pause_delay;                 // 0x838
     int x83c;                        // 0x83c
     int x840;                        // 0x840
-    int x844;                        // 0x844
-    u8 player_finish_rank[5];        // 0x848, per-player finish placement (0 = 1st); read by race3D_isFinished for the goal-overlay graphic (Gm_GetPlayerFinishRank)
-    u8 x84d[5];                      // 0x84d
+    float lap_length;                // 0x844, in player_race_distance units (world units * 80/700)
+    u8 player_rank[5];               // 0x848, live race placement (0 = 1st), eliminated riders last (Gm_GetPlayerFinishRank)
+    u8 lap_phase[5];                 // 0x84d, third of the lap last reached (0-2); 2 -> 0 counts a lap, 0 -> 2 takes one back
     u8 player_finished_flag[5];      // 0x852, per-player "crossed the goal" flag; set to 1 by race3D_isFinished (Gm_GetPlayerFinishedFlag)
     u8 x857_ply[4];                  // 0x857, accessed by Ply_Get0x857 (8000981c)
     u8 x85b;                         // 0x85b
@@ -1365,11 +1368,7 @@ typedef struct GameData // 805359d8
                                      //        this is no longer below race_lap_total
     int player_lap_recorded[5];      // 0x87c, highest lap AirRide_OnLapComplete has recorded, so backing over
                                      //        the goal does not count a lap twice
-    int x890;                        // 0x890
-    int x894;                        // 0x894
-    int x898;                        // 0x898
-    int x89c;                        // 0x89c
-    int x8a0;                        // 0x8a0
+    float player_lap_fraction[5];    // 0x890, position along the lap, 0-1
     int x8a4;                        // 0x8a4
     int x8a8;                        // 0x8a8
     int x8ac;                        // 0x8ac
@@ -1384,25 +1383,17 @@ typedef struct GameData // 805359d8
     u8 x967;                         // 0x967
     OSCalendarTime player_finish_calendar_time[5]; // 0x968, wall-clock time of the finish or the latest best lap (stride 0x28),
                                                    //        used for record/high-score timestamps
-    int xa30;                        // 0xa30
-    int xa34;                        // 0xa34
+    u8 player_out[5];                // 0xa30, set by Game_Think once the player is out and placed
+    u8 xa35[3];                      // 0xa35
     int destruction_derby_ko_num[4]; // 0xa38, indexed by ply
     int xa48;                        // 0xa48
     float player_race_distance[5];   // 0xa4c, per-player distance travelled along the race course (Gm_GetPlayerRaceDistance)
-    int xa60;                        // 0xa60
-    int xa64;                        // 0xa64
-    int xa68;                        // 0xa68
-    int xa6c;                        // 0xa6c
-    int xa70;                        // 0xa70
-    int xa74;                        // 0xa74
-    int xa78;                        // 0xa78
-    int xa7c;                        // 0xa7c
-    int xa80;                        // 0xa80
-    int xa84;                        // 0xa84
+    float player_leader_gap[5];      // 0xa60, the leader's player_race_distance minus this player's
+    float cpu_human_gap[5];          // 0xa74, a CPU's distance behind the best-placed human, else 0
     int xa88;                        // 0xa88
     GOBJ *legendary_assembly_gobj;   // 0xa8c, the running assembly cinematic's controller, NULL when none
     int xa90;                        // 0xa90
-    u8 city_kind;                    // 0xa94, 5 = main city trial. stadium modes are derived here @ 8004051c (0xE is destruction derby)
+    u8 city_kind;                    // 0xa94, CityKind, an AirRideRule in Air Ride. stadium modes are derived here @ 8004051c
     u8 player_num;                   // 0xa95, occupied player slots (p_kind != PKIND_NONE), Gm_GetPlayerNum
     u8 view_num;                     // 0xa96, split-screen view count (Gm_GetPlyViewNum)
     u8 stage_kind;                   // 0xa97, StageKind
@@ -1423,7 +1414,7 @@ typedef struct GameData // 805359d8
     u8 is_map_debug : 1;             // 0xaa5, 0x20 (Gm_IsMapDebug); reading it while set panics
     u8 is_damage_enabled : 1;        // 0xaa5, 0x10 (Gm_IsDamageEnabled)
     u8 is_perma_death_enabled : 1;   // 0xaa5, 0x08 (Gm_IsPermaDeathEnabled)
-    u8 xaa5_06 : 2;                  // 0xaa5, 0x06, 2-bit value read by zz_8000a1d8_
+    u8 speed_help : 2;               // 0xaa5, 0x06, the round's Speed Help: 0 off, 1 weak, 2 strong
     u8 is_machine_hitbox_enabled : 1; // 0xaa5, 0x01 (Gm_IsMachineHitboxEnabled), machine hit regions 1-3;
                                      //        1 in the city, stadium desc byte 4 bit 0x20 (clear for
                                      //        every stadium), 0 in Air Ride
@@ -1442,14 +1433,10 @@ typedef struct GameData // 805359d8
     u8 xaa7_04 : 1;                  // 0xaa7, 0x04
     u8 xaa7_02 : 1;                  // 0xaa7, 0x02
     u8 xaa7_01 : 1;                  // 0xaa7, 0x01
-    int xaa8;                        // 0xaa8
-    int xaac;                        // 0xaac
-    int xab0;                        // 0xab0
-    int xab4;                        // 0xab4
-    int xab8;                        // 0xab8
-    int xabc;                        // 0xabc
-    int xac0;                        // 0xac0
-    int xac4;                        // 0xac4
+    float xaa8[5];                   // 0xaa8, added to each player's Speed Help bonus
+    float *speed_help_gaps;          // 0xabc, gmGameParams.speed_help_weak or _strong
+    int cpu_mid_race_start;          // 0xac0, the race's middle third, in laps or (timed) frames; -1 outside races
+    int cpu_mid_race_end;            // 0xac4, gates gmGameParams.cpu_mid_race_bonus
     PlayerDesc ply_desc[5];          // 0xac8 - gameplay loops iterate < 5, controller-bound ones < 4. Slot 4
                                      //        is allocated and managed but unused by vanilla code paths.
     struct                           // 0xbb8, indexed by viewport
@@ -2309,7 +2296,23 @@ typedef struct gmGameParams
     int x14;             // 0x14
     int patch_max;       // 0x18, max stat patch value (returned by Patch_GetMaxValue as s8)
     int patch_min;       // 0x1c, min stat patch value (returned by Patch_GetMinValue as s8)
-    u8 x20[0x154 - 0x20];           // 0x20, unmapped match params
+    // Air Ride Speed Help. A player's band (0-4) is how many of the active gap thresholds
+    // its player_leader_gap exceeds; the [5] tables are indexed by it.
+    int speed_help_interval;                // 0x20, frames between passes (60)
+    float speed_help_weak[4];               // 0x24, gap thresholds for setting 1 {114,238,369,503}
+    float speed_help_strong[4];             // 0x34, for setting 2 {44,85,129,168}
+    float speed_help_hit_speed_loss[5];     // 0x44, -> MachineData.hit_speed_loss_scale {1.2,1,0.75,0.5,0.2}
+    float speed_help_hit_stun[5];           // 0x58, -> RiderData.hit_stun_scale {1.2,1,0.75,0.5,0.2}
+    int speed_help_ko_boost_frames[5];      // 0x6c, -> MachineGObj_SetKOBoost {4,6,8,10,12}
+    int ko_boost_frames;                    // 0x80, the KO boost without Speed Help (3)
+    float speed_help_ko_boost_accel[5];     // 0x84, 0.0324 in every band
+    float ko_boost_accel;                   // 0x98, without Speed Help (0.14985)
+    u8 x9c[0xd8 - 0x9c];                    // 0x9c
+    // CPU-only Speed Help terms, by CPU level (0-8).
+    float cpu_speed_bonus[9];               // 0xd8, flat {-0.3,0,0.1,0.35,0.6,0.9,1.2,1.6,1.9}
+    float cpu_catchup_gaps[4];              // 0xfc, bands over cpu_human_gap {80,160,240,320}
+    float cpu_catchup_scale[9];             // 0x10c, times the catch-up band {0.1,0.2,0.3,0.4,0.5,0.6,0.8,1,1.2}
+    float cpu_mid_race_bonus[9];            // 0x130, inside cpu_mid_race_start..end {0.1,0.2,0.3,0.4,0.6,0.7,0.8,0.9,1}
     // City Trial passive CPU stat-growth tables, indexed by cpu_level (0..8). Read
     // by SceneLoad_3D (seed) and CityTrial_GrowCpuStats (rate/interval). Shipped
     // defaults below.
@@ -2405,8 +2408,10 @@ typedef struct PlayerStats
     int swallowed_this_race;                      // 0x7d0, AR (cells 0x5f/0x62/0x65)
     int sword_swings_this_race;                   // 0x7d4, AR (cell 0x1c)
     int tornado_kos;                              // 0x7d8, AR (cell 0x1e)
-    u8 x7dc[0x7ec - 0x7dc];
-    int sky_rings;                                // 0x7ec, CT (cell 0x39)
+    u8 x7dc[0x7e4 - 0x7dc];
+    int dash_panel_hits;                          // 0x7e4
+    int dash_gate_hits;                           // 0x7e8, dash gates and dash rings
+    int sky_rings;                                // 0x7ec, CT (cell 0x39), dash rings only
     int copy_chance_on_tree;                      // 0x7f0, AR Celestial (cell 0x74)
     int spin_panel_uses;                          // 0x7f4, AR Checker Knights (cell 0x63)
     u8 x7f8[0x7fc - 0x7f8];
@@ -2441,7 +2446,7 @@ typedef struct PlayerStats
     u8 flags_855;                                 // 0x855, CT bit6 suppress-yaku-inc; AR bit7 Wing finish
     u8 x856[0x858 - 0x856];                   // 0x856
     u16 x_bit15 : 1;            // 0x858 (= PlayerData 0x908), bit 15 (MSB)
-    u16 x908_flag6 : 1;         // bit 14 (byte 0x908, bit 6)
+    u16 rumble : 1;             // bit 14 (byte 0x908, bit 6), Ply_GetRumbleEnabled / Ply_SetRumbleEnabled
     u16 respawn_request : 1;    // bit 13 (byte 0x908, bit 5), Ply_GetRespawnRequest / Ply_SetRespawnRequest
     u16 hydra_piece_2 : 1;      // bit 12 (byte 0x908, bit 4)
     u16 hydra_piece_1 : 1;      // bit 11 (byte 0x908, bit 3)
@@ -2567,6 +2572,12 @@ typedef struct grBoxGeneObj              // r13 + 0x608
     u8 subsequent_num;         // 0x274
 } grBoxGeneObj;
 
+// grBoxGeneInfo.event_active_flags. CityEvent_ModifyItemFallDesc (0x800ed784) sets FAKE and
+// SAMEITEM for their events.
+#define GRBOXGENE_EVENT_FALLDESC 0x1 // item cap and spawn interval come from cur_event_fall_desc
+#define GRBOXGENE_EVENT_FAKE     0x2 // EVKIND_FAKEPOWERUPS
+#define GRBOXGENE_EVENT_SAMEITEM 0x4 // EVKIND_SAMEITEM
+
 typedef struct grBoxGeneInfo // r13 + 0x610
 {                            //
     int x0;                  // 0x0
@@ -2637,15 +2648,15 @@ typedef struct grBoxGeneInfo // r13 + 0x610
     } *item_desc;                     //
     int x10;                          // 0x10, referred to as item lots data @ 800ec068?
     int x14;                          // 0x14, referred to as item lots data @ 800ec068?
-    int x18;                          // 0x18
-    int item_area_pos_num;            // 0x1c, number of item areas
+    int item_pos_num;                 // 0x18, grGetItemposNum, at most 128
+    int item_area_pos_num;            // 0x1c, grGetItemAreaposNum, at most 128
     int cur_num_items;                // 0x20, items currently spawned; the cap is ItemFallDesc.item_max
     int total_spawn_count;            // 0x24, lifetime cumulative spawn count (only increments, written by CityItemSpawn_IncrementNum on positive deltas)
     int total_num;                    // 0x28
     int spawn_timer;                  // 0x2c
     int x30;                          // 0x30
     ItemKind same_item_it_kind;       // 0x34, item used when EVKIND_SAMEITEM is active
-    int event_active_flags;           // 0x38 (or'd with EventKind)
+    int event_active_flags;           // 0x38, GRBOXGENE_EVENT_*
     ItemFallDesc cur_event_fall_desc; // 0x3c
     int x4c;                          // 0x4c
     int x50;                          // 0x50
@@ -2941,7 +2952,16 @@ typedef enum AirRideRule
     AIRRIDE_RULE_TIMEATTACK = 4,  // AIRRIDEMODE_TIME
 } AirRideRule;
 
-// GameData.city_kind (0xa94), an AirRideRule in Air Ride.
+// GameData.city_kind outside Air Ride.
+typedef enum CityKind
+{
+    CITYKIND_CITYTRIAL = 5,
+    CITYKIND_DERBY = 14,    // the one round that respawns a walking player who fell
+    CITYKIND_VSDEDEDE = 18,
+} CityKind;
+#define VSDEDEDE_DEDEDE_PLY 4 // King Dedede's player slot in CITYKIND_VSDEDEDE
+
+// GameData.city_kind (0xa94), a CityKind, or an AirRideRule in Air Ride.
 u8 Gm_GetCityKind();                  // 0x8000916c
 // GameData.is_map_debug. Prints "mapdebug error." and panics when the bit is set,
 // so it returns 0 in every retail round.
@@ -2962,6 +2982,29 @@ int Gm_GetRemainingFrames(void);      // 0x8000a0f8
 // Distance travelled along the race course, in METRES (GameData.player_race_distance,
 // 0xa4c). Feet = metres / 0.3048.
 float Gm_GetPlayerRaceDistance(int ply); // 0x80009568
+u8 Gm_GetPlayerFinishRank(int ply);      // 0x80009534, GameData.player_rank
+int Gm_GetPlayerLapCount(int ply);       // 0x8000b1ec, GameData.player_lap_count
+u8 Gm_GetPlayerFinishedFlag(int ply);    // 0x8000979c, GameData.player_finished_flag
+// GameData.dedede_hp_margin; Rider_CPURivalSelect favors weak rivals while it is under -0.15.
+float Gm_GetDededeHPMargin(void);        // 0x8000ca18
+int Ply_GetLapRecorded(int ply);         // 0x800094fc, GameData.player_lap_recorded
+int Gm_GetElapsedFrames(void);           // 0x80009bbc, seconds_passed * 60 + frames_in_second
+// {int course piece, float lap fraction, float arc position} of the rider's machine, else
+// of the rider on foot.
+void Ply_GetCourseProgress(int ply, void *out); // 0x8022ce94
+// The KO boost, a short burst of acceleration for defeating an enemy that counts as a KO.
+void Ply_StartKOBoost(int ply);          // 0x8022d1c0, MachineGObj_StartKOBoost on the ply's machine
+void Ply_InitKOBoost(int ply);           // 0x800153ac, gmGameParams.ko_boost_frames / _accel, at scene load
+
+// Air Ride race bookkeeping from Game_Think: player_lap_fraction and lap counting, then
+// player_leader_gap and cpu_human_gap.
+void AirRide_UpdateLapProgress(void);    // 0x80010478
+void AirRide_UpdateRaceGaps(void);       // 0x8001544c
+// Speed Help: Tick runs Apply every gmGameParams.speed_help_interval frames while it is on,
+// which sets each player's band tunables and boost and top speed stat_aux.
+u8 Gm_GetAirRideSpeedHelp(void);         // 0x8000a1d8, GameData.speed_help
+void AirRide_TickSpeedHelp(void);        // 0x800159ac
+void AirRide_ApplySpeedHelp(void);       // 0x800155d4
 
 // Evaluates the Air Ride "Race over N feet in 2 minutes!" cells. Switches on the
 // current GroundKind for the per-course threshold and clear_kind, and awards any
@@ -3054,6 +3097,13 @@ static inline MachineKind Ply_GetMachineKindAbs(int ply)
     return MachineKind_FromClassIndex(Ply_GetMachineIsBike(ply), Ply_GetMachineKind(ply));
 }
 
+// NULL while the player has no machine.
+static inline MachineData *Ply_GetMachineData(int ply)
+{
+    GOBJ *mg = Ply_GetMachineGObj(ply);
+    return mg ? (MachineData *)mg->userdata : (MachineData *)0;
+}
+
 // Controller slots the engine carries player state for.
 #define PLY_NUM 5
 
@@ -3079,6 +3129,8 @@ void Ply_RecordEnemyDefeat(int ply, DmgLog *attacker_log, GOBJ *enemy); // 0x802
 void Ply_RecordEnemySwallow(int ply, GOBJ *enemy); // 0x80230cec
 void Ply_SetDamagedDynaBlade(int ply);     // 0x80231160, PlayerStats +0x84c bit 0x01
 void Ply_SetTrampledByDynaBlade(int ply);  // 0x80231120, PlayerStats +0x84c bit 0x02
+// A hit from a YAKUKIND_LAVADRAGON; read back by Ply_GetFlamingDragonHitFlag (0x80230ae0).
+void Ply_SetBumpedFlamingDragon(int ply);  // 0x802310e0, PlayerStats +0x84c bit 0x04
 // Sets the attacker's PlayerStats +0x84c bit 0x80 while timer_10s still runs.
 void Ply_RecordRivalDamage10Sec(int attacker, int victim); // 0x8022ec84
 // Run by RiderStateChange, MachineStateChange and Weapon_StateChange on an
@@ -3097,10 +3149,19 @@ void Ply_UpdateAllOffMachines(void); // 0x8022df1c, the all-players-off-machine 
 void GameManager_AddEnemyKO(int ply, int enemy_kind); // 0x80010fd8
 void Ply_AddStadiumEnemyKO(int ply, int enemy_kind);  // 0x8022d758, wraps GameManager_AddEnemyKO
 void Ply_SetHP(int ply, float hp); // 0x8022ca38
+float Ply_GetHP(int ply);          // 0x8022ca08, PlayerData.hp
+float Ply_GetMaxHP(int ply);       // 0x8022ca78, PlayerData.max_hp
+int Ply_IsOut(int ply); // 0x8022d434, RiderGObj_IsOut: nonzero once the player is out of the race
+// The Run Amok event's per-player start: PlayerData+0x909 bit 0x40 and a Charge Max cap for
+// duration frames, on the machine or the rider on foot.
+void Ply_SetRunAmok(int ply, int duration); // 0x8022d5c8
 // Respawn request, PlayerData+0x908 bit 0x20. Respawner_Update sets it at 30 on its
 // 150-frame fall-death countdown; Machine_CheckRespawnRequest acts on it and clears it.
 int Ply_GetRespawnRequest(int ply); // 0x8022cc64
 void Ply_SetRespawnRequest(int ply, int on); // 0x8022cc80
+// Rumble option, PlayerData+0x908 bit 0x40, from PlayerDesc.rumble and clear for CPUs.
+int Ply_GetRumbleEnabled(int ply); // 0x8022cbf4
+void Ply_SetRumbleEnabled(int ply, int on); // 0x8022cc10
 int Ply_GetAllUpCollected(int ply); // 0x8022d024
 void Ply_SetAllUpCollected(int ply, int num); // 0x8022d03c
 
@@ -3238,7 +3299,11 @@ void Ply_IncrementItemCollectNum(int ply, ItemKind kind, int src_tag); // 0x8022
 // after a successful throw. Guards ply < 5 and kind != -1 but NOT the upper bound, so a kind
 // past item_collect[0x45] writes off the end of PlayerStats.
 void Ply_DecrementItemCollectNum(int ply, ItemKind kind);              // 0x8022fb58
+void Ply_IncrementDashPanelCount(int ply);          // 0x80230e44, dash_panel_hits
+void Ply_IncrementDashGateCount(int ply, int zone); // 0x80230e78, dash_gate_hits, and sky_rings for a ring zone
 u8 Ply_GetYakumonoBreakCount(int ply, YakuKind kind);                    // 0x8022fccc, PlayerStats.yakumono_break[kind - 0x15]; returns 0 outside kinds 0x15..0x28
+int Ply_IsInCannon(int ply);          // 0x8022c70c, MachineGObj_IsInCannon of the ply's machine
+int Ply_GetCannonLaunchCount(int ply); // 0x8022dec8, PlayerStats.cannon_simul_launch: most machines in cannons at once
 
 int AirRide_CheckCourseUnlocked(s8 input);                              // 0x8000c0e0, checks reward index 34 (Nebula Belt) when input==8
 // Clearchecker machine-unlock query (reward indices 19-31, machines 0x09-0x15).
@@ -3285,10 +3350,15 @@ void Gm_PlayPauseSFX(); // 0x80061658
 void Gm_PauseAllSFX(); // 0x80061a44
 void Gm_ResumeAllSFX(); // 0x80061a88
 
-// Resolves gravity at a world position: writes the unit down direction into
-// *out, returns the strength scalar (fall-acceleration). Uses the stage's
-// gravity zones (grgravity.c) if any apply, else the global StageNode gravity.
+// Gravity at a world position: the unit down direction into *out, the strength returned.
+// Gravity zones first, then the StageNode's gravity_dir / gravity_strength (0.025 and
+// (0, 1, 0) with no StageNode). The only reader of stage gravity; cameras and fog use it too.
 float Gr_GetDownVector(Vec3 *pos, Vec3 *out); // 0x800ceb18
+// Nearest gravity_point_params zone holding pos, pulling toward its GrObj.gravity_pos
+// point; 0 when there is none.
+float grGravity_GetPointZoneDown(GrObj *gr, Vec3 *pos, Vec3 *out);  // 0x800e6834
+// The same over the gravity splines at SplineNode+0x08 and gravity_spline_params.
+float grGravity_GetSplineZoneDown(GrObj *gr, Vec3 *pos, Vec3 *out); // 0x800e69b0
 
 // Puts every player camera back into its normal mode.
 void PlyCam_SetAllNormal(); // 0x800bc17c
@@ -3329,6 +3399,8 @@ void Ply_MarkLegendaryMachineAssembled(int ply, int machine_index);        // 0x
 // first), panned to the player's viewport; arg2 nonzero plays it through
 // zz_80061880_ instead. Returns 1 when it played.
 int Ply_PlayFGM(int sfx_idx, int ply, int arg2);                         // 0x80277c84
+// The dash ring jingle, Ply_PlayFGM(1, ply, 0), only while Gm_GetCityKind() is CITYKIND_CITYTRIAL.
+void Ply_PlaySkyRingSFX(int ply);                                         // 0x8027a2d0
 // The burn sound, played only when a Rail Fire station's hit lands on a machine or a rider.
 void Ply_PlayRailFireHitSFX(int ply);                                     // 0x8027aa1c
 
@@ -3356,8 +3428,9 @@ void City_SpawnMiscItems(int *desc, ...);                                // 0x80
 // elev_angle (radians) about a horizontal axis, scaled by speed. spawn_group is
 // the ItemSpawnType stored in ItemData.spawn_type. DynaBlade_ThrowItems (0x8021db44)
 // makes the one call with a hardcoded kind (bl at 0x8021ddf4): the ITKIND_ALLUP she
-// throws once, when enough damage has landed.
-void CityItem_Throw(ItemKind item_kind, int spawn_group, Vec3 *position, Vec3 *throw_dir, int item_flags, f32 elev_angle, f32 speed); // 0x80253ce4
+// throws once, when enough damage has landed. Returns the item, NULL when CityItem_Create
+// refused it.
+GOBJ *CityItem_Throw(ItemKind item_kind, int spawn_group, Vec3 *position, Vec3 *throw_dir, int item_flags, f32 elev_angle, f32 speed); // 0x80253ce4
 
 typedef struct LegendaryAssemblyParams
 {
@@ -3414,8 +3487,8 @@ void LegendaryPiece_FreeHitstopState(void *state);                      // 0x802
 void LegendaryMachine_CancelPieceHitstop(void);                         // 0x80283d70
 
 // Sky preset swap the cinematic leaves up after it finishes.
-void Sky_SetDragoonPreset(void);                                          // 0x800d5490, preset 13
-void Sky_SetHydraPreset(void);                                            // 0x800d54d8, preset 14
+void Sky_SetDragoonPreset(void);                                          // 0x800d5490, CITYSKY_GRAY_SKY
+void Sky_SetHydraPreset(void);                                            // 0x800d54d8, CITYSKY_DARK_PURPLE
 
 // The particle render pass for gx_link 26, the bucket the cinematic's models and
 // the assembling rider draw in.

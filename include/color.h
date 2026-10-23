@@ -71,5 +71,8 @@ struct ColAnimState
 int  ColAnim_Apply(ColAnimSlot *slot, ColAnimDesc *table, int index, int param); // 0x8006a3f0
 // Clears the slot: no anim, priority 0, tint and light overrides off.
 void ColAnim_Reset(ColAnimSlot *slot);                                           // 0x8006a250
+// Sets the body's lights for this draw: lobj_prev, plus lobj at light_pos tinted by
+// light_color while COLANIM_FLAG_LIGHT is set.
+void ColAnim_SetupLights(ColAnimState *ca, Mtx *model_mtx); // 0x8006a55c
 
 #endif

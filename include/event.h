@@ -44,10 +44,9 @@ static const char *const EventKind_Names[EVKIND_NUM] = {
     [EVKIND_FAKEPOWERUPS]     = "Fake Powerups",
 };
 
-// Archive root of GrCity1Event.dat. Loaded into memory whenever the player
-// enters City Trial (by fn_grSetupCityEventData, which runs regardless of the
-// CT events on/off setting), and stashed at GrData.event_config. The same
-// pointer is also stored as EventCheckData.data when events are enabled.
+// Archive root of GrCity1Event.dat (public grEventDataAllCity1). fn_grSetupCityEventData
+// loads it on entering City Trial, whatever the events setting, into GrData.event_config;
+// it is also EventCheckData.data when events are enabled.
 typedef struct EventConfigData
 {
     struct
@@ -120,7 +119,8 @@ static int *stc_event_machineformation_loadnum = (int *)(0x805dd0e0 + 0x750); //
 static GOBJ ***stc_event_formation_slots = (GOBJ ***)(0x805dd0e0 + 0x790);     // GOBJ *[5], indexed by MachineData.formation_slot
 static EventFunction (*stc_event_function)[EVKIND_NUM] = (void *)0x804a5410;
 
-// Event SIS ID lookup table, EVKIND_NUM + STKIND_NUM (40) entries. Indices 0-15 = vanilla event
+#define EVENT_SIS_ID_NUM (EVKIND_NUM + STKIND_NUM)
+// Event SIS ID lookup table, EVENT_SIS_ID_NUM (40) entries. Indices 0-15 = vanilla event
 // names, 16-39 = stadium name lookups for the prediction event (kind 10). A vanilla CObjDesc's eye
 // WObjDesc follows at 0x804a7c38, so the table cannot grow in place. Read (sign-extended to a byte)
 // by CityEvent_HudPredictionShow, CityEvent_HudPredictionThink and stadiumPrediction.
@@ -129,17 +129,40 @@ static int *stc_event_sis_id_table = (int *)0x804a7b98;
 #define EVENT_SIREN_SFX 0x130002 // siren CityEvent_Decide (0x800edcf8) plays when an event is picked
 
 // Event state handler dispatch table. 4 entries: [state0, state1, state2, state3].
-// Each is a function pointer: void (*)(EventCheckData *).
-static void (**stc_event_state_table)(EventCheckData *) = (void (**)(EventCheckData *))0x804a5604;
+typedef void (*EventStateFn)(EventCheckData *ev_chk);
+static EventStateFn *stc_event_state_table = (EventStateFn *)0x804a5604;
 void CityEvent_StateIdle(EventCheckData *ev_chk);     // 0x800ee270
 void CityEvent_StateStarting(EventCheckData *ev_chk); // 0x800ee328
 void CityEvent_StateActive(EventCheckData *ev_chk);   // 0x800ee4c0
 void CityEvent_StateCleanup(EventCheckData *ev_chk);  // 0x800ee50c
 
+// A meteor's EnemyData.variant packs a zone index (bits 0-7), a speed index
+// (bits 8-15) and an approach angle (bits 22-31) into these tables.
+typedef struct MeteorZone
+{
+    float height;     // 0x00, added to the spawn height
+    float fall_speed; // 0x04, units per frame along the fall
+    float scale;      // 0x08, the event's EventActorDesc.scale
+} MeteorZone;
+
+typedef struct MeteorSpeed
+{
+    s16 location;     // 0x00, the event's spawn location offset
+    float angle;      // 0x04, tilt from vertical in degrees; 0 falls straight down
+} MeteorSpeed;
+
+typedef struct MeteorEventData
+{
+    int x00;             // 0x00
+    MeteorSpeed *speeds; // 0x04
+    int x08;             // 0x08
+    MeteorZone *zones;   // 0x0c
+} MeteorEventData;
+
 // Meteor event globals (r13-relative), read by Meteor_BehaviorInit for zone/speed data.
-// stc_meteor_data is checked non-null as guard; stc_meteor_event_data holds zone table (+0x0C) and speed table (+0x04).
+// stc_meteor_data is checked non-null as guard; stc_meteor_event_data is a MeteorEventData.
 static volatile int *stc_meteor_data = (volatile int *)(0x805dd0e0 + 0x650);              // 0x805dd730
-static volatile int *stc_meteor_event_data = (volatile int *)(0x805dd0e0 + 0x654);        // 0x805dd734
+static MeteorEventData *volatile *stc_meteor_event_data = (MeteorEventData *volatile *)(0x805dd0e0 + 0x654); // 0x805dd734
 static volatile int *stc_meteor_spawn_count = (volatile int *)(0x805dd0e0 + 0x658);       // 0x805dd738
 
 void CityEvent_ModifyItemFallDesc(EventKind evkind); // 0x800ed784
@@ -157,6 +180,8 @@ int CityEvent_PlayStartSound(int kind);            // 0x8027a5d8, state 1's per-
 int CityEvent_GetActiveKind(void);                 // 0x800ee8c4, cur_kind while in state 2, else -1
 int CityEvent_GetCurrentKind(void);                // 0x800ee8f0, cur_kind in any state, -1 with events off
 int CityEvent_GetActiveTimer(void);                // 0x800ee910, timer while in state 2, else 0
+int CityEvent_GetTimer(EventCheckData *ev_chk);    // 0x800ee6c4, ev_chk->timer
+int CityEvent_GetDuration(EventCheckData *ev_chk); // 0x800ee6cc, cur_kind's param duration in frames
 void *CityEvent_GetInstanceData(EventCheckData *ev_chk); // 0x800ee73c, data->bgm_sky[cur_kind].event_data
 // Returns 1 while a legendary-machine (Dragoon/Hydra) assembly cinematic is
 // running. Reads GameData+0xA8C, the active assembly cinematic GObj pointer:

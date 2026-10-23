@@ -334,6 +334,7 @@ typedef enum CpuAIState
     CPUSTATE_CRUISE = 1,            // racing line, combat muted
     CPUSTATE_CRUISE_PLUS = 2,       // racing line with item/attack desires
     CPUSTATE_NAVIGATE = 3,          // City Trial city path-finding
+    CPUSTATE_DRAG_RACE = 4,         // Drag Race, on the CRUISE_PLUS handler
     CPUSTATE_ROUTE_FOLLOW = 5,      // steer at Rider_CPUScanRouteGoal's pick (inhalable enemies), no look-ahead
     CPUSTATE_ROUTE_FOLLOW_CITY = 6, // ROUTE_FOLLOW plus city objects
     CPUSTATE_CHARGE = 7,            // drive to a charge anchor and charge
@@ -354,35 +355,31 @@ typedef struct CpuData
     u8  city_kind;         // 0x0e, Gm_GetCityKind() captured at init (selects the AI profile)
     u8  stage_kind;        // 0x0f, stGetCurrentStageKind() captured at init (selects the AI profile)
     int maneuver;          // 0x10, TACTICAL maneuver (0..0x15), dispatched by Rider_ProcessCPUManeuver
-    int base_maneuver;     // 0x14, fallback maneuver a strategic state parks on (set to 1 or 2); handlers return here via `maneuver = base_maneuver`
+    int base_maneuver;     // 0x14, where a handler returns once its condition lapses: 1, 2 under RouteFollow/Attack/Patrol
     int scratch_18;        // 0x18, cleared at the top of each decide pass but never read (vestigial)
-    uint desire_flags;     // 0x1c, INHIBITOR bits (set = suppress a reaction), seeded from the status
-                           //       and cleared each decide pass. 0x100 no-ram-press, 0x200 no-avoidance,
-                           //       0x400 no-dodge/attack-scan, 0x1000000 no-charge/intercept
+    uint desire_flags;     // 0x1c, CpuDesireFlag inhibitors, reseeded each decide pass by Rider_CPUSeedDesire
     u8  suppress_timer;    // 0x20, countdown; while > 0 the perceive stage forces target_secondary = -1
     u8  x21;               // 0x21
     s16 difficulty_level;  // 0x22, AI skill level 0..8 (asserts above 8); Rider_CPUDifficultyScale scales every personality roll by it
     float random_seed;     // 0x24, per-CPU jitter seed = HSD_Randf() at Rider_CPUInit; read by route/targeting helpers
     int frame_counter;     // 0x28, ++ every perceive pass
-    u8  behavior_flags;    // 0x2c, ENABLE bits rewritten per strategic state. 0x01 opportunistic-action,
-                           //       0x02 extra-hazard-pass, 0x08 target-steer, 0x20 predictive-lead,
-                           //       0x40 rival-pursuit, 0x80 forward-lookahead (0x04/0x10 unused)
-    u8  status_flags;      // 0x2d, bit 0x02 = velocity-stuck, bit 0x04 = position-stuck (set by perceive)
-    u8  x2e;               // 0x2e
+    u8  behavior_flags;    // 0x2c, CpuBehaviorFlag, rewritten by every decider
+    u8  status_flags;      // 0x2d, CpuStatusFlag
+    u8  steer_flags;       // 0x2e, CPUSTEER_*
     u8  x2f;               // 0x2f
     u16 vel_stuck_timer;   // 0x30, frames moving too slow / against facing (anti-stuck)
     s16 maneuver_step;     // 0x32, multi-step sequencer counter (charge-stutter press/hold cycle); gated by status bit 0x02
     s16 route_scratch_34;  // 0x34, route/target scratch (init -1)
-    s16 ramcharge_phase;   // 0x36, RamCharge (maneuver 3) phase counter, read modulo-N
-    int target_primary;    // 0x38, primary nav target id (-1 = none); resolved via Rider_CPUResolveTargetPos
-    float target_lead;     // 0x3c, the target node's arc-length [0,1] position, not a predict time
-    float secondary_lead;  // 0x40, signed secondary-target lead scalar (+/-1); a sign flip clears target_secondary
-    int target_secondary;  // 0x44, secondary nav target id (-1 = none); suppressed while suppress_timer > 0
-    int target_secondary_flag; // 0x48, modifies the secondary target's lead time
+    s16 navigate_frames;   // 0x36, ++ every Navigate pass; odd 1200-frame windows steer straight at nav_target_pos
+    int target_primary;    // 0x38, CPU range the rider is on (-1 = none), from Rider_CPUUpdateNavTarget
+    float target_lead;     // 0x3c, the rider's arc-length [0,1] position along target_primary
+    float walk_dir;        // 0x40, +1 toward target_primary's end, -1 toward its start; a flip clears target_secondary
+    int target_secondary;  // 0x44, next range on the planned route (-1 = none); suppressed while suppress_timer > 0
+    int target_secondary_flag; // 0x48, its route_entries flag
     int  blocked_node_id;  // 0x4c, anti-stuck: cached unreachable nav-node id (-1 = none); set by the stuck-recovery sweep (states 3/6)
     Vec3 escape_offset;    // 0x50, anti-stuck: escape-direction offset added to position when re-pathing out of a stuck spot
-    u8  blocked_counter;   // 0x5c, consecutive-blocked counter (wraps >8) from the maneuver-feasibility probe
-    u8  path_retry_counter; // 0x5d, path-retry / stuck counter (wraps >4), states 3/6
+    u8  sharp_corner_frames; // 0x5c, Rider_CPUCheckSharpCorner's consecutive count, back to 0 after 9
+    u8  target_rank;       // 0x5d, rank of the pick Rider_CPUScanItems / Rider_CPUScanCityObjects return, 0 (best) to 4
     s16 wander_timer;      // 0x5e, Patrol (state 10) wander/oscillation countdown (init 0x4b0; reloads 900)
     Vec3 recorded_pos;     // 0x60, anti-stuck reference position (compared against pos each frame)
     int pos_stuck_timer;   // 0x6c, frames spent within range of recorded_pos (anti-stuck)
@@ -395,18 +392,18 @@ typedef struct CpuData
     void *route_goal;      // 0x94, cached highest-scored route-goal GObj* (states 5/6); 0 = none
     Vec3 route_goal_pos;   // 0x98, cached world position of route_goal
     Vec3 *nav_target_ptr;  // 0xa4, -> the steering target position (track look-ahead point), or NULL
-    void *interaction_target; // 0xa8, priority interaction target; overrides item_target in the command VM
-    void *path_point;      // 0xac, secondary path-point ptr (state 3 city look-ahead)
+    void *interaction_target; // 0xa8, Navigate: -> the Event Pillar within 300 units, else NULL; outranks item_target
+    void *path_point;      // 0xac, Navigate: -> the nearest Recovery Zone, else Lighthouse beam spot, within 400 units
     void *charge_anchor;   // 0xb0, state 7 (Charge) fixed-anchor ptr
     int  charge_anchor_id; // 0xb4, state 7 resolved anchor node id
     Vec3 nav_target_pos;   // 0xb8, resolved navigation target, copied from *nav_target_ptr (the raw target)
     Vec3 steer_target_pos; // 0xc4, what maneuvers steer toward: nav_target_pos after the city-object override
-    int  xd0;              // 0xd0, x00 of the CpuForwardTarget the arbiter picked for RamCharge/PursueLOS
-    Vec3 ramcharge_target_pos; // 0xd4, that target's position, steered at by maneuvers 3/4
-    void *xe0;             // 0xe0, current path/spline object pointer
-    u8  route_header;      // 0xe4, packed route cache header (bit7 = valid, bits 2..5 = entry count)
+    int  zone_target_id;   // 0xd0, zone of the CpuForwardTarget the arbiter picked for maneuvers 3/4
+    Vec3 zone_target_pos;  // 0xd4, that zone's position, steered at by maneuvers 3/4
+    void *xe0;             // 0xe0, LbKdColl query over GrObj.coll_tree, centered on the rider each perceive pass
+    u8  route_header;      // 0xe4, Rider_CPUPlanRoute's route: bit7 valid, bit6 the path fits, bits 2..5 entry count
     u8  xe5[3];            // 0xe5
-    struct { int id; int flag; } route_entries[5]; // 0xe8, upcoming nav-node route cache
+    struct { int id; int flag; } route_entries[5]; // 0xe8, the planned CPU ranges; flag 1 = driven end to start
     int cmd_timer;         // 0x110, command countdown; reads next opcode when it hits 0
     u8 *cmd_read_ptr;      // 0x114, command VM playback position within cmd_buffer (0 = idle)
     u8 *cmd_write_ptr;     // 0x118, where maneuver handlers append opcodes (reset to cmd_buffer each maneuver)
@@ -420,61 +417,92 @@ typedef enum CpuManeuver
     CPUMAN_COAST = 0x00,
     CPUMAN_RECOVER_FORWARD = 0x01,
     CPUMAN_STEER_TO_NAV = 0x02,
-    CPUMAN_RAM_CHARGE = 0x03,
-    CPUMAN_PURSUE_LOS = 0x04,
+    CPUMAN_ZONE_PRESS = 0x03,  // into a side-1 CpuForwardTarget, tap press on contact
+    CPUMAN_ZONE_PASS = 0x04,   // through a side-0 CpuForwardTarget, no press
     CPUMAN_APPROACH_WAYPOINT = 0x05, // 5 and 6 share a handler
     CPUMAN_APPROACH_WAYPOINT_CITY = 0x06,
     CPUMAN_CHARGE_HOLD = 0x07,
-    CPUMAN_AVOID_OBSTACLE = 0x08,
-    CPUMAN_DODGE_WEAPON = 0x09,
-    CPUMAN_CHARGE_RELEASE = 0x0a,
+    CPUMAN_FLY = 0x08,         // while the machine flies
+    CPUMAN_RAIL_RIDE = 0x09,   // while the machine is on a rail
+    CPUMAN_REVERSE_RECOVER = 0x0a,
     CPUMAN_STEER_TARGET_WIGGLE = 0x0b,
     CPUMAN_STEER_TARGET_ADVANCE = 0x0c,
-    CPUMAN_CHARGE_CENTERED = 0x0d,
+    CPUMAN_DISMOUNT = 0x0d,    // press with the stick held back
     CPUMAN_NAV_STEER = 0x0e,
     CPUMAN_NAV_STEER_TAP = 0x0f,
     CPUMAN_CHARGED_NAV_STEER = 0x10,
     CPUMAN_TAP_ONCE = 0x12,
     CPUMAN_WIGGLE = 0x13,
-    CPUMAN_BRAKE = 0x14,
+    CPUMAN_LAUNCH_CHARGE = 0x14, // hold press before GO
     CPUMAN_CHARGE_STILL = 0x15,
 } CpuManeuver;
 
 // CpuData.desire_flags inhibitors.
 typedef enum CpuDesireFlag
 {
-    CPUDESIRE_NO_RAM = 0x100,        // RamCharge's press
+    CPUDESIRE_NO_ZONE_PRESS = 0x100, // ZonePress's press
     CPUDESIRE_NO_DODGE = 0x400,      // the hazard Wiggle and Attack's spin burst
-    CPUDESIRE_NO_CHARGE = 0x1000000, // ChargeCentered
+    CPUDESIRE_NO_CHARGE = 0x1000000, // the Dismount arm and its press; seeded in Kirby statuses 0x35-0x6e
 } CpuDesireFlag;
 
-// Per-frame scratch for the rider being updated, zeroed by Rider_ProcessCPUDistance.
+// CpuData.behavior_flags. Deciders also write 0x04, 0x10 and 0x40, which nothing reads.
+typedef enum CpuBehaviorFlag
+{
+    CPUBEHAVE_OPPORTUNISTIC = 0x01, // the arbiter's ChargeHold and ZonePress/ZonePass rows
+    CPUBEHAVE_EXTRA_HAZARDS = 0x02, // Rider_CPUCollectHazards adds the weapon pass
+    CPUBEHAVE_TARGET_STEER = 0x08,  // the arbiter's SteerTargetWiggle and SteerTargetAdvance rows
+    CPUBEHAVE_BIDIRECTIONAL = 0x20, // ranges may be driven end to start
+    CPUBEHAVE_LOOKAHEAD = 0x80,     // Rider_CPUForwardLookahead scans for zones
+} CpuBehaviorFlag;
+
+// CpuData.status_flags. 0x18 is Patrol's phase, 0 toward its course points and 1 after
+// the rival, flipped every 900 frames; 0x80 is set by RouteFollowCity and never read.
+typedef enum CpuStatusFlag
+{
+    CPUSTATUS_ROUTE_VALID = 0x01,   // this frame's CpuRoute was built
+    CPUSTATUS_VEL_STUCK = 0x02,
+    CPUSTATUS_POS_STUCK = 0x04,
+    CPUSTATUS_PATROL_RIVAL = 0x08,
+    CPUSTATUS_AVOID_ENEMIES = 0x20, // enemy hazards bend steering (Cruise, CruisePlus, Navigate)
+    CPUSTATUS_SWAP_ARMED = 0x40,    // arms the Dismount row (Navigate, Charge, Reposition)
+} CpuStatusFlag;
+
+// CpuData.steer_flags. Cleared each perceive pass.
+#define CPUSTEER_ALIGNED 0x80 // Rider_CPUEmitSteerStick saw a yaw error under 5 degrees
+
+// Per-frame scratch for the rider being updated, zeroed by Rider_ProcessCPUDistance: one
+// entry per hazard within 100 units overlapping or closing on it. At most one owner is set.
 typedef struct CpuHazard
 {
-    int x00;              // 0x00
-    int x04;              // 0x04
-    int x08;              // 0x08
-    int x0c;              // 0x0c, x04..x0c all zero marks an empty entry
-    u8 x10[0x28];         // 0x10
-    float time_to_impact; // 0x38
-    u8 imminent : 1;      // 0x3c, 0x80
-    u8 x3c : 7;           // 0x3c
-    u8 x3d[3];            // 0x3d
+    EnemyData *enemy;          // 0x00
+    RiderData *rider;          // 0x04
+    struct WeaponData *weapon; // 0x08
+    MachineData *machine;      // 0x0c
+    Vec3 pos;                  // 0x10, world position of the hazard's body or hit region
+    Vec3 rel_pos;              // 0x1c, pos minus the rider's
+    Vec3 rel_vel;              // 0x28, the hazard's last displacement minus the rider's velocity
+    float radius;              // 0x34
+    float time_to_impact;      // 0x38, frames, |rel_pos| / |rel_vel| when under 10, else 10000
+    u8 imminent : 1;           // 0x3c, 0x80, time_to_impact below 10
+    u8 is_static : 1;          // 0x3c, 0x40, from Rider_CPUGetStaticHazardSpheres
+    u8 x3c : 6;                // 0x3c
+    u8 x3d[3];                 // 0x3d
 } CpuHazard;
 
 typedef struct CpuHazardList
 {
     CpuHazard entries[8]; // 0x000
     int num;              // 0x200
-    u8 x204[0xc];         // 0x204
+    Vec3 own_vel;         // 0x204, the rider's (or its machine's) velocity this frame
 } CpuHazardList;
 
 
+// A collision zone within 100 units ahead, from Rider_CPUForwardLookahead.
 typedef struct CpuForwardTarget
 {
-    int x00;  // 0x00
-    Vec3 pos; // 0x04
-    int side; // 0x10, 1 = RamCharge candidate, 0 = PursueLOS candidate
+    int zone; // 0x00, GrObj.coll zone index
+    Vec3 pos; // 0x04, Gr_GetZonePos
+    int side; // 0x10, 1 = ZonePress (dash panel, flagged yakumono zone), 0 = ZonePass (dash gate, copy panel)
 } CpuForwardTarget;
 
 typedef struct CpuForwardList
@@ -488,10 +516,91 @@ typedef struct CpuForwardList
 static CpuHazardList *stc_cpu_hazards = (CpuHazardList *)0x8055e698;      // Rider_CPUCollectHazards
 static CpuForwardList *stc_cpu_forward = (CpuForwardList *)0x8055e8b4;    // Rider_CPUForwardLookahead
 
+// One per EnemyKind, read through the Rider_CPU*Enemy* getters.
+typedef struct CpuEnemyInfo
+{
+    int kind;                    // 0x00, its EnemyKind; the getters assert on a mismatch
+    s16 copy_kind;               // 0x04, CopyKind an inhale of it grants, -1 for none
+    s16 inhale_priority;         // 0x06, Rider_CPUGetEnemyInhalePriority with damage off
+    s16 inhale_priority_damaged; // 0x08, ...and with Gm_IsDamageEnabled
+    s16 x0a;                     // 0x0a
+    float hazard_pad;            // 0x0c, added to each hit region's radius in the enemy hazard pass
+    u8 flags;                    // 0x10, CPUENEMY_*
+    u8 x11[3];                   // 0x11
+} CpuEnemyInfo;
+
+#define CPUENEMY_COUNTERABLE 0x40 // left to a held Sword, Needle, Tire or Ice ability
+
+static CpuEnemyInfo *stc_cpu_enemy_info = (CpuEnemyInfo *)0x804b8000; // [ENEMYKIND_NUM]
+
+// The free intervals across the road at one route waypoint, as fractions from 0 (right edge)
+// to 1 (left edge), less the collision zone triangles Rider_CPUBuildRouteGaps cuts out.
+typedef struct CpuRouteGap
+{
+    Vec3 right_flat; // 0x00, the right edge point with Y zeroed
+    Vec3 left_flat;  // 0x0c
+    float lo[16];    // 0x18
+    float hi[16];    // 0x58
+    int num;         // 0x98
+} CpuRouteGap;
+
+// The look-ahead route Cruise, CruisePlus, Navigate and RouteFollowCity rebuild each frame:
+// four road cross-sections one hop apart along the CPU ranges, starting at the rider.
+typedef struct CpuRoute
+{
+    int shape;          // 0x00, 1 straight, 2/3 turn, 4/5 sharp turn, 6/7 S-bend; even bends left, odd right
+    float side[4];      // 0x04, per waypoint, the bend side: -1 left, +1 right, 0 straight
+    Vec3 point[4];      // 0x14, what Rider_CPUGetRouteDir steers at: mid, shifted by Rider_CPUPlaceRouteLateral
+    Vec3 mid[4];        // 0x44, the road center
+    Vec3 left[4];       // 0x74, on Spline_GetForward
+    Vec3 right[4];      // 0xa4, on Spline_GetBackward
+    Vec3 seg_dir[3];    // 0xd4, unit mid[i] -> mid[i + 1]
+    Vec3 seg_up[3];     // 0xf8, unit road up of each segment
+    CpuRouteGap gap[3]; // 0x11c, at waypoints 1-3
+} CpuRoute;
+
+static CpuRoute *stc_cpu_route = (CpuRoute *)0x8055e964;
+// Rider_ProcessCPUDistance's copies of the rider's CpuMachineSteer values, for the route code.
+static float *stc_cpu_align_cos_near = (float *)0x8055e68c;
+static float *stc_cpu_align_cos_far = (float *)0x8055e690;
+static float *stc_cpu_stuck_angle = (float *)0x8055e694;
+// The race nav target of Cruise, CruisePlus, Charge and Reposition: 200 units out along the
+// course spline's chord from RiderData.track_arc_pos to 40 units ahead.
+static Vec3 *stc_cpu_cruise_nav_point = (Vec3 *)0x8055de80;
+// The HP ratio under which the arbiter's ApproachWaypoint row sends a city CPU to path_point.
+static float *stc_cpu_heal_hp_ratio = (float *)0x805e3190;
+
+// A super jump or jump zone, listed once per scene by Rider_CPUBuildJumpZoneTable.
+typedef struct CpuJumpZone
+{
+    int zone;             // 0x00, GrObj.coll zone index
+    u8 is_super_jump : 1; // 0x04, 0x80
+    u8 x04 : 7;           // 0x04
+    u8 x05[3];            // 0x05
+    Vec3 pos;             // 0x08, Gr_GetZonePos
+} CpuJumpZone;
+
+static CpuJumpZone **stc_cpu_jump_zones = (CpuJumpZone **)0x8055de20;
+static u8 *stc_cpu_jump_zone_num = (u8 *)0x8055de1d;
+// CPU range of each city machine spawn slot (-1 = unknown); Navigate refreshes one slot a frame.
+static int *stc_cpu_machine_slot_range = (int *)0x8055de24; // [23]
+
+// Per CPU level, the stick_x nudge step and cap Rider_CPUEmitSteerStick stays within.
+typedef struct CpuSteerEnvelope
+{
+    s16 step; // 0x00
+    s16 cap;  // 0x02
+} CpuSteerEnvelope;
+
+static CpuSteerEnvelope *stc_cpu_steer_envelope = (CpuSteerEnvelope *)0x804b7f54; // [9]
+// Rider_CPUEmitFlySteer's pitch thresholds {57.2958, -57.2958}. They are compared against a
+// radian error, so the fly maneuver never pitches unless it is avoiding a hazard.
+static float *stc_cpu_fly_pitch_deadzone = (float *)0x805e3160; // [2]
+
 typedef enum CpuMachineCapFlag
 {
     CPUMACHCAP_SKIP_PASSAGE_BRANCH = 0x08, // Machine Passage: no preferred route branch
-    CPUMACHCAP_RAM_CHARGE = 0x10,
+    CPUMACHCAP_RAM_CHARGE = 0x10,          // Rider_CPUManeuverRailRide charges near a rail end or junction
     CPUMACHCAP_CHARGE_HOLD = 0x20,
     CPUMACHCAP_BRAKE = 0x40,               // at difficulty > 3; CHARGE_HOLD needs it too
     CPUMACHCAP_SWAP = 0x80,                // may leave this machine for a better field machine
@@ -517,7 +626,7 @@ typedef struct CpuMachineSteer
     float align_cos_near; // 0x04, heading dot above this needs no correction
     float align_cos_far;  // 0x08, ...below this, the larger one
     float turn_tolerance; // 0x0c, radians, Rider_CPUEmitSteer
-    float stuck_angle;    // 0x10, radians past which Rider_CPUTrackStuckProgress counts the rider stuck
+    float stuck_angle;    // 0x10, radians; a route turn past this counts toward Rider_CPUCheckSharpCorner
 } CpuMachineSteer;
 
 // One per MachineKind, 25 entries, for the Air Glider and High Jump stadiums.
@@ -610,9 +719,7 @@ typedef struct RiderData
     float rider_scale;                    // 0x2c4, PlayerData.rider_scale at spawn
     float x2c8;                           // 0x2c8, rider_scale copied by Rider_InitWalk; Trigger_Init's scale
     int is_airborne;                      // 0x2cc, off the machine: the ground probe missed
-    int x2d0;                             // 0x2d0
-    int x2d4;                             // 0x2d4
-    int x2d8;                             // 0x2d8
+    Vec3 accel;                           // 0x2d0, added to self_vel each frame off the machine; zeroed at priority 0
     Vec3 self_vel;                        // 0x2dc
     int x2e8;                             // 0x2e8
     int x2ec;                             // 0x2ec
@@ -634,7 +741,7 @@ typedef struct RiderData
     int x354;                             // 0x354
     int x358;                             // 0x358
     int x35c;                             // 0x35c
-    int x360;                             // 0x360
+    float knockback_decay;                // 0x360, knockback_vel magnitude lost per frame (Rider_DecayKnockback)
     int x364;                             // 0x364
     int x368;                             // 0x368
     int x36c;                             // 0x36c
@@ -707,20 +814,15 @@ typedef struct RiderData
     int x468;                  // 0x468
     int x46c;                  // 0x46c
     int x470;                  // 0x470
-    int track_spline_id;       // 0x474, course path/spline id (-1 = none); the CPU brain samples a
-                               //        look-ahead point along it for navigation
-    int x478;                  // 0x478
-    float track_arc_pos;       // 0x47c, arc-length position along track_spline_id; the CPU brain offsets
-                               //        from this for its steering look-ahead
-    int x480;                  // 0x480
-    int x484;                  // 0x484
-    int x488;                  // 0x488
-    int x48c;                  // 0x48c
-    int x490;                  // 0x490
-    int x494;                  // 0x494
-    int x498;                  // 0x498
+    // Course progress: the ridden machine's respawn_pos, or on foot the rider's own lookup.
+    int track_spline_id;       // 0x474, course piece (Gr_GetCourseSpline id), -1 = none
+    float lap_fraction;        // 0x478, position along the lap, 0-1
+    float track_arc_pos;       // 0x47c, arc-length position along the piece, 0-1
+    float gravity_strength;    // 0x480, Gr_GetDownVector at pos, refreshed by Rider_RefreshGravity
+    Vec3 gravity_down;         // 0x484, unit down at pos
+    Vec3 gravity_up;           // 0x490, -gravity_down
     int x49c;                  // 0x49c
-    int x4a0;                  // 0x4a0
+    float hit_stun_scale;      // 0x4a0, scales the hit stun of the rider and its machine; set by Speed Help
     int x4a4;                  // 0x4a4
     int x4a8;                  // 0x4a8
     int x4ac;                  // 0x4ac
@@ -745,39 +847,11 @@ typedef struct RiderData
     int x4f8;                  // 0x4f8
     int x4fc;                  // 0x4fc
     int x500;                  // 0x500
-    int x504;                  // 0x504
-    int x508;                  // 0x508
-    int x50c;                  // 0x50c
-    int x510;                  // 0x510
-    int x514;                  // 0x514
-    int x518;                  // 0x518
-    int x51c;                  // 0x51c
-    int x520;                  // 0x520
-    int x524;                  // 0x524
-    int x528;                  // 0x528
-    int x52c;                  // 0x52c
-    int x530;                  // 0x530
-    int x534;                  // 0x534
-    int x538;                  // 0x538
-    int x53c;                  // 0x53c
-    int x540;                  // 0x540
-    int x544;                  // 0x544
-    int x548;                  // 0x548
-    int x54c;                  // 0x54c
-    int x550;                  // 0x550
-    int x554;                  // 0x554
-    int x558;                  // 0x558
-    int x55c;                  // 0x55c
-    int x560;                  // 0x560
-    int x564;                  // 0x564
-    int x568;                  // 0x568
-    int x56c;                  // 0x56c
-    int x570;                  // 0x570
-    int x574;                  // 0x574
-    int x578;                  // 0x578
-    int x57c;                  // 0x57c
-    int x580;                  // 0x580
-    int x584;                  // 0x584
+    // Timed stat items, one slot per group: 0 Offense/Defense Max, 1 Speed Max/Min, 2 Charge
+    // Max/None. Machine_GivePatchOrCandy fills a slot; it clears when its timer runs out.
+    int timed_boost_kind[3];   // 0x504, the ItemKind, 0 = none
+    int timed_boost_caps[3][9];// 0x510, per-stat cap points, as in MachineData.statcap_a/b/c
+    int timed_boost_timer[3];  // 0x57c, frames left
     int candy_duration;        // 0x588
     int x58c;                  // 0x58c
     int patch_drop_cooldown;   // 0x590, per-spawn cooldown, reset to RiderCommonParam.patch_drop_cooldown_init
@@ -792,7 +866,7 @@ typedef struct RiderData
     int allups_dropped;        // 0x5a4, all-ups extracted by Rider_DropPatches, capped at the sum of the
                                //        Hydra and Dragoon collections
     int x5a8;                  // 0x5a8
-    int x5ac;                  // 0x5ac
+    float walk_speed_max;      // 0x5ac, the walk physics clamps |self_vel + accel| to this
     int x5b0;                  // 0x5b0
     int x5b4;                  // 0x5b4
     int x5b8;                  // 0x5b8
@@ -801,9 +875,7 @@ typedef struct RiderData
     int x5c4;                  // 0x5c4
     int x5c8;                  // 0x5c8
     int x5cc;                  // 0x5cc
-    int x5d0;                  // 0x5d0
-    int x5d4;                  // 0x5d4
-    int x5d8;                  // 0x5d8
+    Vec3 knockback_vel;        // 0x5d0, added to pos off the machine, shrinks by knockback_decay
     int x5dc;                  // 0x5dc
     int x5e0;                  // 0x5e0
     int x5e4;                  // 0x5e4
@@ -813,17 +885,13 @@ typedef struct RiderData
     int x5f4;                  // 0x5f4
     int x5f8;                  // 0x5f8
     int x5fc;                  // 0x5fc
-    int x600;                  // 0x600
-    int x604;                  // 0x604
-    int x608;                  // 0x608
+    Vec3 platform_disp;        // 0x600, moving-platform carry; zeroed at priority 0, added to pos off the machine
     int x60c;                  // 0x60c
     int x610;                  // 0x610
     int x614;                  // 0x614
     int x618;                  // 0x618
     int x61c;                  // 0x61c
-    int x620;                  // 0x620
-    int x624;                  // 0x624
-    int x628;                  // 0x628
+    Vec3 platform_rot_disp;    // 0x620, moving-platform rotation carry; zeroed at priority 0
     int x62c;                  // 0x62c
     int x630;                  // 0x630
     int x634;                  // 0x634
@@ -915,7 +983,7 @@ typedef struct RiderData
     u8 x824_02 : 1;                     // 0x824, 0x02
     u8 x824_01 : 1;                     // 0x824, 0x01
     u8 x825_80 : 1;                     // 0x825, 0x80
-    u8 x825_40 : 1;                     // 0x825, 0x40, set by Rider_RoundStart
+    u8 round_started : 1;               // 0x825, 0x40, set by Rider_RoundStart at GO
     u8 x825_20 : 1;                     // 0x825, 0x20
     u8 x825_10 : 1;                     // 0x825, 0x10
     u8 x825_0f : 4;                     // 0x825, 0x0f
@@ -1073,7 +1141,8 @@ typedef struct RiderData
     int xa24;                           // 0xa24
     int xa28;                           // 0xa28
     int xa2c;                           // 0xa2c
-    int xa30;                           // 0xa30
+    u8 xa30;                            // 0xa30, flags; RIDER_XA30_COPY_WHEEL
+    u8 xa31[3];                         // 0xa31
     int xa34;                           // 0xa34
     int xa38;                           // 0xa38, quick-spin scratch, cleared on RiderState_QuickSpinEnter
     int xa3c;                           // 0xa3c
@@ -1196,29 +1265,142 @@ void Rider_CPUDecideAttack(RiderData *rd);          // 0x802735dc, state 8
 void Rider_CPUDecideReposition(RiderData *rd);      // 0x80273228, state 9
 void Rider_CPUDecidePatrol(RiderData *rd);          // 0x80273b48, state 10
 void Rider_CPUProcessCmd(RiderData *rd);  // 0x80275cbc, plays the command stream into the virtual pad (CpuData stick/buttons)
+// Rider_CPUProcessCmd's opcodes; any other byte asserts.
+typedef enum CpuCmdOp
+{
+    CPUCMD_PRESS = 1,
+    CPUCMD_RELEASE = 2,
+    CPUCMD_RELEASE_ALL = 100,
+    CPUCMD_STOP = 127,
+    CPUCMD_STICK_X = 128,      // s8 value
+    CPUCMD_STICK_Y = 129,      // s8 value
+    CPUCMD_PRESS_HOLD = 150,   // u8 frames
+    CPUCMD_RELEASE_HOLD = 151, // u8 frames
+    CPUCMD_WAIT = 180,         // u8 frames
+    CPUCMD_STICK_X_ADD = 190,  // s8 delta, s8 cap
+    CPUCMD_STICK_X_STEP = 192, // s8 step, s8 target
+} CpuCmdOp;
+// Resets cmd_write_ptr to cmd_buffer and pushes CPUCMD_RELEASE.
+void Rider_CPUBeginCmdStream(RiderData *rd);                 // 0x80275f9c
+// Append an opcode and its arguments at cmd_write_ptr; assert past the end of cmd_buffer.
+void Rider_CPUPushCmd1(RiderData *rd, int op);               // 0x80275fcc
+void Rider_CPUPushCmd2(RiderData *rd, int op, int arg);      // 0x80276050
+void Rider_CPUPushCmd3(RiderData *rd, int op, int a, int b); // 0x80276118
 // The maneuver chooser: a priority cascade gated by behavior/desire flags,
 // committing CpuData.maneuver.
 void Rider_CPUArbitrateManeuver(RiderData *rd); // 0x80274ec0
-// Builds the look-ahead waypoint route into scratch 0x8055e964, returning 0 if
-// the route is invalid. Does not pick the maneuver.
-int  Rider_CPUBuildRoute(RiderData *rd, void *route_scratch, uint *flags_out); // 0x8026a734
+// CpuManeuver handlers, the 22-entry table at 0x804b79b8. Each appends its command
+// stream, or returns maneuver to base_maneuver when its condition has lapsed.
+void Rider_CPUManeuverCoast(RiderData *rd);               // 0x8026c0a0, 0 and 0x11
+void Rider_CPUManeuverRecoverForward(RiderData *rd);      // 0x8026dd4c, 1
+void Rider_CPUManeuverSteerToNav(RiderData *rd);          // 0x8026de68, 2
+void Rider_CPUManeuverZonePress(RiderData *rd);           // 0x8026e448, 3; moving backward -> 0xa
+void Rider_CPUManeuverZonePass(RiderData *rd);            // 0x8026e97c, 4
+void Rider_CPUManeuverApproachWaypoint(RiderData *rd);    // 0x8026ee7c, 5 and 6
+void Rider_CPUManeuverChargeHold(RiderData *rd);          // 0x8026ed4c, 7
+void Rider_CPUManeuverFly(RiderData *rd);                 // 0x8026fbe0, 8
+void Rider_CPUManeuverRailRide(RiderData *rd);            // 0x8026fe7c, 9
+void Rider_CPUManeuverReverseRecover(RiderData *rd);      // 0x8026f00c, 0xa
+void Rider_CPUManeuverSteerTargetWiggle(RiderData *rd);   // 0x80270154, 0xb
+void Rider_CPUManeuverSteerTargetAdvance(RiderData *rd);  // 0x802704c4, 0xc
+void Rider_CPUManeuverDismount(RiderData *rd);            // 0x80270758, 0xd
+void Rider_CPUManeuverNavSteer(RiderData *rd);            // 0x80270bac, 0xe
+void Rider_CPUManeuverNavSteerTap(RiderData *rd);         // 0x80270e64, 0xf
+void Rider_CPUManeuverChargedNavSteer(RiderData *rd);     // 0x802711d8, 0x10
+void Rider_CPUManeuverTapOnce(RiderData *rd);             // 0x802715a8, 0x12
+void Rider_CPUManeuverWiggle(RiderData *rd);              // 0x802715e0, 0x13
+void Rider_CPUManeuverLaunchCharge(RiderData *rd);        // 0x802707c4, 0x14
+void Rider_CPUManeuverChargeStill(RiderData *rd);         // 0x80270850, 0x15
+// The arbiter's inhale check: writes up to 3 inhalable actors' EnemyData in the rider's
+// inhale region to out, nearest first, leaving the rest untouched.
+void Rider_CPUScanInhaleTargets(RiderData *rd, void **out); // 0x8026cfec
+// Builds the look-ahead route (stc_cpu_route), returning 0 if it is invalid. Does not pick
+// the maneuver.
+int  Rider_CPUBuildRoute(RiderData *rd, CpuRoute *route, uint *flags_out); // 0x8026a734
 void Rider_CPUUpdateNavTarget(RiderData *rd); // 0x8026b6d0, nearest-node spatial query -> assigns CpuData.target_primary (+0x38) + arc (+0x3c)
 // ORs inhibitor bits into CpuData.desire_flags from the rider's status.
 void Rider_CPUSeedDesire(RiderData *rd);  // 0x802762dc
 // Target-selection scans, filling CpuData's target fields each frame.
-void  Rider_CPURivalSelect(RiderData *rd);        // 0x80264210, scores 5 slots -> rival_ply (+0x70); shared by states 1/2/4/8/10
+// Attack and Patrol only: scores the 5 player slots by distance, ability and humanity into
+// rival_ply (+0x70). With damage on, a rider below full HP scores 1 more (5 while
+// Gm_GetDededeHPMargin < -0.15, outside Patrol); in Vs. King Dedede only Dedede scores.
+void  Rider_CPURivalSelect(RiderData *rd);        // 0x80264210
 // Ranks the top 5 items within radius of center by Rider_CPUGetItemScore plus
-// distance bands and returns the path_retry_counter'th; the caller stores it to
+// distance bands and returns the target_rank'th; the caller stores it to
 // item_target (+0x74) (states 3/8). A non-NULL facing adds 5 to items off its axis.
 GOBJ *Rider_CPUScanItems(RiderData *rd, Vec3 *center, Vec3 *facing, float radius); // 0x80263c4c
 GOBJ *Rider_CPUScanCityObjects(RiderData *rd, Vec3 *center, float radius); // 0x802638a4, top-5 ranked city-object scan -> city_object (+0x84) (state 3)
 void  Rider_CPUScanRouteGoal(RiderData *rd);      // 0x80263fd0, single-best route-goal scan -> route_goal (+0x94) (states 5/6)
-void  Rider_CPUSelectChargeAnchor(RiderData *rd); // 0x80263610, resolves charge anchor -> charge_anchor (+0xb0/+0xb4) (state 7)
-void  Rider_CPUBlendRoutePoints(RiderData *rd, void *route_scratch); // 0x80267238, blends item/interaction/path-point positions into the route
+// State 7: a random Target Flight target for charge_anchor_id, -1 for none.
+int   Rider_CPUSelectChargeAnchor(RiderData *rd); // 0x80263610
+// Shifts CpuRoute.point[1..3] toward the side the route bends, up to (0.5 * difficulty scale
+// + 0.4) of the half-width, snapped into a free CpuRouteGap. Skipped on target_secondary.
+void  Rider_CPUPlaceRouteLateral(RiderData *rd, CpuRoute *route); // 0x80267238
+// Sets CpuRoute.shape and side from the segment turn angles, against
+// stc_cpu_align_cos_near (turn) and stc_cpu_align_cos_far (sharp turn).
+void  Rider_CPUClassifyRoute(CpuRoute *route); // 0x80266584
+// Fills each CpuRoute.gap with [0, 1] less the nearby collision zones, narrows gap 0 by
+// difficulty and drops intervals under 1 unit. Does nothing when clip is 0.
+void  Rider_CPUBuildRouteGaps(RiderData *rd, CpuRoute *route, int clip); // 0x80267a4c
+// Cuts the span where triangle v0 v1 v2 crosses the gap's right-left line out of gap,
+// splitting an interval when needed (16 at most).
+void  Rider_CPUClipRouteGap(CpuRouteGap *gap, Vec3 *v0, Vec3 *v1, Vec3 *v2); // 0x80267748
+// The fraction along b0 -> b1 nearest the line a0 -> a1; 0 when they are parallel.
+int   Rider_CPULineCrossParam(Vec3 *a0, Vec3 *a1, Vec3 *b0, Vec3 *b1, float *t); // 0x80266d04
+// Normalizes in into out and returns the length; under 1e-5 returns 0 and leaves out alone.
+// A component at +/-1 snaps out to that axis.
+float Rider_CPUVecNormalize(Vec3 *in, Vec3 *out); // 0x80262fdc
+// 1, with the nearest along, when pos is on the range's road: within 5 units of its surface
+// and edges, between its ends.
+int   Rider_CPUIsPosOnRange(int range, Vec3 *pos, float *along); // 0x8026b3a8
+// The point 100 units along range's center line from along, toward the end the planned
+// route or nav_target_pos favors.
+void  Rider_CPUResolveTargetPos(RiderData *rd, int range, Vec3 *out, float along); // 0x80263120
+// On-foot steering for the NavSteer maneuvers: a fixed per-stage direction when no city_object
+// is found, else straight at nav_target_pos within 10 units, else along the route.
+void  Rider_CPUSelectFootTarget(RiderData *rd, Vec3 *out_dir); // 0x802708a0
+// Navigate's path-finding, re-run every frame: fills route_entries with the shorter path to
+// goal's range off either end of start_range.
+void  Rider_CPUPlanRoute(RiderData *rd, int start_range, float start_along, Vec3 *goal); // 0x80265d28
+// Nearest range whose left, right or center line passes within 5 units of pos's height,
+// retrying pos shifted 20 units along X and Z. Returns 0 when none qualifies.
+int   Rider_CPUFindGoalRange(RiderData *rd, Vec3 *pos, int *range, float *along); // 0x80264eb4
+// {start_range, start_flag} then the ranges of grRangeSpline_FindPath(from_point, to_point),
+// up to 5 entries. Returns the path's length along the center lines.
+float Rider_CPUBuildRangePath(void *route, int start_range, int start_flag, int from_point,
+                              int goal_range, int to_point); // 0x80265b44
+// Sorts a junction's exit ranges best first toward nav_target_pos, the goal's range or the
+// preferred fork on top; drops reversed exits without CPUBEHAVE_BIDIRECTIONAL. Returns the count.
+int   Rider_CPURankJunctionExits(RiderData *rd, int *ranges, int *flags, int count); // 0x80264510
+// Per-course preferred exits (Sky Sands, Celestial Valley, and Machine Passage unless
+// CPUMACHCAP_SKIP_PASSAGE_BRANCH): returns 1 and the first listed range found among ranges.
+int   Rider_CPUGetPreferredFork(RiderData *rd, int *ranges, int count, int *out); // 0x80277194
+// Kirby Melee 2 only: the range of the floor region containing pos, else -1.
+int   Rider_CPUMelee2RegionSpline(Vec3 *pos); // 0x80277394
+// Fills stc_cpu_jump_zones once per scene from the stage's super jump and jump zones.
+void  Rider_CPUBuildJumpZoneTable(void); // 0x80262c00
+// Direction to the first usable route waypoint from index start (0-2), else to steer_target_pos
+// or nav_target_pos. In the city, odd navigate_frames windows skip the route.
+void  Rider_CPUGetRouteDir(RiderData *rd, Vec3 *out, int start); // 0x8026c100
 // Perception (fill the per-frame scratch buffers).
-void  Rider_CPUCollectHazards(RiderData *rd);     // 0x80269928, hazard/threat list -> scratch 0x8055e698 (behavior bit 0x02 adds a 5th pass)
-void  Rider_CPUCollectRiderHazards(RiderData *rd, CpuHazardList *list, Vec3 *pos, Vec3 *arg3, float f1); // 0x80268234, hazard pass 1: rider bodies + hurt-volumes
-int   Rider_CPUForwardLookahead(RiderData *rd, CpuForwardList *list); // 0x80269f10, forward-collision list (behavior bit 0x80 gates it)
+// Fills stc_cpu_hazards from the passes below in order, stopping once one fills the list,
+// then sets each entry's time_to_impact. Skipped while the rider has no horizontal velocity.
+void  Rider_CPUCollectHazards(RiderData *rd);     // 0x80269928
+// The passes. radius is the rider's largest hurt region; each returns 0 once the list is full.
+// Riders: bodies and hurt regions.
+int   Rider_CPUCollectRiderHazards(RiderData *rd, CpuHazardList *list, Vec3 *pos, Vec3 *vel, float radius); // 0x80268234
+// Machines: a radius-4 body per filled spawn slot plus hit regions, except its own and city_object.
+int   Rider_CPUCollectMachineHazards(RiderData *rd, CpuHazardList *list, Vec3 *pos, Vec3 *vel, float radius); // 0x80268808
+// Static spheres from Rider_CPUGetStaticHazardSpheres scaled by the stage scale, tagged is_static.
+int   Rider_CPUCollectStaticHazards(RiderData *rd, CpuHazardList *list, Vec3 *pos, Vec3 *vel, float radius); // 0x802695ec
+// Enemies' hit regions grown by Rider_CPUGetEnemyHazardPad, skipping Rider_CPUIsEnemyIgnored.
+int   Rider_CPUCollectEnemyHazards(RiderData *rd, CpuHazardList *list, Vec3 *pos, Vec3 *vel, float radius); // 0x802691ec
+// Weapons' hit regions, skipping the rider's own; only with CPUBEHAVE_EXTRA_HAZARDS.
+int   Rider_CPUCollectWeaponHazards(RiderData *rd, CpuHazardList *list, Vec3 *pos, Vec3 *vel, float radius); // 0x80268e24
+// Retail stub: *out = NULL, returns 0. The caller reads {x, y, z, radius} records in stage units.
+int   Rider_CPUGetStaticHazardSpheres(float **out); // 0x80277104
+// Zones within 100 units ahead, static then moving, into list; gated by CPUBEHAVE_LOOKAHEAD.
+int   Rider_CPUForwardLookahead(RiderData *rd, CpuForwardList *list); // 0x80269f10
 void  Rider_CPUForwardLookaheadSetup(RiderData *rd); // 0x8026a498, wrapper: builds the basis then calls Rider_CPUForwardLookahead
 typedef int (*CpuRouteStep)(int node);
 // Advances along the spline graph from start into out, both {node_id, along, side}.
@@ -1227,13 +1409,30 @@ int   Rider_CPUWalkRoute(RiderData *rd, void *start, void *out, CpuRouteStep ste
 // Steering / command emission.
 void  Rider_CPUEmitSteer(RiderData *rd, Vec3 *desired_dir);      // 0x8026d6a0, projects + avoidance-bends a heading, emits steering opcodes
 void  Rider_CPUEmitSteerStick(RiderData *rd, Vec3 *desired_dir); // 0x8026c4ec, yaw error -> opcode 190 nudge / 192 ramp (stick_x), 129 (stick_y)
-void  Rider_CPUResolveAvoidVector(RiderData *rd, Vec3 *dir, float f1); // 0x8026d1fc, rotates a heading off the nearest imminent hazard
+int   Rider_CPUResolveAvoidVector(RiderData *rd, Vec3 *dir, float f1); // 0x8026d1fc, rotates a heading off the nearest imminent hazard; non-zero when it did
+// Fly maneuver steering; its pitch thresholds (stc_cpu_fly_pitch_deadzone) only fire when avoiding.
+void  Rider_CPUEmitFlySteer(RiderData *rd, Vec3 *dir, int avoiding); // 0x8026f0e4
 void  Rider_CPUEmitAbilityAction(RiderData *rd);  // 0x80273d1c, post-maneuver copy-ability press emitter
 void  Rider_CPUTerminateCmdStream(RiderData *rd); // 0x80276228, caps the per-maneuver command stream (opcode 0x7f), arms the VM
 int   Rider_CPUEmitChargeStutter(RiderData *rd);  // 0x8026da40, velocity-stuck charge-pump (press -> hold-20 -> hold-40); returns 1 if it emitted
-void  Rider_CPUTrackStuckProgress(RiderData *rd); // 0x8026ccec, ticks the stuck counter (+0x5c) vs the machine's max-turn tolerance
+// 1 on the 9th consecutive frame at speed >= 0.6076 with a sharp-turn route or one turning past
+// CpuMachineSteer.stuck_angle; gates the sharp-corner ChargeHold.
+int   Rider_CPUCheckSharpCorner(RiderData *rd);   // 0x8026ccec
 // Difficulty / envelope getters.
+#define CPU_LEVEL_MAX 8 // CpuData.difficulty_level and Ply_GetCpuLevel run 0..8
 float Rider_CPUDifficultyScale(RiderData *rd);    // 0x80276f00, difficulty_level / 8, clamped to [0, 1]
+float Rider_CPUInvDifficultyScale(RiderData *rd); // 0x80276f7c, 1 - Rider_CPUDifficultyScale
+// Item scan filters: item state 3 or later, and kinds flagged 0x20 in the score table (boxes).
+int   Rider_CPUIsItemCollectable(ItemData *id);   // 0x802767cc
+int   Rider_CPUItemNeedsBreak(int kind);          // 0x802767f8
+// The kind's CPUENEMY_COUNTERABLE; the arbiter leaves such a hazard to a Sword, Needle, Tire
+// or Ice ability.
+int   Rider_CPUIsHazardCounterable(EnemyData *ed); // 0x8027655c
+// Kinds 0x48-0x4a, and any enemy in common state 1-10.
+int   Rider_CPUIsEnemyIgnored(EnemyData *ed);          // 0x80276348
+int   Rider_CPUGetEnemyCopyKind(EnemyData *ed);        // 0x802763a8, CpuEnemyInfo.copy_kind
+int   Rider_CPUGetEnemyInhalePriority(EnemyData *ed);  // 0x8027641c, by Gm_IsDamageEnabled
+int   Rider_CPUGetEnemyHazardPad(EnemyData *ed);       // 0x802764dc, hazard_pad truncated to int
 // ItemKind desirability from the table at 0x804b862c; below 1 means ignore. Food
 // is multiplied by 20 or 10 while the machine is low on HP.
 int   Rider_CPUGetItemScore(RiderData *rd, int kind); // 0x802768a8
@@ -1264,6 +1463,9 @@ int  Rider_GetCPUButtons(RiderData *rd);  // 0x80275cb0
 int  Rider_GetCPUStickX(RiderData *rd);   // 0x80275c90, stick_x truncated to s8
 int  Rider_GetCPUStickY(RiderData *rd);   // 0x80275ca0, stick_y truncated to s8
 void RiderGObj_InputThink(GOBJ *gobj);    // 0x8018ee28, rider proc: selects effective input (human / CPU / replay)
+// 1 while RiderData+0x822 bit 0x20 or +0x821 bit 0x01 is set, freezing the rider's input at
+// last frame's values.
+int  Rider_CheckNoUpdateInputs(RiderData *rd); // 0x8019ec30
 
 void RiderState_RespawnEnter(RiderData *); // 0x801a1d70
 // Tears the rider's current machine down and recreates rider plus machine on
@@ -1312,7 +1514,7 @@ void RiderState_GetOnStarEnter(GOBJ *machine_gobj, RiderData *rd); // 0x801ba054
 // Neutral riding status (RDSTATE_RUN). Last resort of the interrupt chain.
 void RiderState_StarWaitEnter(RiderData *); // 0x801ab1a0
 // The round's GO for one rider, from Ply_RoundStartAll: nothing on foot
-// (RDSTATE_FREEMOVE), otherwise Rider_KindRoundStart, then sets x825_40.
+// (RDSTATE_FREEMOVE), otherwise Rider_KindRoundStart, then sets round_started.
 void Rider_RoundStart(GOBJ *rider_gobj); // 0x80191c38
 void Rider_KindRoundStart(RiderData *rd); // 0x8019f850, RiderKindDesc.round_start if set
 // Each kind's RiderKindDesc.round_start: RDSTATE_READY enters RiderState_StarWaitEnter and
@@ -1333,6 +1535,10 @@ void RiderState_LoseAbilityEnter(RiderData *); // 0x801b0adc
 void Rider_GiveIntangibility(RiderData *, int time); // 0x80195f68
 void Rider_GiveInvincibility(RiderData *, int time); // 0x80195f28
 int RiderGObj_GetPly(GOBJ *gobj); // 0x8019203c
+void RiderGObj_SetHitStunScale(GOBJ *rider_gobj, float scale); // 0x8019206c, RiderData.hit_stun_scale; no-op on foot
+// Rider_UpdateHitColl's machine contact pass: boards a touched machine when allowed, else
+// pushes the rider off it.
+void Rider_CheckMachineBoarding(RiderData *rd); // 0x8019ef24
 HurtData *RiderGObj_GetHurtData(GOBJ *rider_gobj); // 0x80192788
 u8 RiderGObj_GetTeam(GOBJ *gobj); // 0x80191f68, RiderData.team
 void RiderGObj_AddHomingTracker(GOBJ *rider_gobj, void *tracker, void *cb); // 0x801922b0, onto homing_trackers
@@ -1340,6 +1546,45 @@ void RiderGObj_RemoveHomingTracker(GOBJ *rider_gobj, void *tracker);        // 0
 // The rider counterpart of Weapon_AssignStateFlags, on the attack block at rd+0x794.
 void Rider_AssignAttackLog(RiderData *rd, int attack_log); // 0x801a2048
 int Rider_IsOnMachine(RiderData *); // 0x80191680
+// City Trial stat sync. Push copies the rider's stats into its machine and the slot's
+// stat_aux on boarding and respawn; Pull copies the machine's back to the rider and slot.
+void Rider_PushStatsToMachine(RiderData *rd);   // 0x80193e78
+void Rider_PullStatsFromMachine(RiderData *rd); // 0x80191374
+// Off the machine Rider_Phys (0x8018f4e8, priority 4) moves pos by self_vel + accel, which the
+// walk physics steers and clamps to walk_speed_max, then by knockback_vel and the platform
+// displacements. An outside push belongs in knockback_vel, or platform_disp at priority 1-3.
+void Rider_ResetMotion(RiderData *rd);         // 0x80190708
+void Rider_ClearFrameAccel(RiderData *rd);     // 0x80190760, priority 0
+void Rider_ClearPlatformDisp(RiderData *rd);   // 0x801907bc, priority 0
+void Rider_DecayKnockback(RiderData *rd);      // 0x80199d9c
+void Rider_UpdatePlatformCarry(RiderData *rd); // 0x8019ab94
+// SphereCast_Ground along -up, or against the ground normal when follow_ground and grounded.
+// Fills cur_ground_tri and its ground type (47 on a miss); 1 on a hit.
+int Rider_ProbeGround(RiderData *rd, int follow_ground, float dist); // 0x8019a660
+// Gr_GetDownVector at pos into the gravity fields, every frame on or off the machine.
+void Rider_RefreshGravity(RiderData *rd); // 0x801916fc
+// Off the machine in the air: accel = gravity_down * (0.025 + rd+0x370), not the stage's
+// strength. During AS_Jump2 (xa40 0x08) the air drift overwrites self_vel's X and Z.
+void Rider_ApplyFallAccel(RiderData *rd); // 0x801a2818
+// Walk and dash steering toward the held stick, with up forced to world Y whatever gravity
+// says, so a walking rider only stands on floors near world-up.
+void Rider_WalkTurn(float turn_rate, float scale, RiderData *rd); // 0x801a2168
+// forward/left/up from forward and up (up normalized first, forward re-orthogonalized).
+void Rider_UpdateGroundedMovementVectors(RiderData *rd, Vec3 *forward, Vec3 *up); // 0x801907e8
+void Rider_GetGroundNormal(RiderData *rd, Vec3 *out); // 0x8019a588, cur_ground_tri's normal
+// Places the rider at *pos, applies the model matrix, refreshes gravity and sets the basis.
+void Rider_SetTransform(RiderData *rd, Vec3 *pos, Vec3 *forward, Vec3 *up); // 0x801a31a0
+void Rider_UpdateShadow(RiderData *rd); // 0x80195848, SimpleShadow ray along gravity_down
+// The rider's Machine_SetupHitReaction: zeroes motion and sets knockback_vel from hit.
+void Rider_SetupHitReaction(RiderData *rd, void *hit); // 0x801a3704
+int Rider_CheckWaterGround(RiderData *rd);             // 0x801a2cec, standing on water (AS_Land's splash test)
+// Off the machine: a kind-0x19 zone or leaving the out-of-bounds box enters fall death
+// (state 0x18). Outside CITYKIND_DERBY, Respawner_Update then eliminates the player.
+int Rider_CheckFallDeath(RiderData *rd);                                   // 0x801a305c
+void Rider_SetFallDead(RiderData *rd, int ground_handle, int *checkpoint); // 0x801a3388
+// Plays a RumbleKind on the rider's pad for duration frames (0 = once, -1 = forever) when
+// the player's rumble option is on.
+void Rider_TriggerRumble(GOBJ *rider_gobj, int kind, int duration); // 0x80192110
 int Rider_IsMachineAirborne(RiderData *);   // 0x80194120, MachineGObj_IsAirborne of the ridden machine; no NULL check
 int Rider_IsMachineDead(RiderData *);       // 0x801943e4, can only be called between the RDPRI_HITCOLL and RDPRI_DMGAPPLY priority.
 // Enqueues a stat-patch drop event; Rider_TickDropPatches drains it per frame.
@@ -1368,6 +1613,7 @@ void Ply_MarkCopyAbilityObtained(int ply, int copy_kind); // 0x8022f150
 int randomAbility_giveAbility(RiderData *, int kind); // 0x801a61d4, gives copy ability from copy chance wheel (no unable/queue check)
 // Initializes the copy wheel at a starting ability, setting copy_wheel_ability_list and index.
 void Rider_StartCopyWheel(RiderData *rd, int copy_kind); // 0x801ae550
+#define RIDER_XA30_COPY_WHEEL 0x04 // RiderData.xa30: the copy wheel is spinning, until randomAbility_aPress
 // Picks a random starting ability and starts the wheel; returns 1 if it started.
 int Rider_StartRandomCopyWheel(RiderData *rd); // 0x801ae4ec
 int RiderGObj_GiveRandomAbility(GOBJ *gobj); // 0x80191fb8, GOBJ wrapper for Rider_StartRandomCopyWheel
@@ -1399,7 +1645,8 @@ int  Rider_CanStartInhale(RiderData *rd);     // 0x801a617c
 void Rider_TryStartInhale(RiderData *rd);     // 0x8019c5ac
 // Per-frame scan of the EventActor bucket, capturing up to 3 a frame (list cap 10).
 void Rider_InhaleCaptureScan(RiderData *rd);  // 0x8019c63c
-// Candidate predicate: EventActor enemies only. Items and yakumono never pass.
+// Candidate predicate: EventActor enemies only, rejecting Gordo, kinds 0x48 and up, an
+// actor already captured and one with rendering disabled.
 int  EventActorGObj_IsInhalable(GOBJ *cand);  // 0x802041c8
 // RDSTATE_SPIT after inhaling an enemy with no ability. Installs the anim callback,
 // which fires Rider_SpawnStarBullet(rd, flag) when the motion script raises +0x818 bit 7.
@@ -1480,6 +1727,11 @@ void RiderGObj_GetForward(GOBJ *gobj, Vec3 *out);     // 0x80191ef8, forward
 void RiderGObj_GetUp(GOBJ *gobj, Vec3 *out);          // 0x80191f18, up
 
 void RiderGObj_SetCandyTimer(GOBJ *gobj, int duration); // 0x801929a4, stores candy_duration and plays SFX 47
+int  RiderGObj_GetCandyTimer(GOBJ *gobj);               // 0x801929d8, candy_duration
+// {track_spline_id, lap_fraction, track_arc_pos}, the triple Ply_GetCourseProgress returns.
+void RiderGObj_GetCourseProgress(GOBJ *gobj, void *out); // 0x80192084
+// RiderData+0x826 bit 0x40: out of the race; Game_Think then sets GameData.player_out.
+int  RiderGObj_IsOut(GOBJ *gobj); // 0x801926e4
 
 AudioEmitter Rider_AllocAudioEmitter(void); // 0x8005dbc8
 

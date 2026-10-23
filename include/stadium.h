@@ -87,7 +87,7 @@ typedef enum StadiumGroup
 // distance (1/8/11/16).
 typedef struct StadiumResults
 {
-    u8 ply_placement[4];   // 0xbc8, from GameData.player_finish_rank; 0 = 1st
+    u8 ply_placement[4];   // 0xbc8, from GameData.player_rank; 0 = 1st
     u8 ply_finished[4];    // 0xbcc, from GameData.player_finished_flag; crossed the goal
     int ply_race_time[4];  // 0xbd0, from GameData.player_finish_time; frames @60fps, 0 = DNF
     int ply_freerun_time[4]; // 0xbe0, from GameData.player_best_lap_time

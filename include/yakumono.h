@@ -54,6 +54,7 @@ typedef enum YakuKind
     YAKUKIND_ANIMFLOOR        = 54,
     YAKUKIND_LASERGATE        = 57,
     YAKUKIND_LASERGATECTRL    = 58,
+    YAKUKIND_LAVADRAGON       = 61, // the volcano's leaping lava dragons; Magma Flows' flaming dragons
     YAKUKIND_RAILFIRE         = 65, // the Rail Fire stations; nothing else creates one
     YAKUKIND_SECRETCHAMBER    = 66, // created only by the Secret Chamber event
     YAKUKIND_UFO              = 67,
@@ -144,8 +145,8 @@ typedef struct YakumonoData
     Vec3 pos;               // 0x1c - position
     u8 x28[0x18];           // 0x28..0x3f
     u8 x40[0x24];           // 0x40..0x63 - local transform scratch
-    void *model_jobj;       // 0x64 - model JObj root
-    u8 x68[8];              // 0x68..0x6f
+    void *parts;            // 0x64 - grparts joint table (8-byte entries) from GrYaku_AllocJObj, not a JObj
+    u8 x68[8];              // 0x68..0x6f - the grparts block's two other arrays
     void *xform_jobj;       // 0x70 - transform JObj whose world matrix (+0x44) is copied into
                             //        the GObj render object. NULL for City Trial break-family
                             //        props (their geometry lives in the stage model by joint
@@ -244,9 +245,102 @@ GOBJ *GrYaku_Create(YakuKind kind, int data_idx);                              /
 // pool, so spawning an entry more often than the table lists it asserts in grcoll.c.
 GOBJ *GrYaku_CreateSpawn(YakuKind kind, int spawn_idx);                        // 0x800f48cc
 
+typedef struct YakuCannonDesc
+{
+    int id;            // 0x00, matched against a catch zone's target_ids
+    int joint;         // 0x04, barrel stage joint: launch position, Z forward, Y up
+    int wait;          // 0x08, frames a queued machine sits in the barrel before launch
+    int cooldown;      // 0x0c, frames after a launch before the next one
+    int path_idx;      // 0x10, flight AnimJoint index into GrSubAnimNode.cannon
+    int sfx;           // 0x14, FGM id the machine plays at launch
+} YakuCannonDesc;
+
+// A cannon has no model of its own. Its emitter sits at desc->joint and plays only for enemies.
+typedef struct YakuCannonParam
+{
+    YakuCannonDesc *desc; // 0x00
+    void *x04[4];         // 0x04, the model gates; NULL
+    void *audio_desc;     // 0x14, NULL for no emitter
+} YakuCannonParam;
+
+typedef struct YakuLavaDragonDesc
+{
+    int joint;            // 0x00, root stage joint; the body is the next six
+    int splash_joint[2];  // 0x04, bones of the lava splash mesh
+    int motion;           // 0x0c, GrData.motion index of the leaps
+    int splash_motion[2]; // 0x10
+    float anim_rate;      // 0x18
+    int idle_min;         // 0x1c, idle frames between leaps; 0 loops the motion
+    int idle_max;         // 0x20
+} YakuLavaDragonDesc;
+
+// A lava dragon is stage joints, with no model of its own. Its motion's event script arms
+// two attack regions on the head and neck joints.
+typedef struct YakuLavaDragonParam
+{
+    YakuLavaDragonDesc *desc; // 0x00
+    void *x04[4];             // 0x04, the model gates; NULL
+    void *audio_desc;         // 0x14
+} YakuLavaDragonParam;
+
+// Creator (YAKUKIND_LAVADRAGON). Hardcodes the kind, so grobj_unused is ignored.
+void GrYakuLavaDragon_Create(GrObj *grobj_unused, int data_idx); // 0x80109db4
+// Audio setup, then GrYakuLavaDragon_EnterIdle.
+void GrYakuLavaDragon_Init(GOBJ *yaku_gobj);       // 0x80109dec
+// State 0 with an idle timer rolled between idle_min and idle_max.
+void GrYakuLavaDragon_EnterIdle(GOBJ *yaku_gobj);  // 0x80109ee4
+// State 0 anim_callback: counts the timer down, then state 1 plays the leap.
+void GrYakuLavaDragon_IdleThink(GOBJ *yaku_gobj);  // 0x80109fec
+// State 1 anim_callback: roar and splash sounds, then back to idle when the motion ends.
+void GrYakuLavaDragon_LeapThink(GOBJ *yaku_gobj);  // 0x8010a0ec
+
+// A cannon's YakumonoData+0x130: a ring of GObjs (machines or enemies) waiting to launch.
+typedef struct YakuCannonQueue
+{
+    struct
+    {
+        GOBJ *gobj;
+        int timer;     // starts at desc->wait
+    } entry[10];       // 0x130
+    int head;          // 0x180
+    int tail;          // 0x184
+    int cooldown;      // 0x188, frames left in state 1
+} YakuCannonQueue;
+
+// A YAKUKIND_CATCHZONE's param x0. It hands a machine inside the kind-18 zone on joint to
+// the first live target_kind yakumono whose id is listed.
+typedef struct YakuCatchZoneDesc
+{
+    int joint;            // 0x00
+    int *target_ids;      // 0x04
+    int target_num;       // 0x08
+    YakuKind target_kind; // 0x0c, a gondola or YAKUKIND_CANNON
+} YakuCatchZoneDesc;
+
+void GrYakuCatchZone_Create(GrObj *grobj, int data_idx);                       // 0x800fa2a0
+void GrYakuCatchZone_TailInit(GOBJ *yaku_gobj, GrObj *grobj);                  // 0x800fa2d8
+// The zone's target yakumono, or NULL. A cannon target also enqueues gobj.
+GOBJ *GrYakuCatchZone_GetTarget(int zone, GOBJ *gobj);                         // 0x800fa3c0
+
 // Cannon creator (YAKUKIND_CANNON). Hardcodes the kind, so grobj_unused is ignored.
 void GrYakuCannon_Create(GrObj *grobj_unused, int data_idx);                   // 0x800fed20
+// Machine Passage's props: its catch zone (data_idx 0), the cannon (1), then the rest.
+void grDataMachine2_CreateYakumono(GrObj *grobj);                              // 0x8010ea40
 void GrYakuCannon_TailInit(GOBJ *yaku_gobj);                                   // 0x800fed48
+void GrYakuCannon_EnterIdle(GOBJ *yaku_gobj);                                  // 0x800fee00, state 0
+// Both count every queued timer down. In state 0 the first expired entry launches along
+// GrSubAnimNode.cannon[desc->path_idx] from wherever it is, then state 1 cools down.
+void GrYakuCannon_State0(GOBJ *yaku_gobj);                                     // 0x800fee40
+void GrYakuCannon_State1(GOBJ *yaku_gobj);                                     // 0x800ff010
+// Appends gobj; when full, refuses an enemy (returns 0) and evicts an enemy for a machine.
+// A queued GObj must outlive its launch.
+int GrYakuCannon_Enqueue(GOBJ *yaku_gobj, GOBJ *gobj);                         // 0x800ff220
+// World position, forward (Z) and up (Y) of desc->joint.
+void GrYakuCannon_GetPose(GOBJ *yaku_gobj, Vec3 *pos, Vec3 *fwd, Vec3 *up);    // 0x800ff3e4
+// *out = GrSubAnimNode.cannon[desc->path_idx]; the slot must be non-NULL.
+void GrYakuCannon_GetPath(GOBJ *yaku_gobj, void **out);                        // 0x800ff44c
+// Swaps a queued GObj for its replacement (a rebuilt machine); asserts if it is not queued.
+void GrYakuCannon_ReplaceQueued(GOBJ *yaku_gobj, GOBJ *old_gobj, GOBJ *new_gobj); // 0x800ff480
 
 void YakumonoGObj_InitData(GOBJ *yaku_gobj, YakuKind kind, void *data_ptr);   // 0x800f4d50
 
@@ -256,6 +350,20 @@ HurtData *YakumonoGObj_GetHurtData(GOBJ *yaku_gobj);                           /
 YakuKind YakumonoGObj_GetKind(GOBJ *yaku_gobj);                                // 0x800f7a64
 // Returns ydata->state, or -1 if gobj is not a yakumono.
 int YakumonoGObj_GetState(GOBJ *yaku_gobj);                                    // 0x800f7ab8
+// World position of the yakumono's model root joint.
+void YakumonoGObj_GetWorldPos(GOBJ *yaku_gobj, Vec3 *out);                    // 0x800f7ad8
+
+// City yakumono lookups the CPU Navigate profile reads, each wrapping the per-kind one
+// below it. All return 1 when they wrote out.
+// The Event Pillar's position while it is in state 1-3 or 5.
+int CityEventPillar_GetPos(Vec3 *out);                                         // 0x800f7e10
+int GrYakuEventPillar_GetPos(Vec3 *out);                                       // 0x80102464
+// The nearest Recovery Zone to pos in state 0 or 1.
+int CityRecoveryZone_FindNearest(Vec3 *pos, Vec3 *out);                        // 0x800f7e30
+int GrYakuRecoveryZone_FindNearest(Vec3 *pos, Vec3 *out);                      // 0x800fb4e0
+// With the Lighthouse lit (state 3), the beam landing spot nearest pos.
+int CityLighthouse_FindBeamSpot(Vec3 *pos, Vec3 *out);                         // 0x800f7e50
+int Lighthouse_FindBeamSpot(Vec3 *pos, Vec3 *out);                             // 0x8010d9c0
 
 // Registered automatically by GrYaku_Create; declared for hooking.
 void YakumonoGObj_Think(GOBJ *yaku_gobj);                                      // 0x800f5284 (priority 1)
@@ -343,8 +451,14 @@ int  GrYakuBreakHouse_DropItems(GOBJ *yaku_gobj, CollData *other, GrCollParam *g
                                 int tri_idx, Vec3 *contact);                   // 0x80102794
 // on_damage_callback of the placed BreakCoral kinds (BREAKCORAL, 28, STARPOLE).
 void GrYakuBreakCoral_DropItems(GOBJ *yaku_gobj, void *dmg);                  // 0x801040fc
+// The BreakCoral kinds' broken-state anim callback: destroys the GObj once the break
+// effects end. Its record and joint stay, hidden, for the rest of the round.
+void GrYakuBreakCoral_BrokenThink(GOBJ *yaku_gobj);                           // 0x80103db4
 
 // Per-instance creators: create one yakumono and run its kind-specific tail-init.
+// City Trial's star pole (data_idx 30). Only the star is the prop, its record kept at
+// YakumonoData+0x130; one threshold hit retires it and hides the joint for the round.
+void GrYakuStarPole_Create(GOBJ *stage_gobj, int data_idx);  // 0x801043c8
 void Lighthouse_Create(GrObj *grobj, int data_idx);  // 0x8010d228 (YAKUKIND_LIGHTHOUSE)
 void Lighthouse_Init(GOBJ *yaku_gobj);               // 0x8010d260
 
@@ -357,9 +471,31 @@ static GOBJ **stc_lighthouse_gobj = (GOBJ **)(0x805dd0e0 + 0x670);
 // position minus its normalized world Y axis times beam_len.
 int CityLighthouse_InBeam(Vec3 *pos, Vec3 *origin, Vec3 *end, float slope, float base); // 0x8010d910
 
+// A model block as a stage archive stores one: the root joint and the tree's counts.
+typedef struct GrYakuModel
+{
+    JOBJDesc *root; // 0x00
+    int joint_num;  // 0x04
+    int dobj_num;   // 0x08
+    int pobj_num;   // 0x0c
+    void *bounding; // 0x10, the per-camera cull bounds
+} GrYakuModel;
+
+// The UFO's parameter block, spawn_data_array[*(int *)bgm_sky[EVKIND_UFO].event_data]. Listed
+// once, so only one UFO yakumono can ever spawn. The saucer is 643 units across at scale 1.
+typedef struct YakuUFOParam
+{
+    void *desc;                            // 0x00, flight paths, lights and the item ring
+    GrYakuModel **model;                   // 0x04
+    struct GrModelMotionAnim *motion;      // 0x08, [0] the spin, looping; [1] and [2] material only
+    struct GrCollisionNode *coll;          // 0x0c, a landable disc on its roof
+    void *x10;                             // 0x10, NULL: no attack regions
+    void *audio_desc;                      // 0x14
+} YakuUFOParam;
+
 // YAKUKIND_UFO's five states, {anim, phys, 0, 0} each in its state table at 0x804a7390.
-// Every anim callback drops its state's ring of items: slot 0 a hardcoded ITKIND_ALLUP,
-// the rest CityItem_GetEventItem(EVDROP_UFO).
+// Each flight drops one ring of items, latched at YakumonoData+0x144: slot 0 a hardcoded
+// ITKIND_ALLUP, the rest CityItem_GetEventItem(EVDROP_UFO).
 void CityUFO_State0Think(GOBJ *gobj); // 0x8010b024
 void CityUFO_State1Think(GOBJ *gobj); // 0x8010b714
 void CityUFO_State2Think(GOBJ *gobj); // 0x8010be88
@@ -401,10 +537,23 @@ static inline YakumonoData *Yaku_GetData(GOBJ *gobj)
     return (YakumonoData *)gobj->userdata;
 }
 
+// The launch queue a cannon (YAKUKIND_CANNON) keeps in its YakumonoData tail.
+static inline YakuCannonQueue *YakuCannon_GetQueue(GOBJ *yaku_gobj)
+{
+    return (YakuCannonQueue *)&Yaku_GetData(yaku_gobj)->region_audio_arr;
+}
+
 static inline void *Yaku_GetDescCollFunc(YakuKind kind)
 {
     YakuDesc *desc = stc_yaku_descs[kind];
     return desc ? desc->coll_func : (void *)0;
+}
+
+// The families that break through hitWeakObject: coral, trees and rocks.
+static inline int Yaku_IsWeakFamily(GOBJ *yaku_gobj)
+{
+    YakumonoData *yd = Yaku_GetData(yaku_gobj);
+    return yd != (YakumonoData *)0 && Yaku_GetDescCollFunc(yd->kind) == (void *)hitWeakObject;
 }
 
 #endif // KAR_H_YAKUMONO

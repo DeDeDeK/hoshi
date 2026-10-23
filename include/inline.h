@@ -809,6 +809,18 @@ static int RandomInRange(int min, int max)
     return min + HSD_Randi(max - min + 1);
 }
 
+// Uniform in [lo, hi).
+static inline float RandomInRangef(float lo, float hi)
+{
+    return lerp(lo, hi, HSD_Randf());
+}
+
+// Uniform in [0, 2 pi) radians.
+static inline float RandomAngle(void)
+{
+    return HSD_Randf() * 2.0f * M_PI;
+}
+
 // Fisher-Yates over `count` elements of `size` bytes each, one HSD_Randi per swap.
 static inline void RandomShuffle(void *arr, int count, int size)
 {
@@ -892,14 +904,20 @@ static inline void GX_BeginXlu(COBJ *cam, int render_flags, GXBlendFactor dst)
     GXLoadPosMtxImm(&cam->view_mtx, GX_PNMTX0);
 }
 
-// A camera's view matrix is the rigid world->view transform [R | t]. Its first two
-// rows are the camera's right and up axes in world space, and the eye is -R^T t, so
-// every split-screen viewport faces its own billboards.
+// A camera's view matrix is the rigid world->view transform [R | t]. Its rows are
+// the camera's right, up and back axes in world space (the view looks down -Z), and
+// the eye is -R^T t, so every split-screen viewport faces its own billboards.
 static inline void COBJ_GetViewAxes(COBJ *cam, Vec3 *right, Vec3 *up)
 {
     float (*m)[4] = cam->view_mtx;
     *right = (Vec3){ m[0][0], m[0][1], m[0][2] };
     *up = (Vec3){ m[1][0], m[1][1], m[1][2] };
+}
+
+static inline void COBJ_GetViewForward(COBJ *cam, Vec3 *out)
+{
+    float (*m)[4] = cam->view_mtx;
+    *out = (Vec3){ -m[2][0], -m[2][1], -m[2][2] };
 }
 
 static inline void COBJ_GetViewEye(COBJ *cam, Vec3 *out)
@@ -925,7 +943,7 @@ static void GX_DrawLine(Vec3 *start, Vec3 *end, u8 width, GXColor *color)
 {
     HSD_StateInitDirect(GX_VTXFMT0, 2);
     GXLoadPosMtxImm(&COBJ_GetCurrent()->view_mtx, GX_PNMTX0);
-    GXSetLineWidth(width, 5);
+    GXSetLineWidth(width, GX_TO_ONE);
     GXBegin(GX_LINES, GX_VTXFMT0, 2);
 
     // draw line
@@ -934,7 +952,7 @@ static void GX_DrawLine(Vec3 *start, Vec3 *end, u8 width, GXColor *color)
     GXPosition3f32(end->X, end->Y, end->Z);
     GXColor4u8(color->r, color->g, color->b, color->a);
 
-    HSD_StateInvalidate(-1);
+    HSD_StateInvalidate(HSD_STATE_ALL);
 }
 
 static void GX_DrawRect(Vec3 *bl, Vec3 *tr, GXColor *color)
@@ -967,7 +985,7 @@ static void GX_DrawRect(Vec3 *bl, Vec3 *tr, GXColor *color)
     GXPosition3f32(bl->X, tr->Y, bl->Z);
     GXColor4u8(color->r, color->g, color->b, color->a);
 
-    HSD_StateInvalidate(-1);
+    HSD_StateInvalidate(HSD_STATE_ALL);
 }
 
 static void GX_DrawBox(Vec3 *center, Vec3 *size, GXColor *color)
@@ -1090,7 +1108,7 @@ static void GX_DrawBox(Vec3 *center, Vec3 *size, GXColor *color)
     GXPosition3f32(x0, y1, z1);
     GXColor4u8(color->r, color->g, color->b, color->a);
 
-    HSD_StateInvalidate(-1);
+    HSD_StateInvalidate(HSD_STATE_ALL);
 }
 
 struct OSAlarmData
@@ -1146,6 +1164,96 @@ static char* SOInetNtoP(int af, void* src, char* dst, u32 len) {
     }
 
     return NULL;
+}
+
+// The yakumono GObjs whose kind passes `pred`, up to `max`.
+static inline int Yaku_CollectGObjs(int (*pred)(YakuKind kind), GOBJ **out, int max)
+{
+    int n = 0;
+    for (GOBJ *g = (*stc_gobj_lookup)[GAMEPLINK_YAKUMONO]; g != NULL && n < max; g = g->next)
+    {
+        if (pred(Yaku_GetData(g)->kind))
+            out[n++] = g;
+    }
+    return n;
+}
+
+// Matches by pointer only: a record's yaku_gobj means nothing outside the break
+// families, so it is never dereferenced.
+static inline int Gr_IsRecordOwnedBy(GrCollRecord *record, GOBJ **owners, int num)
+{
+    if (record->yaku_gobj == NULL)
+        return 0;
+    for (int i = 0; i < num; i++)
+    {
+        if (owners[i] == record->yaku_gobj)
+            return 1;
+    }
+    return 0;
+}
+
+// Breaks a placed prop in one hit through its family's own coll_func, so debris, item
+// drops, SFX and break credit all follow. `attacker` is the GObj credited; NULL credits
+// the first present player. Returns 1 if it broke; a break that does not fire leaves the
+// record collidable.
+static inline int Gr_BreakInstance(GrCollRecord *record, GOBJ *attacker)
+{
+    GrCollParam *gcp = Gr_GetCollParam();
+    GOBJ *yaku_gobj = record->yaku_gobj;
+    int base_idx = Gr_GetRecordTriIndex(record);
+    if (gcp == NULL || yaku_gobj == NULL || base_idx < 0)
+        return 0;
+
+    // A record with no triangles has none to contact.
+    GrCollTri *tris = Gr_GetCollTris();
+    int tri_idx = -1;
+    Vec3 n_unit;
+    for (int k = 0; k < record->tri_num; k++)
+    {
+        Vec3 n = tris[base_idx + k].normal;
+        if (VECSquareMag(&n) > 1.0e-6f)
+        {
+            VECNormalize(&n, &n_unit);
+            tri_idx = base_idx + k;
+            break;
+        }
+    }
+    if (tri_idx < 0)
+        return 0;
+
+    // The family's "still collidable?" guard has to pass.
+    grScene_SetInstanceColl(record, 1);
+
+    // Break force is radius * impact_speed^2, the speed being the delta into the normal.
+    // contact_tri_id -1 is "no BigStar contact", which destroyBigStar lets through.
+    mpCollInfo coll_info;
+    CollData coll;
+    memset(&coll_info, 0, sizeof(coll_info));
+    memset(&coll, 0, sizeof(coll));
+    coll_info.contact_tri_id = -1;
+    coll.g = attacker;
+    coll.coll_info = &coll_info;
+    coll.radius = 1.0e9f;
+    VECScale(&n_unit, &coll.pos_delta, -100.0f);
+
+    // The moving-record impact path would rewrite the delta from the prop's matrices.
+    GrCollTri *tri = &tris[tri_idx];
+    u32 tri_flags = tri->flags;
+    tri->flags = tri_flags & ~(u32)GRCOLL_FLAG_MOVING;
+
+    Vec3 contact;
+    Mtx_GetTrans(record->world, &contact);
+    collideWithObject(yaku_gobj, &coll, gcp, tri_idx, &contact);
+    tri->flags = tri_flags;
+
+    if (grScene_IsInstanceCollAll(record, 1))
+        return 0;
+
+    // A weak-family break leaves the intact mesh drawn until the joint drops back to
+    // its degenerate SRT.
+    if (record->jobj != NULL && Yaku_IsWeakFamily(yaku_gobj))
+        JObj_ClearFlags(record->jobj, JOBJ_USER_DEFINED_MTX);
+    return 1;
 }
 
 // Spawns an item at ply's machine and, except for fake patches, collects it at once

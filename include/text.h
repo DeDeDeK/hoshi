@@ -500,6 +500,9 @@ static COBJDesc *stc_text_cobjdesc = (COBJDesc *)0x805096a0; // ortho 640x480 ca
 static HSD_Archive **stc_sis_archives = (HSD_Archive **)0x8059a848; // array of 5 sis file archive pointers
 static SISEntry **stc_sis_data = (SISEntry **)0x8059a85c;           // root tables of the 5 loaded sis files, indexed by sis_id
 
+// Entries in SisCitytrial.dat's root table, which every 3D scene loads into sis_id 0.
+#define SIS_CITYTRIAL_NUM 42
+
 // One character as SIS text at p: a space or newline as its command, anything else as its
 // two-byte glyph code, nothing for a character the font has no code for. Returns the
 // position past it, or NULL when it would run past end.

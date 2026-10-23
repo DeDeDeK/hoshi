@@ -29,6 +29,16 @@
 typedef enum BGMKind
 {
     BGM_LEGENDARYAIRRIDEMACHINE = 42,
+    BGM_EVENT_FOG = 45,
+    BGM_EVENT_GORDO,
+    BGM_EVENT_ITEMBOUND,
+    BGM_EVENT_KYOSEKI,
+    BGM_EVENT_METEO,
+    BGM_EVENT_MONSTER,
+    BGM_EVENT_STATIONFIRE,
+    BGM_EVENT_SUPERCHARGE,
+    BGM_EVENT_SYOUKINKUBI,
+    BGM_EVENT_TOUDAI,
     BGM_MENU = 60,
     BGM_NUM = 69,
 } BGMKind;
@@ -44,6 +54,13 @@ typedef enum FGM_Menu
     FGMMENU_CS_DOOR_CLOSE,
     FGMMENU_CS_START_OK,
 } FGM_Menu;
+
+// City Trial's stage bank, loaded only in City Trial.
+typedef enum FGM_City
+{
+    FGMCITY_SJUMP_L = 0x120017,
+    FGMCITY_DASHRING = 0x120019, // the whoosh of a dash ring zone
+} FGM_City;
 
 typedef enum AudioEmitterKind
 {

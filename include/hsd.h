@@ -402,10 +402,30 @@ void _hsdClassDestroy(void *hsd_class); // 0x80420b60, base class destroy, retur
 void HSD_ImageDescCopyFromEFB(_HSD_ImageDesc *image_desc, int left, int top, int clear_efb, int sync); // 0x803f7a7c, must be called from a cobj callback! sync runs GXPixModeSync and GXInvalidateTexAll after the copy
 void HSD_StartRender(int unk); // 0x80410544
 void EngineSpeed_Update(u64 ticks); // 0x80062874, engine frame duration in OS ticks, normal speed is bus_clock / 240
+#define HSD_STATE_ALL -1
 void HSD_StateInvalidate(int flags); // 0x803f898c
 void HSD_StateInitTev(); // 0x803f9028
+int HSD_StateAssignTev(void); // 0x803f903c - the next free GXTevStageID
 void HSD_StateInitDirect(GXVtxFmt vtxfmt, int render_flags); // 0x8040e390
-void HSD_SetupChannel(void *unk); // 0x803f8a6c
+// One color channel's settings. HSD_SetupChannel skips whatever its cache says GX holds.
+typedef struct HSD_Chan
+{
+    struct HSD_Chan *next; // 0x00
+    GXChannelID chan;      // 0x04
+    u32 flags;             // 0x08
+    GXColor amb_color;     // 0x0C
+    GXColor mat_color;     // 0x10
+    u8 enable;             // 0x14
+    GXColorSrc amb_src;    // 0x18
+    GXColorSrc mat_src;    // 0x1C
+    GXLightID light_mask;  // 0x20
+    GXDiffuseFn diff_fn;   // 0x24
+    GXAttnFn attn_fn;      // 0x28
+} HSD_Chan;
+void HSD_SetupChannel(HSD_Chan *chan); // 0x803f8a6c
+void HSD_DisableChannel(GXChannelID chan); // 0x803f8e10, through the channel cache
+// Color channels for a material's rendermode; an unlit one gets COLOR0A0 alone.
+void HSD_SetupChannelMode(u32 rendermode); // 0x803f7d44
 void HSD_StateSetColorUpdate(GXBool update_enable); // 0x803f876c, enables or disables EFB color-buffer updates
 void HSD_StateSetAlphaUpdate(GXBool update_enable); // 0x803f87b4, enables or disables EFB alpha-buffer updates
 void HSD_StateSetDstAlpha(GXBool enable, u8 alpha); // 0x803f87fc
@@ -438,7 +458,36 @@ u64 Pad_GetDown(int pad); // 0x8000ecf0
 u64 Pad_GetRepeat(int pad); // 0x8000ed10, presses plus held auto-repeat; menus move cursors with it
 u64 Pad_GetRapidHeld(int pad); // 0x8000ed30
 u64 Pad_GetHeld(int pad); // 0x8000ecd0
-void Pad_StartRumble(int pad, int unk, int kind, int duration); // 0x80071d00, make unk = 0
+// One lbRumbleData row from LbRumble.dat. Its script is u16 commands: the op in the top 3
+// bits (0 end, 1 motor on, 2 stop, 3 hard stop, 4 loop count, 5 loop back), an operand below.
+typedef struct LbRumbleDesc
+{
+    u16 *script; // 0x00
+    u8 priority; // 0x04
+} LbRumbleDesc;
+static LbRumbleDesc **stc_lb_rumble_data = (LbRumbleDesc **)0x805dd5c8;
+
+// lbRumbleData rows. The motor is only on or off, so strength is the duty cycle.
+typedef enum RumbleKind
+{
+    RUMBLE_KIND_TAP = 0,         // 4 frames on, priority 3
+    RUMBLE_KIND_LIGHT = 1,       // 2 on 4 off, priority 3
+    RUMBLE_KIND_SHORT = 3,       // 12 on, priority 3
+    RUMBLE_KIND_MEDIUM = 4,      // 20 on, priority 4
+    RUMBLE_KIND_CONTINUOUS = 5,  // always on, priority 10, masks every other kind
+    RUMBLE_KIND_FADE = 6,        // about 150 frames of thinning pulses, priority 2
+    RUMBLE_KIND_FULL = 7,        // always on, priority 5
+    RUMBLE_KIND_FAINT = 8,       // 2 on 8 off, priority 5
+    RUMBLE_KIND_STRONG = 10,     // 3 on 1 off, priority 5
+} RumbleKind;
+
+// Queues a rumble tagged with id (rider rumbles use 2). duration 0 plays the script
+// once, N loops it for N frames, -1 forever. Ignores the player's rumble option.
+void Pad_StartRumble(int pad, u32 id, RumbleKind kind, int duration); // 0x80071d00
+void Pad_StopRumble(int pad);                                         // 0x80071d48, drops every queued rumble
+// The highest-priority live rumble on a pad drives its motor.
+void HSD_PadRumbleActiveId(int pad, u32 id, int frames, int priority, void *script); // 0x804148d0
+void HSD_PadRumbleRemoveId(int pad, u32 id);                                         // 0x80414694
 void HSD_DumpClassStat(void *class_info, int recursive, int level); // 0x804213a4, OSReports class object counts, class_info 0 dumps from the root class
 void HSD_ObjDumpStat();                       // 0x804106a0
 HSD_ObjAllocData *HSD_IDGetAllocData(); // 0x8041a53c

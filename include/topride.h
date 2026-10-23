@@ -110,6 +110,9 @@ typedef struct TopRideKirby
     TopRideChargeComponent charge;      // 0x80, inline charge component
 } TopRideKirby;
 
+#define TOPRIDE_SLOT_NUM 4
+#define TOPRIDE_CPU_LEVEL_MAX 4 // TopRideCpuInputReader.difficulty, the lobby's CPU Level 5
+
 // Top Ride input is polymorphic: every kirby holds an input_reader at
 // TopRideKirby+0x48. Human slots get a pad reader (vtable 0x804d25e0), CPU slots
 // this one (vtable 0x804d8710). Each frame the reader is polled via vt[0x14],
@@ -118,8 +121,8 @@ typedef struct TopRideKirby
 //
 // Difficulty comes from the per-slot config byte GameData[slot*9 + 0xD23]
 // (TopRide_SetHandicap) and scales steering gain, reaction frames (60->0 across
-// levels 0->4), and commit thresholds through the per-level tables at
-// 0x804d80d0 / 0x804d8058 / 0x804d80bc. A ~0x80-byte object; gaps are scratch.
+// levels 0->4), and commit thresholds through TopRideCpuLevelParams. A ~0x80-byte
+// object; gaps are scratch.
 typedef struct TopRideCpuInputReader
 {
     void *vtable;            // 0x00, 0x804d8710 (CPU); human readers use 0x804d25e0
@@ -145,6 +148,23 @@ typedef struct TopRideCpuInputReader
     int  lowspeed_frames;    // 0x70, frames spent below the speed threshold (stuck detect)
     TopRideKirby *kirby_dup; // 0x74, second copy of the kirby pointer
 } TopRideCpuInputReader;
+
+// The CPU reader's vtable; the poll calls TopRide_CpuInputThink through vt[3] (+0x0c).
+static void **stc_topride_cpu_reader_vtable = (void **)0x804d8710;
+
+// TopRide_CpuInputThink's per-level tables, indexed by TopRideCpuInputReader.difficulty.
+typedef struct TopRideCpuLevelParams
+{
+    float commit_hold[TOPRIDE_CPU_LEVEL_MAX + 1];      // 0x00, frames
+    float ram_aggression[TOPRIDE_CPU_LEVEL_MAX + 1];   // 0x14
+    float x28[TOPRIDE_CPU_LEVEL_MAX + 1];              // 0x28
+    float rival_aggression[TOPRIDE_CPU_LEVEL_MAX + 1]; // 0x3c
+    float item_aggression[TOPRIDE_CPU_LEVEL_MAX + 1];  // 0x50
+    float commit_threshold[TOPRIDE_CPU_LEVEL_MAX + 1]; // 0x64
+    float steer_gain[TOPRIDE_CPU_LEVEL_MAX + 1];       // 0x78
+} TopRideCpuLevelParams;
+
+static TopRideCpuLevelParams *stc_topride_cpu_params = (TopRideCpuLevelParams *)0x804d8058;
 
 // Per-frame CPU steering brain, the reader's vt[0x0c]. Writes *steer_out
 // (lateral stick) and returns the press/charge byte - the hook point for
