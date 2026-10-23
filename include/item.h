@@ -287,6 +287,7 @@ typedef struct PatchEffectInfo
     int count;              // 0x4, number of entries
     ItemGroup group;        // 0x8, BAD=0, GOOD=1, FAKE=2
 } PatchEffectInfo;
+#define PATCHEFFECT_ALLUP PATCHKIND_NUM // the effect type after the nine PatchKinds
 
 // Per-kind static attribute table loaded from ItCommon.dat. Most fields are
 // dead in retail (written by ItemGObj_CopyCommonAttr to ItemData+0x118 mirror,
@@ -463,8 +464,7 @@ typedef struct ItemDesc // used to spawn an item
     int box_color;      // 0x40, [param] BoxKind, usually -1. Maps to ItemData.box_color
     int box_size;       // 0x44, [param] BoxSize, usually -1. Maps to ItemData.box_size
     int lifetime;       // 0x48, [computed] HSD_Randi(variance) + min from ItemCommonParam
-    int coll_kind;      // 0x4C, [param] 3 = point collision (most items), 1 = alloc CollData,
-                        //       0 = requires an existing CollData
+    int coll_kind;      // 0x4C, [param] ItemCollKind, usually ITEM_COLL_POINT. Maps to ItemData.coll_kind
     int is_airborne;    // 0x50, [param] stack param 1 of Item_InitDesc. -1=skip initial raycast, other=do raycast. Maps to ItemData[0x1D4]
     int x54;            // 0x54, [computed] always 0. Stored as bit flag in ItemData[0x35B]
     int flags;          // 0x58, [computed] by Item_InitDesc from the item kind range. Maps to ItemData[0x48]
@@ -655,12 +655,10 @@ typedef struct ItemData
     u8 x358;                    // 0x358, bit 5 (0x20) = visible_this_frame (set by Item_GX cull test)
     // 0x359 bitfield (big-endian, MSB-first allocation):
     //   bits 5-7 (0xE0) = x359_hi
-    //   bits 2-4 (0x1C) = coll_kind (set in CityItem_AllocCollData, read in
-    //                     Item_GenericEnvColl). 3=point coll (most items), 1=alloc
-    //                     CollData, 0=requires CollData (dangerous).
+    //   bits 2-4 (0x1C) = coll_kind, seeded from ItemDesc
     //   bits 0-1 (0x03) = x359_lo
     u8 x359_hi : 3;             // 0x359, 0xE0
-    u8 coll_kind : 3;           // 0x359, 0x1C, collision kind from ItemDesc
+    u8 coll_kind : 3;           // 0x359, 0x1C, ItemCollKind
     u8 x359_lo : 2;             // 0x359, 0x03
     u8 flags_x35a;              // 0x35a, see ITEM_X35A_*
     // x35b bits:
@@ -690,6 +688,16 @@ typedef struct ItemData
     u8 x39c;                    // 0x39c
     u8 x39d[3];                 // 0x39d
 } ItemData;
+
+// ItemData.coll_kind. Every landing sets ITEM_COLL_REST; a rest or fall envcoll that
+// finds its cached triangle retired re-casts the ground and sets ITEM_COLL_POINT.
+typedef enum ItemCollKind
+{
+    ITEM_COLL_REST = 0,   // trusts point_coll's cached triangle; no landing test at all
+    ITEM_COLL_MPCOLL = 1, // full CollData
+    ITEM_COLL_CAST = 2,   // re-casts the ground every frame
+    ITEM_COLL_POINT = 3,  // lands on point_coll.land_pos, re-cast only while raycast_idx is invalid
+} ItemCollKind;
 
 // ItemData.flags_x35a bits.
 #define ITEM_X35A_SKY_SPAWNED  0x01  // set by ItemGObj_SetSkySpawned, read by the power-up handlers
@@ -849,9 +857,9 @@ GOBJ *CityItem_Create(ItemDesc *desc);                // 0x8024eef4
 // Fills the item's ItemData from desc: kind, threshold category, itData, state table.
 void CityItem_InitData(GOBJ *item_gobj, ItemDesc *desc); // 0x8024eaf4
 // spawn_type defaults to 0, up/forward may be NULL, and box_color/box_size/spawn_area/
-// spawn_coll_kind are usually -1. is_airborne -1 skips the ground raycast. coll_kind:
-// 3 = point collision (most items), 1 = alloc CollData, 0 = requires one (dangerous).
-void Item_InitDesc(ItemDesc *desc, ItemKind kind, float scale, int spawn_type, Vec3 *pos, Vec3 *up, Vec3 *forward, int box_color, int box_size, int is_airborne, int coll_kind, int spawn_area, int spawn_coll_kind); // 0x802509a0
+// spawn_coll_kind are usually -1. is_airborne -1 skips the ground raycast. ITEM_COLL_REST
+// caches no triangle at spawn, so the item never tests the floor and hangs where created.
+void Item_InitDesc(ItemDesc *desc, ItemKind kind, float scale, int spawn_type, Vec3 *pos, Vec3 *up, Vec3 *forward, int box_color, int box_size, int is_airborne, ItemCollKind coll_kind, int spawn_area, int spawn_coll_kind); // 0x802509a0
 ItemCommonAttr *Item_GetCommonAttr(ItemKind kind);    // 0x802500b0. Returns itData[kind].attr
 PatchEffectInfo *Item_GetEffectInfo(ItemKind kind);   // 0x80250114. Returns itData[kind].attr->effect_info (NULL for non-patch kinds)
 itData *Item_GetItDataPtr(ItemKind kind);             // 0x80250038. Returns itData entry (0x18 bytes per kind)
@@ -896,10 +904,63 @@ int ItemGObj_CanCollect(GOBJ *item_gobj);             // 0x80252df0. Returns 1 i
 void CityItem_ResetQueuedVelocity(ItemData *id);      // 0x80250340. Zeros both accel and vel vectors
 void Item_ClearAirborne(ItemData *id);                // 0x80254ccc. is_airborne = 0 (landed)
 void Item_SetAirborne(ItemData *id);                  // 0x80254cd8. is_airborne = 1 (falling/tossed)
+// coll_kind = ITEM_COLL_REST, CollData freed, bounce_num + 1; skipped when ItemDesc.x54 is set.
+void Item_SetRestColl(ItemData *id);                  // 0x80254ce4
 void Item_SetGroundedFlag(ItemData *id);              // 0x802557a8. Sets ITEM_X35A_GROUNDED
 void ItemGObj_SetSkySpawned(GOBJ *item_gobj);        // 0x80254040. Sets ITEM_X35A_SKY_SPAWNED
 void ItemGObj_EnterExpire(GOBJ *item_gobj);           // 0x8025611c. Transitions item to expire/flicker state
-void ItemGObj_EnterFall(GOBJ *item_gobj);             // 0x802578c8. Transitions item to falling state
+// Item state indices. Every non-box kind shares one layout.
+typedef enum ItemState
+{
+    ITSTATE_POWERUP_SPAWN = 3,
+    ITSTATE_POWERUP_REST = 4,
+    ITSTATE_POWERUP_FALL = 5,
+    ITSTATE_BOX_REST = 4,
+    ITSTATE_BOX_FALL = 6,
+} ItemState;
+
+void CityItem_StateChange(GOBJ *item_gobj, int state, int flags, float frame, float rate); // 0x8024f488
+// Box fall entry, into ITSTATE_BOX_FALL.
+void ItemGObj_EnterFall(GOBJ *item_gobj);             // 0x802578c8
+// Power-up fall entry, into ITSTATE_POWERUP_FALL. Both set accel = fall_dir * gravity once,
+// so an item falls along the fall_dir it had when it left the ground until it bounces.
+void ItemGObj_PowerUpEnterFall(GOBJ *item_gobj);      // 0x80258698
+// Writes coll_kind, creating a CollData only for ITEM_COLL_MPCOLL; InitCollData sizes it.
+void CityItem_AllocCollData(ItemData *id, ItemCollKind coll_kind); // 0x80254318
+void CityItem_InitCollData(ItemData *id);             // 0x80254384, no-op without a CollData
+
+static inline int Item_IsBox(ItemData *id)
+{
+    return id->item_category == 0;
+}
+
+// The family's fall entry, which Item_RestEnvColl takes when the floor under a resting item
+// is retired.
+static inline void ItemGObj_EnterFamilyFall(GOBJ *item_gobj)
+{
+    if (Item_IsBox(item_gobj->userdata))
+        ItemGObj_EnterFall(item_gobj);
+    else
+        ItemGObj_PowerUpEnterFall(item_gobj);
+}
+
+float CityItem_GetGravity(ItemData *id);           // 0x8025017c
+float CityItem_GetTerminalFallSpeed(ItemData *id); // 0x802501d4
+// Clamps vel.Y to >= -max: world Y only, so a fall along any other axis is never capped.
+void Item_LimitFallSpeed(float max, ItemData *id); // 0x80250400
+// Gr_GetDownVector at pos into gravity_strength / fall_dir. A resting item keeps its old fall_dir.
+void CityItem_UpdateGravity(ItemData *id); // 0x80254c50
+// CityItem_UpdateGravity, then Raycast_Ground along fall_dir for dist; returns the tri.
+int CityItem_RaycastAlongGravity(float dist, ItemData *id, Vec3 *out_pos); // 0x80254640
+// Turns up toward the ground normal (fall_dir up with no ground) by blend; boxes run it on landing.
+void CityItem_AlignToGround(float unused, float blend, ItemData *id); // 0x80254a18
+// GRCOLL_STATE_COLLIDABLE of coll.tri[tri], no range check: the "was my ground retired" test
+// that drops a parked star, a stopped bike or a resting item through.
+int ItemColl_GetGenericCollFlags(int tri); // 0x800cee08
+// A resting power-up's envcoll: re-checks the ground triangle, calling enter_fall when it was
+// retired, and follows moving platforms. vel is neither damped nor snapped.
+void Item_RestEnvColl(GOBJ *item_gobj, void (*enter_fall)(GOBJ *)); // 0x80254d4c
+int CityItem_IsOutOfBounds(ItemData *id); // 0x80255f90, CityItem_LifetimeThink destroys an item it flags
 // Tosses a patch off its toucher, picking the good or bad PatchTossDesc from
 // CityItem_IsGoodPatch. is_machine says whether toucher is a machine or a rider GObj.
 void ItemGObj_BeginPatchToss(GOBJ *item_gobj, GOBJ *toucher, int is_machine); // 0x80256254

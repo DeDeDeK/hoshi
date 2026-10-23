@@ -25,21 +25,21 @@
 #define JOBJ_FLIP_IK (1 << 15)             // 0x00008000
 #define JOBJ_SPECULAR (1 << 16)            // 0x00010000
 #define JOBJ_USE_QUATERNION (1 << 17)      // 0x00020000
-#define JOBJ_OPA (1 << 18)                 // 0x00040000 only rendered with gx pass 3
-#define JOBJ_XLU (1 << 19)                 // 0x00080000
-#define JOBJ_TEXEDGE (1 << 20)             // 0x00100000
+#define JOBJ_OPA (1 << 18)                 // 0x00040000 holds a DObj drawn in GXPASS_OPA
+#define JOBJ_XLU (1 << 19)                 // 0x00080000 holds a DObj drawn in GXPASS_XLU
+#define JOBJ_TEXEDGE (1 << 20)             // 0x00100000 holds a DObj drawn in GXPASS_TEXEDGE
 #define JOBJ_NULL (0 << 21)                // 0x00000000
-#define JOBJ_JOINT1 (1 << 21)              // 0x00100000
-#define JOBJ_JOINT2 (2 << 21)              // 0x00200000
-#define JOBJ_EFFECTOR (3 << 21)            // 0x00300000
+#define JOBJ_JOINT1 (1 << 21)              // 0x00200000
+#define JOBJ_JOINT2 (2 << 21)              // 0x00400000
+#define JOBJ_EFFECTOR (3 << 21)            // 0x00600000
 #define JOBJ_USER_DEFINED_MTX (1 << 23)    // 0x00800000
 #define JOBJ_MTX_INDEPEND_PARENT (1 << 24) // 0x01000000
 #define JOBJ_MTS_INDEPEND_SRT (1 << 25)    // 0x02000000
 #define JOBJ_GENERALFLAG (1 << 26)         // 0x04000000
 #define JOBJ_GENERALFLAG2 (1 << 27)        // 0x08000000
-#define JOBJ_ROOT_OPA (1 << 28)            // 0x10000000 only rendered with gx pass 3
-#define JOBJ_ROOT_XLU (1 << 29)            // 0x20000000
-#define JOBJ_ROOT_TEXEDGE (1 << 30)        // 0x40000000
+#define JOBJ_ROOT_OPA (1 << 28)            // 0x10000000 a joint below has JOBJ_OPA
+#define JOBJ_ROOT_XLU (1 << 29)            // 0x20000000 a joint below has JOBJ_XLU
+#define JOBJ_ROOT_TEXEDGE (1 << 30)        // 0x40000000 a joint below has JOBJ_TEXEDGE
 #define JOBJ_31 (1 << 31)                  // 0x80000000
 
 #define JOBJ_ROOT_MASK (JOBJ_ROOT_OPA | JOBJ_ROOT_TEXEDGE | JOBJ_ROOT_XLU)
@@ -90,6 +90,37 @@
 #define RENDER_NO_ZUPDATE (1 << 29)                   // 0x20000000
 #define RENDER_XLU (1 << 30)                          // 0x40000000
 
+// TOBJ flags (+0x4C). The coord field picks the texgen, the LIGHTMAP bits the TEV path, and
+// COLORMAP / ALPHAMAP the op a compiled TObj stage combines with.
+#define TEX_COORD_MASK 0xF
+#define TEX_COORD_UV 0
+#define TEX_COORD_REFLECTION 1
+#define TEX_COORD_HILIGHT 2
+#define TEX_COORD_SHADOW 3 // GX_TG_POS through PNMTX0, post-multiplied by TOBJ.mtx x inverse view
+#define TEX_COORD_TOON 4
+#define TEX_LIGHTMAP_DIFFUSE (1 << 4)  // 0x00000010
+#define TEX_LIGHTMAP_SPECULAR (1 << 5) // 0x00000020
+#define TEX_LIGHTMAP_AMBIENT (1 << 6)  // 0x00000040
+#define TEX_LIGHTMAP_EXT (1 << 7)      // 0x00000080
+#define TEX_LIGHTMAP_SHADOW (1 << 8)   // 0x00000100
+#define TEX_COLORMAP_ALPHA_MASK (1 << 16)
+#define TEX_COLORMAP_RGB_MASK (2 << 16)
+#define TEX_COLORMAP_BLEND (3 << 16)
+#define TEX_COLORMAP_MODULATE (4 << 16)
+#define TEX_COLORMAP_REPLACE (5 << 16)
+#define TEX_COLORMAP_PASS (6 << 16)
+#define TEX_COLORMAP_ADD (7 << 16)
+#define TEX_COLORMAP_SUB (8 << 16)
+#define TEX_ALPHAMAP_ALPHA_MASK (1 << 20)
+#define TEX_ALPHAMAP_BLEND (2 << 20)
+#define TEX_ALPHAMAP_MODULATE (3 << 20)
+#define TEX_ALPHAMAP_REPLACE (4 << 20)
+#define TEX_ALPHAMAP_PASS (5 << 20)
+#define TEX_ALPHAMAP_ADD (6 << 20)
+#define TEX_ALPHAMAP_SUB (7 << 20)
+#define TEX_BUMP (1 << 24)
+#define TEX_MTX_DIRTY (1u << 31) // the TObj class rebuilds mtx from rotate/scale/translate
+
 // DOBJ flags
 #define DOBJ_HIDDEN (1 << 0)           // 0x00000001
 #define DOBJ_RENDER_ORDER_UNK (1 << 2) // 0x00000004
@@ -99,6 +130,7 @@
 // wound clockwise, so CULLBACK is ordinary backface culling and CULLFRONT leaves
 // only the far side of a closed shape.
 #define POBJ_ANIM (1 << 3)
+#define POBJ_TYPE_MASK (3 << 12)
 #define POBJ_SKIN (0 << 12)
 #define POBJ_SHAPEANIM (1 << 12)
 #define POBJ_ENVELOPE (2 << 12)
@@ -117,6 +149,7 @@
 #define LOBJ_INFINITE (1 << 0)
 #define LOBJ_POINT (2 << 0)
 #define LOBJ_SPOT (3 << 0)
+#define LOBJ_TYPE_MASK (3 << 0)
 #define LOBJ_DIFFUSE (1 << 2)
 #define LOBJ_SPECULAR (1 << 3)
 #define LOBJ_ALPHA (1 << 4)
@@ -290,6 +323,17 @@ typedef struct _HSD_AObjDesc
     u32 obj_id;                     // 0x0C
 } HSD_AObjDesc;
 
+// HSD_FObjDesc.track values for a joint.
+#define HSD_A_J_ROTX 1
+#define HSD_A_J_ROTY 2
+#define HSD_A_J_ROTZ 3
+#define HSD_A_J_PATH 4
+
+// Interpolation ops of a keyframe run header. LIN keys carry a value and a frame delta.
+#define HSD_A_OP_CON 1
+#define HSD_A_OP_LIN 2
+#define HSD_A_OP_SPL 4
+
 // One animation track. `track` is the HSD_A_T_* channel it drives - for a joint,
 // 1-3 rotation, 5-7 translation, 8-10 scale, 12 branch.
 //
@@ -335,6 +379,28 @@ struct MOBJ
     struct _HSD_TExpTevDesc *tevdesc; // 0x18
     union _HSD_TExp *texp;            // 0x1C
 };
+
+typedef struct _HSD_DObjDesc
+{
+    char *class_name;           // 0x00
+    struct _HSD_DObjDesc *next; // 0x04
+    void *mobjdesc;             // 0x08
+    void *pobjdesc;             // 0x0C
+} HSD_DObjDesc;
+
+// A JOBJ_SPLINE joint's curve. A rigid transform of cv leaves seg_length and seg_poly
+// valid; a uniform scale k multiplies total_length by k and seg_poly by k^2 (splScale).
+typedef struct _HSD_Spline
+{
+    u8 type;                // 0x00
+    u8 x01;                 // 0x01
+    s16 cv_num;             // 0x02
+    float tension;          // 0x04
+    Vec3 *cv;               // 0x08
+    float total_length;     // 0x0C
+    float *seg_length;      // 0x10, cumulative and normalized, 0 to 1
+    float (*seg_poly)[5];   // 0x14, per segment, |dP/du|^2 as a quartic in u
+} HSD_Spline;
 
 struct JOBJDesc
 {
@@ -466,7 +532,7 @@ struct POBJDesc
 {
     char *class_name;
     struct POBJDesc *next;
-    struct _HSD_VtxDescList *verts;
+    struct HSD_VtxDescList *verts;
     u16 flags;
     u16 n_display;
     u8 *display;
@@ -649,6 +715,64 @@ struct _HSD_TObjTev
     uint flags;       // 0x1C color/alpha-tree enable bits
 };
 
+// One TEV stage for HSD_SetupTevStage; flags 1 enables the combiner fields. clr_* take
+// GXTevColorArg, alpha_* GXTevAlphaArg, op / scale / bias GXTevOp / GXTevScale / GXTevBias.
+typedef struct HSD_TevDesc
+{
+    struct HSD_TevDesc *next; // 0x00
+    u32 flags;                // 0x04
+    u32 stage;                // 0x08 GXTevStageID
+    u32 coord;                // 0x0C GXTexCoordID
+    u32 map;                  // 0x10 GXTexMapID
+    u32 chan;                 // 0x14 GXChannelID
+    u32 clr_op;               // 0x18
+    u32 clr_a;                // 0x1C
+    u32 clr_b;                // 0x20
+    u32 clr_c;                // 0x24
+    u32 clr_d;                // 0x28
+    u32 clr_scale;            // 0x2C
+    u32 clr_bias;             // 0x30
+    u8 clr_clamp;             // 0x34
+    u32 clr_out_reg;          // 0x38
+    u32 alpha_op;             // 0x3C
+    u32 alpha_a;              // 0x40
+    u32 alpha_b;              // 0x44
+    u32 alpha_c;              // 0x48
+    u32 alpha_d;              // 0x4C
+    u32 alpha_scale;          // 0x50
+    u32 alpha_bias;           // 0x54
+    u8 alpha_clamp;           // 0x58
+    u32 alpha_out_reg;        // 0x5C
+    u32 mode;                 // 0x60
+    u32 ras_swap;             // 0x64
+    u32 tex_swap;             // 0x68
+    u32 kcsel;                // 0x6C
+    u32 kasel;                // 0x70
+} HSD_TevDesc;
+
+// A compiled TEV stage (MOBJ.tevdesc chain); its texmap and coord are re-read from tobj
+// at every setup.
+typedef struct _HSD_TExpTevDesc
+{
+    HSD_TevDesc desc; // 0x00
+    TOBJ *tobj;       // 0x74
+} HSD_TExpTevDesc;
+
+// A projected shadow: its casters are drawn from camera into texture, a TEX_COORD_SHADOW
+// TObj that receivers pick up from the shadow TObj list.
+typedef struct HSD_Shadow
+{
+    struct _HSD_SList *objects; // 0x00 caster JObjs
+    COBJ *camera;               // 0x04
+    TOBJ *texture;              // 0x08
+    float scale_s;              // 0x0C
+    float scale_t;              // 0x10
+    float trans_s;              // 0x14
+    float trans_t;              // 0x18
+    int active;                 // 0x1C
+    u8 intensity;               // 0x20
+} HSD_Shadow;
+
 struct _HSD_LightPoint
 {
     f32 cutoff;
@@ -699,13 +823,13 @@ struct LObjDesc
 {
     char *class_name;               // 0x00
     LObjDesc *next;                 // 0x04
-    u16 flags;                      // 0x08 -- low 2 bits = LOBJ_AMBIENT/INFINITE/POINT/SPOT (asserted by
+    u16 flags;                      // 0x08 -- LOBJ_TYPE_MASK = LOBJ_AMBIENT/INFINITE/POINT/SPOT (asserted by
                                     //         LObjLoad), bits 2-5 = DIFFUSE/SPECULAR/ALPHA/HIDDEN
     u16 attnflags;                  // 0x0A -- bit 0 LOBJ_RAW_PARAM: u.attn is a raw 6-float block,
                                     //         otherwise u.spot is a 3-word computed block
     GXColor color;                  // 0x0C
-    struct _HSD_WObjDesc *position; // 0x10 -- loaded as WObj if flags & 3 != 0
-    struct _HSD_WObjDesc *interest; // 0x14 -- loaded as WObj if flags & 3 == 3 (LOBJ_SPOT)
+    WOBJDesc *position;             // 0x10 -- loaded as WObj unless the type is LOBJ_AMBIENT
+    WOBJDesc *interest;             // 0x14 -- loaded as WObj for LOBJ_SPOT only
     union
     {
         void *p;
@@ -909,6 +1033,8 @@ void JObj_ReqAnimByFlags(JOBJ *joint, int flags, float frame); // 0x80408f00
 void JObj_ReqAnimAll(JOBJ *joint, float frame); // 0x80409274
 void JObj_ReqAnimAllByFlags(JOBJ *joint, int flags, float frame); // 0x80408f88
 void JObj_SetAllMOBJFlags(JOBJ *joint, int flags); // 0x80052fb8
+void JObj_SetMObjFlags(JOBJ *joint, u32 flags); // 0x80052f7c - this joint's DObjs only
+void DObj_SetAllMObjFlags(DOBJ *dobj, u32 flags); // 0x8005299c - dobj and its next chain
 int JObj_CheckAObjPlaying(JOBJ *joint); // 0x800547e0
 void JObj_SetAllAOBJRateByFlags(JOBJ *j, int flags, float rate); // 0x800550bc
 // Binds an HSD_FigaTree to a JObj tree: walks it in preorder against the
@@ -922,7 +1048,9 @@ float FigaTree_GetEndFrame(void *figatree);              // 0x8006e58c, +0x08, o
 // it to pos and stamps it on the joint.
 void JObj_SetFromBasis(f32 scale, JOBJ *joint, Vec3 *forward, Vec3 *up, Vec3 *pos); // 0x80054414
 void JObj_SetAllAOBJLoopByFlags(JOBJ *j, int flags); // 0x800550f4
-void JObj_DispAll(JOBJ *joint, Mtx *vmtx, int rendermode, int mobj_flags); // 0x8040a7b8
+// pass_mask is the DObj bucket mask HSD_GetRenderPass returns. A rendermode carrying
+// RENDER_SHADOW draws as a shadow caster, skipping every material setup.
+void JObj_DispAll(JOBJ *joint, Mtx *vmtx, u32 pass_mask, u32 rendermode); // 0x8040a7b8
 void JObj_AttachPosition(JOBJ *to_attach, JOBJ *attach_to); // 0x80055c14
 void JObj_AttachPositionRotation(JOBJ *to_attach, JOBJ *attach_to); // 0x80055c7c
 void JObj_AddSetAnim(JOBJ *jobj, int anim_id, JOBJSet *set, float frame, float rate);                                        // 0x80138b10
@@ -930,6 +1058,8 @@ void JObj_AddSetAnim(JOBJ *jobj, int anim_id, JOBJSet *set, float frame, float r
 void JObj_AddSetAnim0_SetFrameAndRate(JOBJ *jobj, JOBJSet *set, float frame, float rate); // 0x80114d9c
 void JObj_Detach(JOBJ *to_attach); // 0x80055d10 - removes every JObj constraint RObj, as added by JObj_AttachPosition*
 void JObj_ResetFromDesc(JOBJ *jobj, JOBJDesc *desc); // 0x800551a8 - copies desc rotation, scale and position onto jobj; not recursive
+// JObj_ResetFromDesc over jobj, its children and its following siblings, in step with desc.
+void JObj_ResetAllFromDesc(JOBJ *jobj, JOBJDesc *desc); // 0x8005523c
 void JObj_RemoveAnimByFlags(JOBJ *, int); // 0x80408b54
 void JObj_RemoveAnimAllByFlags(JOBJ *, int); // 0x80408bd0
 void JObj_SetAllMObjAnimFrameAndRate(JOBJ *j, int frame, float rate); // 0x80115174
@@ -982,6 +1112,14 @@ JOBJ *GObj_GetJObjIndex(GOBJ *gobj, int index); // 0x80055AF0, depth-first trave
 // Moves an existing GObj onto another p_link at the given priority.
 // Relinking a HUD element to GAMEPLINK_PAUSEHUD is what keeps it drawn while paused.
 void GObj_SetPLink(GOBJ *gobj, int p_link, u8 p_priority); // 0x804293f4
+// The pass CObj_RenderGXLinks hands a GX callback, named for the DObj bucket drawn in it.
+typedef enum GXRenderPass
+{
+    GXPASS_OPA,
+    GXPASS_TEXEDGE, // RENDER_XLU materials that still update Z
+    GXPASS_XLU,     // RENDER_XLU with RENDER_NO_ZUPDATE
+} GXRenderPass;
+
 void GObj_AddGXLink(GOBJ *gobj, void *cb, int gx_link, int gx_pri); // 0x80429690
 void GObj_DestroyGXLink(GOBJ *gobj); // 0x80429774 - unlinks from its gx list and resets gx_link to 0xff
 GOBJProc *GObj_AddProc(GOBJ *gobj, void *callback, int priority); // 0x804288a4
@@ -989,11 +1127,17 @@ void GObj_RemoveProc(GOBJ *gobj); // 0x80428ad8 - frees every proc on the GObj
 void GObj_FreeProc(GOBJProc *proc); // 0x8042898c - frees one; a proc freeing itself is deferred until its callback returns
 void GObj_AddObject(GOBJ *gobj, u8 obj_kind, void *object); // 0x80429c14
 void GObj_FreeObject(GOBJ *gobj); // 0x80429cb0 - destroys hsd_object by obj_kind and clears it
+// destructor must be non-NULL (GObj_Destroy asserts). It never runs at a scene change,
+// where the heap is simply dropped.
 void GObj_AddUserData(GOBJ *gobj, int userDataKind, void *destructor, void *userData); // 0x80429d0c
+void GOBJ_RunUserDataRemoveFunc(GOBJ *gobj); // 0x80429dbc
+// The GObj whose proc is running. Destroying it is deferred until the proc returns;
+// destroying any other GObj from a proc is immediate. Never destroy from a GX callback.
+static GOBJ **stc_gobj_cur = (GOBJ **)0x805de324;
 void GOBJ_InitCamera(GOBJ *gobj, void *cb, int gx_pri); // 0x80429728
 void GObj_UpdateAll();                                          // 0x80429ed4
 void JObj_GX(GOBJ *gobj, int pass); // 0x8042a258
-int HSD_GetRenderPass(int pass); // 0x8042a0a0 - maps a gx callback pass to the JObj_DispAll render mode
+int HSD_GetRenderPass(int pass); // 0x8042a0a0 - maps a gx callback pass to the JObj_DispAll bucket mask
 void LObj_GX(GOBJ *gobj, int pass); // 0x8042a22c
 void Fog_GX(GOBJ *gobj, int pass); // 0x800dbf84
 LOBJ *LObj_LoadDesc(void *lobjdesc); // 0x80400238
@@ -1007,6 +1151,7 @@ void LObj_AnimAll(LOBJ *lobj); // 0x803fde54
 void LObj_DeleteCurrentAll(int unk); // 0x803ff318
 void LObj_RemoveAll(LOBJ *lobj); // 0x803ffa40
 GXLightID HSD_LObjGetLightMaskDiffuse(); // 0x803fdb14
+GXLightID HSD_LObjGetLightMaskAttnFunc(void); // 0x803fdb1c - the active point and spot lights
 HSD_Fog *Fog_LoadDesc(HSD_FogDesc *fogdesc); // 0x8041b3c0
 void FogRelease(HSD_Fog *fog); // 0x8041b850 - class release: drops fog_adj and the AObj, does not free fog
 
@@ -1026,9 +1171,55 @@ void AreaLight_LerpToLive(GOBJ *grobj, AreaLight *start, AreaLightData *target, 
 // Stage HSD light chain - real GX hardware lights, separate from AreaLight.
 // Loaded from gr_data->stage_resource[+0x14] (LObjDesc**, NULL-terminated).
 void Light_GX(GOBJ *gobj, int pass);                  // 0x800d5fb0 - wraps LObj_GX
+// The map GObj's GX callback (link 1, gx_pri 1): terrain, backdrop and yakumono, each
+// material drawn with its own rendermode.
+void Map_GX(GOBJ *gobj, int pass); // 0x800d81e4
 void Light_CreateForStage(void *grobj_or_ctx);        // 0x800d5fd0 - class=1 GObj at stage init
+// The rider light GObj: installs the stage's rider light chain on GX link 4 at gx_pri 1,
+// ahead of the riders drawn there.
+void RiderLight_Create(void);                     // 0x801901ec, no GObj when the stage has no rider chain
+void RiderLight_GX(GOBJ *gobj, int pass);         // 0x801901c0, HSD_LObjSetCurrentAll + HSD_LObjSetupInit
+void RiderLight_Think(GOBJ *gobj);                // 0x8019019c, LObj_AnimAll
 DOBJ *JObj_GetDObj(JOBJ *jobj); // 0x8040bca0 - NULL for particle and spline joints
 void HSD_MObjSetAlpha(MOBJ *mobj, float alpha); // 0x803fad80
 void HSD_MObjAnim(MOBJ *mobj); // 0x803f9ebc
+void HSD_MObjSetFlags(MOBJ *mobj, u32 flags); // 0x803f98c4 - ORs into rendermode
+// Material state for one draw from mobj->rendermode; the argument is unused. RENDER_SHADOW
+// appends the shadow TObj list for this setup only.
+void HSD_MObjSetup(MOBJ *mobj, u32 rendermode); // 0x803fac18
+// Rebuilds the TEV program, compiling in the shadow TObj list for a RENDER_SHADOW material.
+void HSD_MObjCompileTev(MOBJ *mobj); // 0x803faa80
+// The shadow TObj list, linked through TOBJ.next. Add prepends unless already listed;
+// Delete NULL empties it.
+void HSD_MObjAddShadowTexture(TOBJ *tobj); // 0x803faec4
+void HSD_MObjDeleteShadowTexture(TOBJ *tobj); // 0x803faf28
+static TOBJ **stc_hsd_shadow_tobj = (TOBJ **)0x805de1f4;
+// The stage HSD_TObjSetupVolatileTev emits per shadow TObj: PREV x TEXC color, APREV alpha,
+// whatever the TObj's COLORMAP bits.
+static HSD_TevDesc *stc_hsd_shadow_tev = (HSD_TevDesc *)0x80501fdc;
+TOBJ *HSD_TObjAlloc(void); // 0x803f7894 - zeroed
+_HSD_ImageDesc *HSD_ImageDescAlloc(void); // 0x803f7a00
+// Emits the uncompiled stages: bump, then one per consecutive TEX_COORD_SHADOW TObj from
+// the first TEX_LIGHTMAP_SHADOW one.
+void HSD_TObjSetupVolatileTev(TOBJ *tobj); // 0x803f5e78
+void HSD_SetupTevStage(HSD_TevDesc *desc); // 0x803f908c
+void HSD_TExpSetupTev(HSD_TExpTevDesc *tevdesc); // 0x80424624 - loads a compiled TEV program
+Mtx *HSD_CObjGetInvViewingMtxPtrDirect(COBJ *cobj); // 0x80402738
+
+HSD_Shadow *HSD_ShadowAlloc(void); // 0x8041cf58
+void HSD_ShadowInit(HSD_Shadow *shadow); // 0x8041d15c
+void HSD_ShadowSetSize(HSD_Shadow *shadow, u16 width, u16 height); // 0x8041d1cc
+void HSD_ShadowStartRender(HSD_Shadow *shadow); // 0x8041d32c
+void HSD_ShadowEndRender(HSD_Shadow *shadow); // 0x8041d5d8
+void HSD_ShadowSetActive(HSD_Shadow *shadow, int active); // 0x8041d770
+void HSD_ShadowAddObject(HSD_Shadow *shadow, JOBJ *jobj); // 0x8041d938
+void HSD_ShadowSetViewingRect(HSD_Shadow *shadow, float top, float bottom, float left, float right); // 0x8041dbb8
+// lbshadow: a GObj whose userdata holds an HSD_Shadow, drawn by fn_shadowRendering. Only
+// the City Trial ending scene creates one.
+void lbShadow_Enable(GOBJ *gobj); // 0x8007b3c4
+void lbShadow_Disable(GOBJ *gobj); // 0x8007b408
+void lbShadow_SetOffset(GOBJ *gobj, Vec3 *offset, float unk); // 0x8007b44c - eye and interest offset
+void lbShadow_DestroyUserData(void *userdata); // 0x8007b488
+void lbShadow_SetReceiver(JOBJ *jobj); // 0x8007b4c8 - RENDER_SHADOW on every MObj of the tree
 void GObj_CopyGXPri(GOBJ *target, GOBJ *source); // 0x80429bac - moves target onto source's gx_link and gx_pri, drawn right after source
 #endif

@@ -25,7 +25,7 @@ void Stack_Init()
 
     // load iso name from opening.bnr
     iso_name = HSD_MemAlloc(0x20);
-    File_Read(DVDConvertPathToEntrynum("opening.bnr"), 0x1860, iso_name, 0x20, 0x21, 1, 0, 0);
+    File_Read(DVDConvertPathToEntrynum("opening.bnr"), 0x1860, iso_name, 0x20, DEVCOMSRC_DVD | DEVCOMDEST_DRAM, 1, 0, 0);
 }
 
 // Functions

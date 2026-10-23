@@ -164,11 +164,13 @@ typedef struct HurtParams
     float base_knockback;     // 0x20, base knockback magnitude
     float kb_distance_factor; // 0x24, knockback scales with relative velocity (0 = fixed knockback)
     int x28;                  // 0x28
-    int hit_flags;            // 0x2c, its top 5 bits become HurtData.attacker_flags
+    int hit_flags;            // 0x2c, HITFLAG_VICTIM bits; the top 5 bits become HurtData.attacker_flags
     int x30;                  // 0x30, top byte: 0xe0 region group, which HitColl_SetDamageLog matches
                               //       across the attacker's regions; 0x08 zeroes this region's velocity
 } HurtParams;
 
+// The HurtParams.hit_flags bit that lets a region hit victims of that HurtKind.
+#define HITFLAG_VICTIM(kind) (1 << (10 + (kind)))
 
 static HitCollData *stc_hitcolldata = (HitCollData *)0x80559bf4;
 
@@ -192,6 +194,12 @@ void HurtData_GiveIntangibility(HurtData *hurt, int timer); // 0x8018cb5c
 // Clears the flag at +0x9c and sets vuln.kind from the intang/invuln timers.
 void HurtData_UpdateVulnState(HurtData *hurt);         // 0x8018cb28
 void HurtData_UpdateAttackRegions(HurtData *hurt);     // 0x8018c998, Trigger_UpdatePosition per region
+// Arms an attack region from params, following jobj. A newly armed region starts a fresh
+// victim list and is dropped by the owner's next state change (HurtData_ClearStateRegions).
+void HurtData_SetAttackRegion(HurtData *hurt, int region, JOBJ *jobj, HurtParams *params); // 0x8018c8c4
+// Run on every owner state change: deactivates the attack regions outside the keep mask
+// (flags2) once HurtData_SetAttackRegion has armed one.
+void HurtData_ClearStateRegions(HurtData *hurt);       // 0x8018c824
 // Calculates damage via HitColl_GetDamageDealt, logs it (up to 20 entries),
 // applies knockback and fires on_damage_callback if set.
 void HitColl_SetDamageLog(HurtData *victim, void *victim_region, HurtData *attacker, HitRegion *attacker_region); // 0x8018cf94

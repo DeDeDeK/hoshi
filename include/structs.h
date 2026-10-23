@@ -134,6 +134,9 @@ typedef struct itData itData;
 // Rider
 typedef struct RiderData RiderData;
 
+// Enemy
+typedef struct EnemyData EnemyData;
+
 // Collision
 typedef struct CollData CollData;
 

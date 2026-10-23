@@ -602,7 +602,18 @@ int DVDClose(DVDFileInfo *dvdFileInfo); // 0x803c5304
 // addr must be 32-byte aligned, length a multiple of 32, offset an absolute disc
 // byte offset that is a multiple of 2048; prio 1 is lowest, 2+ is higher.
 s32 DVDReadAbsAsyncPrio(DVDCommandBlock *block, void *addr, s32 length, s32 offset, DVDReadCallback callback, s32 prio); // 0x803c7364
-int File_Read(int entrynum, int file_offset, void *buffer, int read_size, int flags, int unk_index, FileReadCallback cb, void *cb_arg2); // 0x80446acc, just use 0x21 for flags if dram, 0x23 if aram, 1 for unk_index
+// File_Read's type: a DEVCOMSRC_* | DEVCOMDEST_*. DEVCOMDEST_SBUF ignores `buffer` and
+// leaves the data in a staging buffer, which the required `cb` receives.
+#define DEVCOMSRC_ARAM  (3 << 3)
+#define DEVCOMSRC_DVD   (4 << 3)
+#define DEVCOMDEST_DRAM 1
+#define DEVCOMDEST_SBUF 2
+#define DEVCOMDEST_ARAM 3
+#define DEVCOM_BUF_SIZE 0x4000 // largest DEVCOMDEST_SBUF read
+
+// HSD_DevComRequest. A DVD source reads entrynum from file_offset on `queue` 0-2, serviced
+// lowest first; an ARAM source reads the ARAM address in file_offset on its own queue.
+int File_Read(int entrynum, int file_offset, void *buffer, int read_size, int type, int queue, FileReadCallback cb, void *cb_arg2); // 0x80446acc
 // Completion callback for File_Read: sets *stc_file_read_done to 1, asserting first
 // that the read reported no error. Clear the flag before the read and spin on
 // File_PollReadDone afterwards to turn File_Read into a blocking one - buffer and read_size
@@ -612,7 +623,8 @@ void File_ReadDone(int request_id, void *arg, void *staging, int error); // 0x80
 // `while (File_PollReadDone() == 0);` loop both drives and waits for an outstanding read.
 int File_PollReadDone(); // 0x80058e60
 static int *stc_file_read_done = (int *)0x805dd5a8;
-int File_CopyFromARAMToDRAM(int entrynum, int file_offset, void *buffer, int read_size, int flags, int unk_index);                                          // 0x80059228, just use 0x21 for flags if dram, 0x23 if aram, 1 for unk_index
+// A blocking DEVCOMSRC_ARAM | DEVCOMDEST_DRAM File_Read; `queue` is unused.
+void File_CopyFromARAMToDRAM(u32 aram_addr, void *buffer, int size, int queue); // 0x80059228
 // Reads the whole file into buffer, writes size to *out_size. ".dat" is appended ONLY when
 // file_name has no "_" or "." - a name containing either is taken verbatim (pass its full
 // "name.dat"). Panics (assert) if the resolved file does not exist, so gate with a presence

@@ -443,7 +443,7 @@ HSD_Archive *Archive_LoadFilePersistent(char *filename)
 
     int size = File_GetSize(filename);
     void *buffer = HSD_MemAlloc(size);
-    File_Read(entrynum, 0, buffer, OSRoundUp32B(size), 0x21, 1, Archive_LoadFilePersistentCallback, 0);
+    File_Read(entrynum, 0, buffer, OSRoundUp32B(size), DEVCOMSRC_DVD | DEVCOMDEST_DRAM, 1, Archive_LoadFilePersistentCallback, 0);
 
     while (!archive_is_loaded)
         ;
@@ -464,7 +464,7 @@ int File_LoadOffsetSync(int entrynum, void *file_buffer, int file_offset, int fi
 {
     // load file
     volatile int is_loaded = 0;
-    File_Read(entrynum, file_offset, file_buffer, OSRoundUp32B(file_size), 0x21, 1, File_LoadCallback, (void *)&is_loaded);
+    File_Read(entrynum, file_offset, file_buffer, OSRoundUp32B(file_size), DEVCOMSRC_DVD | DEVCOMDEST_DRAM, 1, File_LoadCallback, (void *)&is_loaded);
 
     // wait to load
     while (!is_loaded)

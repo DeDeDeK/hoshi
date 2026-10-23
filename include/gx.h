@@ -297,6 +297,16 @@ typedef enum GXTexWrapMode
     GX_MAX_TEXWRAPMODE,
 } GXTexWrapMode;
 
+typedef enum GXTexFilter
+{
+    GX_NEAR,
+    GX_LINEAR,
+    GX_NEAR_MIP_NEAR,
+    GX_LIN_MIP_NEAR,
+    GX_NEAR_MIP_LIN,
+    GX_LIN_MIP_LIN,
+} GXTexFilter;
+
 typedef enum GXTexMapID
 {
     GX_TEXMAP0 = 0,
@@ -509,6 +519,13 @@ typedef enum GXSpotFn
     GX_SP_RING2,
 } GXSpotFn;
 
+// A hardware light, built with GXInitLight* and loaded with GXLoadLightObjImm. Positions
+// are in eye space.
+typedef struct GXLightObj
+{
+    u32 data[16];
+} GXLightObj;
+
 // Distance falloff of a POINT/SPOT LOBJ (_HSD_LightPointDesc.dist_func).
 typedef enum GXDistAttnFn
 {
@@ -546,7 +563,9 @@ typedef enum GXTevColorArg
 
     GX_CC_TEXRRR,
     GX_CC_TEXGGG,
-    GX_CC_TEXBBB
+    GX_CC_TEXBBB,
+
+    GX_CC_KONST = 14, // the stage's GXSetTevKColorSel value; GX_CC_QUARTER's slot
 } GXTevColorArg;
 
 typedef enum GXTevAlphaArg
@@ -558,14 +577,69 @@ typedef enum GXTevAlphaArg
     GX_CA_TEXA,
     GX_CA_RASA,
     GX_CA_ONE,
-    GX_CA_ZERO
+    GX_CA_ZERO,
+
+    GX_CA_KONST = 6, // the stage's GXSetTevKAlphaSel value; GX_CA_ONE's slot
 } GXTevAlphaArg;
 
+// The compare ops output d + (a OP b ? c : 0), ignoring bias and scale. R8, GR16 and BGR24
+// compare a's low channels as one number; RGB8 compares per channel (A8 in an alpha op).
 typedef enum GXTevOp
 {
     GX_TEV_ADD,
-    GX_TEV_SUB
+    GX_TEV_SUB,
+
+    GX_TEV_COMP_R8_GT = 8,
+    GX_TEV_COMP_R8_EQ,
+    GX_TEV_COMP_GR16_GT,
+    GX_TEV_COMP_GR16_EQ,
+    GX_TEV_COMP_BGR24_GT,
+    GX_TEV_COMP_BGR24_EQ,
+    GX_TEV_COMP_RGB8_GT,
+    GX_TEV_COMP_RGB8_EQ,
+
+    GX_TEV_COMP_A8_GT = GX_TEV_COMP_RGB8_GT,
+    GX_TEV_COMP_A8_EQ = GX_TEV_COMP_RGB8_EQ,
 } GXTevOp;
+
+// What GX_CC_KONST / GX_CA_KONST read: a fixed fraction or a GXSetTevKColor register.
+typedef enum GXTevKColorSel
+{
+    GX_TEV_KCSEL_8_8,
+    GX_TEV_KCSEL_7_8,
+    GX_TEV_KCSEL_3_4,
+    GX_TEV_KCSEL_5_8,
+    GX_TEV_KCSEL_1_2,
+    GX_TEV_KCSEL_3_8,
+    GX_TEV_KCSEL_1_4,
+    GX_TEV_KCSEL_1_8,
+
+    GX_TEV_KCSEL_K0 = 0x0C,
+    GX_TEV_KCSEL_K1,
+    GX_TEV_KCSEL_K2,
+    GX_TEV_KCSEL_K3,
+
+    GX_TEV_KCSEL_1 = GX_TEV_KCSEL_8_8,
+} GXTevKColorSel;
+
+typedef enum GXTevKAlphaSel
+{
+    GX_TEV_KASEL_8_8,
+    GX_TEV_KASEL_7_8,
+    GX_TEV_KASEL_3_4,
+    GX_TEV_KASEL_5_8,
+    GX_TEV_KASEL_1_2,
+    GX_TEV_KASEL_3_8,
+    GX_TEV_KASEL_1_4,
+    GX_TEV_KASEL_1_8,
+
+    GX_TEV_KASEL_K0_A = 0x1C,
+    GX_TEV_KASEL_K1_A,
+    GX_TEV_KASEL_K2_A,
+    GX_TEV_KASEL_K3_A,
+
+    GX_TEV_KASEL_1 = GX_TEV_KASEL_8_8,
+} GXTevKAlphaSel;
 
 typedef enum GXTevBias
 {
@@ -593,10 +667,21 @@ typedef enum GXTevRegID
     GX_MAX_TEVREG
 } GXTevRegID;
 
+typedef enum GXTexOffset
+{
+    GX_TO_ZERO,
+    GX_TO_SIXTEENTH,
+    GX_TO_EIGHTH,
+    GX_TO_FOURTH,
+    GX_TO_HALF,
+    GX_TO_ONE,
+    GX_MAX_TEXOFFSET
+} GXTexOffset;
+
 static volatile GXPipe *gx_pipe = (GXPipe *)0xCC008000;
 
 void GXSetZMode(GXBool compare_enable, GXCompare func, GXBool update_enable); // 0x803cf8cc
-void GXSetLineWidth(u8 width, int tex_offsets); // 0x803cc42c
+void GXSetLineWidth(u8 width, GXTexOffset tex_offsets); // 0x803cc42c
 void GXBegin(GXPrimitive type, GXVtxFmt vtxfmt, u16 nverts); // 0x803cc2b4
 void GXPixModeSync(); // 0x803cbe9c
 void GXInitTexObj(GXTexObj *obj, void *image_ptr, u16 width, u16 height, GXTexFmt format, GXTexWrapMode wrap_s, GXTexWrapMode wrap_t, GXBool mipmap); // 0x803cd7d4
@@ -630,11 +715,16 @@ void GXSetTevKColor(int id, GXColor *color); // 0x803cee20
 void GXSetTevOp(GXTevStageID stage, GXTevMode mode); // 0x803ceb54
 void GXSetNumChans(u8 nChans); // 0x803cd4a0
 void GXSetChanCtrl(GXChannelID chan, GXBool enable, GXColorSrc amb_src, GXColorSrc mat_src, GXLightID light_mask, GXDiffuseFn diff_fn, GXAttnFn attn_fn); // 0x803cd4e4
+void GXInitLightAttn(GXLightObj *lt, f32 a0, f32 a1, f32 a2, f32 k0, f32 k1, f32 k2); // 0x803ccf88, angle (a) and distance (k) coefficients
+void GXInitLightPos(GXLightObj *lt, f32 x, f32 y, f32 z); // 0x803cd204
+void GXInitLightColor(GXLightObj *lt, GXColor *color); // 0x803cd230
+void GXLoadLightObjImm(GXLightObj *lt, GXLightID light); // 0x803cd23c
 void GXSetCullMode(GXCullMode cull_mode); // 0x803cc518
 void GXClearVtxDesc(); // 0x803cac04
 void GXSetVtxAttrFmt(GXVtxFmt vtxfmt, GXAttribute attribute, GXComponentContents contents, GXComponentType type, u8 fracBits); // 0x803cac3c
 void GXSetVtxDesc(GXAttribute attribute, GXAttributeType type); // 0x803ca184
 void GXLoadPosMtxImm(Mtx *, GXPosNormMtx); // 0x803d073c
+void GXLoadTexMtxImm(Mtx *m, u32 id, u32 type); // 0x803d0814
 void GXSetCurrentMtx(GXPosNormMtx); // 0x803d07dc
 u32 GXGetTexBufferSize(u16 width, u16 height, u32 format, GXBool mipmap, u8 max_lod); // 0x803cd5b0
 void GXSetTexCoordGen2(GXTexCoordID dst_coord, GXTexGenType func, GXTexGenSrc src_param, u32 mtx, GXBool normalize, u32 postmtx); // 0x803cb738

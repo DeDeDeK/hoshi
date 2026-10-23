@@ -55,18 +55,58 @@ struct Effect
 // id (group*10000+entry) -> per-kind model descriptor.
 EffectModelDesc *Effect_GetModelData(int id); // 0x80235190
 
-// Universal effect spawn. Returns the low word of an {r3, r4} handle, 0 on failure,
-// while effects are suppressed (*(u32*)0x805dd8b8 != 0) or when the create gate
-// rejects the scene. parent may be NULL. efgroup asserts on -1; a rider's
-// RiderData.efgroup works. anchor_mode picks which varargs place it: mode 1 takes a
-// `void (*)(void *node)` post-spawn callback and installs no follow or anim-loop proc,
-// so the caller writes the root SRT and arms its own loop
-// (JObj_SetAllAOBJLoopByFlags(root, 0xffff) + Effect.life = 1). Modes 200..220 follow
-// a joint (218 is the mouth anchor Rider_StartInhale uses).
-u32 Effect_SpawnSync(GOBJ *parent, int id, int efgroup, int anchor_mode, ...); // 0x80236c40
+// Effect ids, group*10000 + entry. Groups below 24 are particles.
+typedef enum EffectID
+{
+    EFFECT_ID_DUST_PUFF = 20067,          // ground dust event actors kick up as they run
+    EFFECT_ID_WATER_SPLASH = 20118,
+    EFFECT_ID_GROUND_BURST = 50007,       // the pillar event spawns both at a pillar's base, scale 3
+    EFFECT_ID_GROUND_BURST_ALT = 50012,
+    EFFECT_ID_INHALE_WHIRLWIND = 240002,  // Rider_StartInhale's whirlwind
+    EFFECT_ID_QUAKE_MODEL = 240018,       // the shake model every quake id builds
+    // Camera quakes: a QUAKE_KIND_JOBJ source removed with the effect. The PLY ones shake
+    // only the given player's view. Small/medium/large are priorities 1-3, the rest 1.
+    EFFECT_ID_QUAKE_PLY_SMALL = 370074,   // EFFECT_ANCHOR_QUAKE_PLY
+    EFFECT_ID_QUAKE_PLY_MEDIUM = 370075,
+    EFFECT_ID_QUAKE_PLY_LARGE = 370076,
+    EFFECT_ID_QUAKE_PLY_LOOP = 370077,    // until the effect is retired
+    EFFECT_ID_QUAKE_PLY_TIMED = 370078,   // EFFECT_ANCHOR_QUAKE_PLY_TIMED
+    EFFECT_ID_QUAKE_SMALL = 370079,       // EFFECT_ANCHOR_QUAKE
+    EFFECT_ID_QUAKE_MEDIUM = 370080,
+    EFFECT_ID_QUAKE_LARGE = 370081,
+    EFFECT_ID_QUAKE_LOOP = 370082,        // until the effect is retired
+    EFFECT_ID_QUAKE_TIMED = 370083,       // EFFECT_ANCHOR_QUAKE_TIMED
+} EffectID;
 
-// Spawn-node fields the anchor-mode-1 callback needs.
-#define EFFECT_NODE_GOBJ 0x5c  // node -> the effect GObj
+// Effect_SpawnSync's anchor_mode: the varargs that place the effect. Modes 200..220
+// follow a joint (218 is Rider_StartInhale's mouth anchor).
+typedef enum EffectAnchorMode
+{
+    EFFECT_ANCHOR_DETACHED = 1,           // (void (*cb)(void *node)), run after the spawn
+    EFFECT_ANCHOR_WORLDPOS = 100,         // particle ids: (Vec3 *pos)
+    EFFECT_ANCHOR_WORLDPOS_SCALED = 103,  // particle ids: (Vec3 *pos, float *scale)
+    // Quake ids. A NULL pos shakes with no distance falloff.
+    EFFECT_ANCHOR_QUAKE_PLY = 506,        // (int ply, int unused, Vec3 *pos)
+    EFFECT_ANCHOR_QUAKE_PLY_TIMED = 507,  // (int ply, int unused, Vec3 *pos, int frames)
+    EFFECT_ANCHOR_QUAKE = 510,            // (int unused, Vec3 *pos)
+    EFFECT_ANCHOR_QUAKE_TIMED = 511,      // (int unused, Vec3 *pos, int frames)
+} EffectAnchorMode;
+
+// Returns the spawn handle, 0 on failure. parent may be NULL; efgroup asserts on -1.
+// EFFECT_ANCHOR_DETACHED installs no follow or anim procs: the caller places the root,
+// arms its loop (JObj_SetAllAOBJLoopByFlags) and runs JObj_AnimAll on it every frame.
+u64 Effect_SpawnSync(GOBJ *parent, int id, int efgroup, EffectAnchorMode anchor_mode, ...); // 0x80236c40
+// The particle body of EFFECT_ANCHOR_WORLDPOS. Returns the spawn node or NULL.
+void *Effect_SpawnPtclAtPos(int id, int efgroup, Vec3 *pos); // 0x8023bd90
+// Handle -> spawn node, NULL once the effect is gone; prev may be NULL.
+void *Effect_FindNode(u64 handle, void **prev);                         // 0x802342f8
+// Retune or move a quake effect's source through its handle.
+void Effect_SetQuakeAmplitude(u64 handle, float amp_right, float amp_up); // 0x8023687c
+void Effect_SetQuakePosition(u64 handle, Vec3 *pos);                    // 0x802368d0
+
+// Spawn-node fields the EFFECT_ANCHOR_DETACHED callback needs.
+#define EFFECT_NODE_GOBJ     0x5c // node -> the effect GObj
+#define EFFECT_NODE_QUAKE_ID 0x60 // node -> a quake effect's source id
 
 // Never GObj_Destroy a spawned effect: the per-node kill destroys node+0x5c again
 // when the group is retired. Hide its model tree (JObj_SetFlagsAll(root, JOBJ_HIDDEN))

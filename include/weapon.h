@@ -73,7 +73,7 @@ typedef struct WeaponDesc
     Vec3 vel;               // 0x38: initial velocity (vanilla: md->world_velocity + rider->self_vel)
     int type_flag;          // 0x44: vanilla always passes 1; copied to wp+0x78 and never
                             //       branched on.
-    float charge;           // 0x48: vanilla reads md->weapon_charge_scale
+    float charge;           // 0x48: the HurtData's dmg_scale, 0 = no damage; vanilla reads md->weapon_charge_scale
 } WeaponDesc;
 
 // State enums below are entry INDICES into the kind's state table, not
@@ -83,16 +83,16 @@ typedef struct WeaponDesc
 // Weapon_Create already leaves them in that state.
 
 typedef enum BombState {
-    BOMB_STATE_HELD      = 0, // pinned to rider hand; no physics, no detonate
-    BOMB_STATE_THROWN    = 1, // flies under physics; detonates on env collision
-    BOMB_STATE_EXPLODING = 2, // hitbox active; short timer before fade
-    BOMB_STATE_FADE      = 3, // alpha fades to 0, then GObj_Destroy
+    BOMB_STATE_HELD   = 0, // pinned to rider hand; no physics, no detonate
+    BOMB_STATE_THROWN = 1, // falls under stage gravity; Bomb_DetonationTrigger on any env contact
+    BOMB_STATE_PRIMED = 2, // frozen for BombParams.blast_delay frames, no hitbox
+    BOMB_STATE_BLAST  = 3, // hitbox, fireball, quake and wind; destroyed when the fireball ends
 } BombState;
 
 typedef enum SensorBombState {
     SENSOR_BOMB_STATE_HELD             = 0,
-    SENSOR_BOMB_STATE_ARMED_FLYING     = 1, // thrown, physics + proximity scan
-    SENSOR_BOMB_STATE_ARMED_STATIONARY = 2, // landed, waiting; short-range sensor
+    SENSOR_BOMB_STATE_ARMED_FLYING     = 1, // falls under stage gravity; SensorBomb_Land on a floor contact
+    SENSOR_BOMB_STATE_ARMED_STATIONARY = 2, // embedded; the sensor runs from trigger_callback
     SENSOR_BOMB_STATE_EXPLODING        = 3,
     SENSOR_BOMB_STATE_FADE             = 4, // state_id duplicates index 2
 } SensorBombState;
@@ -201,6 +201,39 @@ typedef struct WeaponCollDesc
     Vec3  extents; // 0x04: zero for every round kind
 } WeaponCollDesc;
 
+// A sensor bomb's WeaponData.kind_params, a per-bomb copy of the kind data's block.
+typedef struct SensorBombParams
+{
+    float x00;              // 0x00
+    int   fuse;             // 0x04: frames from create to self-detonation (2400)
+    int   arm_delay;        // 0x08: frames after landing before the sensor scans (60)
+    u8    x0c[0x2c - 0x0c]; // 0x0c: explosion size and timing
+    float sensor_radius;    // 0x2c: rider hand-bone distance that sets off an embedded bomb (30)
+    float anim_rate_start;  // 0x30: blink anim rate at first (1.0)
+    float anim_rate_end;    // 0x34: blink anim rate at the end of the ramp (5.0)
+    int   anim_rate_frames; // 0x38: frames of burnt fuse the ramp takes (280)
+    int   blinks;           // 0x3c: the blink interval is fuse / blinks frames (60)
+    int   max_active;       // 0x40: SensorBomb_EnforceMaxActive fades thrown bombs past this count (2)
+} SensorBombParams;
+
+// A bomb's WeaponData.kind_params, a per-bomb copy of the kind data's block. The blast
+// scale ramps from blast_scale_start to blast_scale_end over ramp_frames, scaling both
+// attack regions, the fireball and the wind.
+typedef struct BombParams
+{
+    u8    x00[0x0c];         // 0x00
+    int   blast_delay;       // 0x0c: frames in BOMB_STATE_PRIMED (14)
+    int   ramp_frames;       // 0x10: blast scale ramp length (450)
+    int   self_hit_delay;    // 0x14: blast frames before the bomb can hit its owner (40)
+    float quake_amplitude;   // 0x18: (3.0)
+    u8    x1c[0x28 - 0x1c];  // 0x1c
+    float wind_scale;        // 0x28: wind radius over region 1's
+    float blast_scale_start; // 0x2c: (1.0)
+    float blast_scale_end;   // 0x30: (170), also the fireball's outer joint and the contact particle
+    float light_height;      // 0x34: the blast's area light sits this far above the bomb
+    u8    x38[0x84 - 0x38];  // 0x38: light radius, fade and AreaLightData
+} BombParams;
+
 // Per-kind data at *(0x8055a9a8 + kind*4). Registration is all-or-nothing and
 // rider-driven: Rider_Create feeds the full 17-kind list from RdKirbyAbility.dat
 // to Weapon_RegisterKindDataList, so once any rider exists the whole table
@@ -210,9 +243,9 @@ typedef struct WeaponCollDesc
 typedef struct WeaponKindData
 {
     const WeaponKindParams       *params;              // +0x00
-    const void                 *render_state_tmpl;   // +0x04: copied into wp+0x104. word0 is the muzzle
-                                                     //        speed plasma / spit-star post_inits apply;
-                                                     //        plasma's word1 is its burst angle in degrees.
+    const void                 *kind_params;         // +0x04: tuning block WeaponData.kind_params copies. word0 is
+                                                     //        the plasma / spit-star muzzle speed, plasma's
+                                                     //        word1 its burst angle in degrees.
     WeaponModelBlock             *model_desc;          // +0x08: NULL falls back to a global default model
     const WeaponStateAnimSpec    *state_anim_spec_array; // +0x0c: indexed by state_id
     const void                 *vuln_region_spec;    // +0x10: vulnerable-region list (0x44 stride). NULL for
@@ -230,9 +263,8 @@ typedef struct WeaponKindVTable
     const WeaponStateEntry *state_table; // 0x00: per-kind state entries, loaded into wp+0x34
     void                      (*system_init)(void); // 0x04: run by Weapon_SystemInit on every 3D load
     void                      (*init)(void *wp);          // 0x08: one-shot at create
-    void                      (*load_render_state)(void *wp);  // 0x0c: fills wp+0x104 from the kind data,
-                                                                 //       after Weapon_LoadKindParams copies params
-    void                      (*reset_render_state)(void *wp); // 0x10: the same, on a params reset
+    void                      (*load_kind_params)(void *wp);   // 0x0c: fills WeaponData.kind_params
+    void                      (*reload_kind_params)(void *wp); // 0x10: the same copy again, on a reload
     void                      (*aux_a)(void *wp);         // 0x14: teardown cleanup, run by the dtor
     void                      (*post_init)(void *wp);     // 0x18: one-shot at create, after proc registration
     int                       (*on_hit)(void *wp, void *hit); // 0x1c: prio-10 hit reaction; non-zero destroys
@@ -284,10 +316,10 @@ typedef struct WeaponData
     Vec3           pos_prev;             // 0xb8: previous frame (used by swept collision)
     Vec3           anchor_pos;           // 0xc4: world position of WeaponModelBlock.anchor_part, rewritten
                                          //       every WPPRI_POSTENVCOLL; the spawn position until then
-    u8             pad_d0[0x104 - 0xd0]; // 0xd0..0x103: rotation basis, sub-object refs (internal)
-    void          *render_state;         // 0x104: per-weapon block holding the alpha/color/scale ramp
-                                         //        the FADE state reads (+0x10 alpha, +0x14 lifetime,
-                                         //        +0x2c/0x30 fade endpoints)
+    u8             pad_d0[0xf4 - 0xd0];  // 0xd0..0xf3: rotation basis (internal)
+    float          model_scale;          // 0xf4: params.model_scale copy; scales the model alone
+    u8             pad_f8[0x104 - 0xf8]; // 0xf8..0x103: sub-object refs (internal)
+    void          *kind_params;          // 0x104: this weapon's copy of kind_data->kind_params (BombParams, ...)
     HurtData      *hurt_data;            // 0x108
     int            lifetime;             // 0x10c: frames remaining, decremented at prio 1. Seeded from
                                          //        kind_data params[3]. 0 means INFINITE - bomb, sensor
@@ -295,7 +327,9 @@ typedef struct WeaponData
     int            frame_counter;        // 0x110: monotonic, incremented by prio-0
     int            efgroup;              // 0x114: EfGroup from Weapon_AllocEfGroups, freed in the dtor
     int            efgroup2;             // 0x118: second EfGroup
-    u8             pad_11c[0x138 - 0x11c]; // 0x11c..0x137
+    float          gravity_strength;     // 0x11c: Gr_GetDownVector at pos, refreshed by Weapon_RefreshGravity
+    Vec3           gravity_down;         // 0x120: unit down at pos
+    u8             pad_12c[0x138 - 0x12c]; // 0x12c..0x137
     CollData      *coll_data;            // 0x138: environment collider, NULL when the kind has no
                                          //        mpcoll_desc. Its sweep is what runs the yakumono
                                          //        break dispatch, and its owner GObj is this weapon
@@ -322,14 +356,38 @@ typedef struct WeaponData
     u8             flag_c;               // 0x1b6: bit 7 cleared by Weapon_StateChange; lower bits flag
                                           //        effect liveness
     u8             pad_1b7;              // 0x1b7
-    u8             kind_scratch[0x218 - 0x1b8]; // 0x1b8..0x217: per-kind timers / effect handles.
-                                          //        BOMB: 0x1c0 detonation countdown then FADE handle,
-                                          //        0x1c8/0x1cc positional FADE effect, 0x1f8/0x1fc
-                                          //        EXPLODING burst, 0x1d0..0x1ec fade ramp.
-                                          //        FIRE_BULLET: 0x1b8/0x1bc = owner's Fire charge as
-                                          //        (charge/max, charge); a custom spawner must seed both
-                                          //        or the shot bursts at zero size with no hitbox.
-                                          //        FIRECRACKER: 0x1b8/0x1bc = fuse, independent of lifetime.
+    union
+    {
+        // BOMB: 0x1c0 the PRIMED countdown, then the fireball's effect handle; 0x1c8 the blast
+        // quake; 0x1d0..0x1ec the blast ramp; 0x1f8/0x1fc the fuse spark. FIRECRACKER:
+        // 0x1b8/0x1bc the fuse, independent of lifetime.
+        u8 raw[0x218 - 0x1b8];            // 0x1b8..0x217
+        // The owner's Fire charge, cached by FireBullet_Init. A custom spawner must seed both
+        // (1.0 is full charge) or the shot bursts at zero size with no hitbox.
+        struct
+        {
+            float knockback_scale;        // 0x1b8, charge / max; multiplies each region's base_knockback
+            float burst_scale;            // 0x1bc, charge; becomes the burst's scale
+        } fire_bullet;
+        struct
+        {
+            u8  x1b8[4];                  // 0x1b8
+            int fuse;                     // 0x1bc, frames to self-detonation; 0 stops the countdown
+            s16 blink_timer;              // 0x1c0
+            s16 arm_delay;                // 0x1c2, frames left before an embedded bomb's sensor scans
+        } sensor_bomb;
+        // The flight's grow ramp into scale, which PlasmaD_Burst reseeds as the burst's
+        // shrink while fading region 0's damage.
+        struct
+        {
+            int ramp_frames;              // 0x1b8, frames of the ramp left
+            float ramp_scale;             // 0x1bc, copied into scale each ramp frame
+            float ramp_step;              // 0x1c0, added in flight, subtracted in the burst
+            float burst_damage;           // 0x1c4
+            float burst_damage_step;      // 0x1c8
+            void *light;                  // 0x1cc, point light, freed only by the burst's end
+        } plasma_d;
+    } kind_scratch;
     u8             flag_d;               // 0x218: subproc-gating; bit 0 always set
     u8             pad_219[0x220 - 0x219]; // 0x219..0x21f
 } WeaponData;
@@ -354,6 +412,9 @@ typedef struct WeaponData
 GOBJ *Weapon_Create(WeaponDesc *desc); // 0x8021f428
 // Weapon_Create's prio-10 proc. On a hit it calls the vtable's on_hit.
 void Weapon_Proc10_HitReact(GOBJ *wp_gobj); // 0x8021fcd4
+// Gr_GetDownVector at pos into gravity_strength / gravity_down; from Weapon_Create and
+// every frame from the prio-7 proc. Falling kinds also sample it themselves each frame.
+void Weapon_RefreshGravity(WeaponData *wp); // 0x80220578
 // The WeaponData destructor every ending runs through: frees the HurtData and EfGroups,
 // runs the kind's aux_a, then frees the rest.
 void Weapon_UserDataDtor(WeaponData *wp); // 0x8021ff54
@@ -396,9 +457,9 @@ void Weapon_LoadCommonArchive(void); // 0x80220194
 // Fills only the NULL slots of wp_kind_data from a {count, entries} list of
 // {kind, data} pairs, without bounds-checking the kind.
 void Weapon_RegisterKindDataList(void *list); // 0x802201e0
-// kind_data->params into wp+0xf4..0x100, then the vtable's load_render_state.
+// kind_data->params into wp+0xf4..0x100, then the vtable's load_kind_params.
 void Weapon_LoadKindParams(WeaponData *wp); // 0x802205e8
-// The same params copy, then the vtable's load_render_state and reset_render_state.
+// The same params copy, then the vtable's load_kind_params and reload_kind_params.
 // Called once, from Weapon_Create.
 void Weapon_ReloadKindParams(WeaponData *wp); // 0x80220654
 // Rebuilds the root JObj matrix from the basis and position, scaled by
@@ -451,9 +512,23 @@ void PlasmaSpread_State0_Phys(void *wp);          // 0x802269f8
 void PlasmaSpread_State0_EnvCollide(void *wp);    // 0x802269fc
 void PlasmaSpread_State0_PostEnvColl(void *wp);   // 0x80226abc
 void PlasmaSpread_Despawn(void *wp);              // 0x80226b1c
-// SetState(0), then velocity = spawn velocity + forward * render template word0.
+// SetState(0), then velocity = spawn velocity + forward * kind_params word0.
 void PlasmaSpread_PostInit(void *wp);             // 0x80226960
 int  PlasmaSpread_OnHit(void *wp, void *hit);     // 0x80226ac8, always 0
+
+// WPKIND_PLASMA_D, the Plasma ability's piercing full-charge ball: state 0 flies, state 1
+// bursts. Only Weapon_Create needs a real owner, for RiderGObj_GetPly; a class-0 stand-in
+// whose userdata byte 8 is PLY_NUM can carry the create and then be cleared.
+void PlasmaD_Init(WeaponData *wp);                // 0x80227a80, owner homing tracker and the point light
+// The grow ramp from scale 0.05 to 0.7 over 30 frames, overwriting desc.scale.
+void PlasmaD_PostInit(WeaponData *wp);            // 0x80227b48
+void PlasmaD_GrowThink(WeaponData *wp);           // 0x80227bf0, state 0 anim_callback
+// State 0 envcoll_callback: bursts on a floor at 150 degrees or more to the velocity.
+void PlasmaD_EnvCollide(WeaponData *wp);          // 0x80227c60
+void PlasmaD_Burst(WeaponData *wp);               // 0x80227d38, the despawn: state 1 for 10 frames
+void PlasmaD_BurstThink(WeaponData *wp);          // 0x80227e34, state 1 anim_callback; frees the light and the ball
+// Halves a nonzero lifetime on each rider or machine hit, bursting at 0. Always 0.
+int  PlasmaD_OnHit(WeaponData *wp, void *hit);    // 0x80227f68
 
 void SpitStar_Init(void *wp);                    // 0x802244cc, creates the homing tracker
 void SpitStar_State0_Homing(void *wp);           // 0x802245f0
@@ -489,5 +564,28 @@ int  WeaponGObj_IsGordoThrowable(GOBJ *wp_gobj);                           // 0x
 // the per-kind scratch gordo state 1 reads each frame (spin, decay, impulse,
 // lifetime), which a bare Weapon_StateChange(wp, 1, ...) leaves at zero.
 void WeaponGObj_EnterGordoThrownState(GOBJ *wp_gobj, Vec3 *vel, Vec3 *pos); // 0x8022a544
+
+// BOMB_STATE_THROWN's env contact: quake, particle and sound, then BOMB_STATE_PRIMED.
+void Bomb_DetonationTrigger(WeaponData *wp); // 0x80225c8c
+
+// Sets the fuse and the blink, enters HELD and starts the held sparkle.
+void SensorBomb_PostInit(WeaponData *wp); // 0x80228d8c
+// HELD -> ARMED_FLYING with vel, then SensorBomb_EnforceMaxActive; a no-op once the fuse is 0.
+void SensorBomb_TryThrow(GOBJ *wp_gobj, Vec3 *vel); // 0x80228f08
+// The ARMED_FLYING floor contact: ARMED_STATIONARY, with SensorBomb_SensorThink as trigger_callback.
+void SensorBomb_Land(WeaponData *wp); // 0x802290bc
+// After arm_delay, detonates when any rider's hand bone, the owner's included, is within
+// sensor_radius.
+void SensorBomb_SensorThink(WeaponData *wp); // 0x802292f8
+// Both armed states' anim_callback: burns the fuse and blinks, detonating at 0.
+void SensorBomb_FuseThink(WeaponData *wp); // 0x80229e64
+void SensorBomb_Detonate(WeaponData *wp);  // 0x802295a8, -> EXPLODING
+// The on_damage_callback SensorBomb_TryThrow installs: a hit in flight detonates the bomb.
+int  SensorBomb_OnDamage(WeaponData *wp, void *dmg); // 0x80229a2c, always 0
+// Fades each thrown sensor bomb past its max_active, counting every owner's together.
+void SensorBomb_EnforceMaxActive(void); // 0x8022a270
+// Sends each thrown Gordo past its kind_params cap (+0x1c) to GORDO_STATE_DESPAWN, counting
+// every owner's together.
+void Gordo_EnforceMaxActive(void); // 0x8022b45c
 
 #endif // MEX_H_WEAPON

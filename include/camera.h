@@ -65,7 +65,7 @@ typedef struct CamData
     int x8;                 // 0x8
     int xc;                 // 0xc
     int x10;                // 0x10
-    CameraParam x14;        // 0x14  (copied from x138)
+    CameraParam view;       // 0x14, from x138; what PlyCamGObj_Think hands the COBJ
     u8 x3c[0x38];           // 0x3c
     u8 x74[0x10];           // 0x74
     u8 zoom_enabled : 1;    // 0x84, 0x80, enables PlyCam_MachineZoomAdjust; raised while a kind feeds rotation_amt/zoom_amt
@@ -89,22 +89,108 @@ typedef struct CamData
     float x2c8;             // 0x2c8,
 } CamData;
 
-// Per-view eye-offset record. PlyCamGObj_Think builds the camera's right/up basis and
-// then, gated on gate > 0, offsets the eye it hands the COBJ by
-// right * eye_right * scale_right + up * eye_up * scale_up. The scales initialise
-// to 1.0, so writing the two offsets in world units and raising the gate is the
-// whole screen-shake mechanism - CamData.eye_pos/interest_pos are not in the
-// render path.
+typedef struct QuakeSource QuakeSource;
+
+// Per-view screen-shake record from Quake_CreateView. Quake_Think (priority 11) rewrites
+// the offsets and gate every frame, and PlyCamGObj_Think (priority 13) shifts the eye
+// and interest along the camera's right/up by them while gate > 0, so a direct write
+// must land between the two.
 typedef struct CamShakeRec
 {
-    u8 x00[0x20];       // 0x00
-    float scale_right;  // 0x20, init 1.0
-    float scale_up;     // 0x24, init 1.0
-    float eye_right;    // 0x28, eye offset along the camera's right axis
-    float eye_up;       // 0x2c, eye offset along the camera's up axis
-    u8 x30[0x44 - 0x30];
-    float gate;         // 0x44, > 0 enables the offset
+    struct CamShakeRec *next; // 0x00
+    int id;                   // 0x04
+    Vec3 view_eye;            // 0x08, CamData.view.eye
+    QuakeSource *sources;     // 0x14, sources owned by this view
+    int x18;                  // 0x18
+    int enabled;              // 0x1c, init 1; 0 zeroes the offsets
+    float scale_right;        // 0x20, init 1.0
+    float scale_up;           // 0x24, init 1.0
+    float eye_right;          // 0x28, eye offset along the camera's right axis
+    float eye_up;             // 0x2c, eye offset along the camera's up axis
+    float mag;                // 0x30, the winning source's magnitude
+    float interest_right;     // 0x34, interest offset along right
+    float interest_up;        // 0x38, interest offset along up
+    float interest_mag;       // 0x3c
+    int source_num;           // 0x40, sources seen this frame
+    float gate;               // 0x44, > 0 enables the offsets
 } CamShakeRec;
+
+typedef enum QuakeKind
+{
+    QUAKE_KIND_NONE,     // only the callback writes the output
+    QUAKE_KIND_OSC,      // oscillator; nothing creates one
+    QUAKE_KIND_CONSTANT, // output set by Quake_SetConstantOffset
+    QUAKE_KIND_JOBJ,     // output from the GObj root's trans.xy * scale.xy
+} QuakeKind;
+
+typedef enum QuakeEndMode
+{
+    QUAKE_END_DURATION = 1, // once frame reaches duration
+    QUAKE_END_SETTLED,      // once out_mag drops below 0.0001
+    QUAKE_END_NEVER,        // as is any other value
+    QUAKE_END_GOBJ,         // once the QUAKE_KIND_JOBJ GObj is gone
+} QuakeEndMode;
+
+// Nonzero ends the source.
+typedef int (*QuakeSourceCB)(QuakeSource *src);
+
+// One shake source (pool of 256). Each view applies only its highest-priority source,
+// its own or global. A positioned source fades out between 40 and 500 units from the eye.
+struct QuakeSource
+{
+    QuakeSource *next;       // 0x00, every live source
+    QuakeSource *next_view;  // 0x04, the owning view's list, or the global list
+    u32 id;                  // 0x08, owning view id << 16 | serial
+    Vec3 pos;                // 0x0c, falloff origin unless no_pos
+    u8 kind;                 // 0x18, QuakeKind
+    u8 end_mode;             // 0x19, QuakeEndMode
+    u16 priority;            // 0x1a
+    u16 frame;               // 0x1c, frames lived
+    u16 duration;            // 0x1e
+    union
+    {
+        struct
+        {
+            float right;
+            float up;
+            float mag;
+        } constant;          // QUAKE_KIND_CONSTANT
+        GOBJ *gobj;          // QUAKE_KIND_JOBJ
+        u8 osc[0x38];        // QUAKE_KIND_OSC
+    } u;                     // 0x20
+    QuakeSourceCB cb;        // 0x58, runs every frame after the kind's own step
+    float amp_right;         // 0x5c
+    float amp_up;            // 0x60
+    float out_right;         // 0x64
+    float out_up;            // 0x68
+    float out_mag;           // 0x6c, the view's gate is out_mag * falloff * max(amp)
+    int eye_only;            // 0x70, leaves the interest unshaken
+    int no_pos;              // 0x74, no distance falloff
+};
+
+// Runs from Effect_Init at every 3D load, resetting both pools; a held source id is
+// stale after it.
+void Quake_Init(void);                    // 0x8006c798
+void Quake_UpdateView(CamShakeRec *rec);  // 0x8006d690, one record's offsets and gate
+void Quake_Think(GOBJ *gobj);             // 0x8006d95c
+CamShakeRec *Quake_CreateView(void);      // 0x8006dc10, NULL when the pool is full
+void Quake_DestroyView(int view_id);      // 0x8006ca5c, with every source it owns
+// Both write to address 0 when no source has the id; remove only a live id.
+void Quake_FreeSource(CamShakeRec *view, u32 id); // 0x8006c8e0
+void Quake_RemoveSource(u32 id);                  // 0x8006ca00
+int Quake_StepOscillator(void *osc, float *out);  // 0x8006cb58, out = {right, up, mag}
+// view NULL shakes every view; pos NULL means no falloff. NULL when the pool is full.
+QuakeSource *Quake_AllocSource(CamShakeRec *view, int priority, QuakeEndMode end_mode, int duration, Vec3 *pos,
+                               QuakeSourceCB cb, float amp_right, float amp_up); // 0x8006dcc0
+// The ones below return the source id, 0 on failure.
+u32 Quake_AddJObjSource(CamShakeRec *view, int priority, QuakeEndMode end_mode, int duration, GOBJ *gobj, Vec3 *pos,
+                        QuakeSourceCB cb, float amp_right, float amp_up);        // 0x8006de2c
+// QUAKE_END_NEVER, no position, amplitude 1.
+u32 Quake_AddConstantSource(CamShakeRec *view, int priority, float right, float up); // 0x8006de8c
+int Quake_SetConstantOffset(u32 id, float right, float up); // 0x8006df74, 0 unless id is a live constant source
+void Quake_SetEyeOnly(u32 id, int eye_only);                // 0x8006e03c
+void Quake_SetAmplitude(u32 id, float amp_right, float amp_up); // 0x8006e07c
+void Quake_SetPosition(u32 id, Vec3 *pos);                  // 0x8006e0c0, NULL = no falloff
 
 typedef struct PlayerCamData
 {
@@ -157,6 +243,14 @@ void cameraControlThink(CamData *cam, int pad_index, float *p); // 0x800b67cc
 int PlyCam_OnMachineThink(CamData *cam, int pad_index);         // 0x800c04b0, kind 1 input think
 int PlyCam_OnFootThink(CamData *cam, int pad_index);            // 0x800cb3b4, kind 6 input think; C-Stick X only, no zoom
 void PlyCam_OnFootEnter(CamData *cam, int *unk);                // 0x800cc050, kind 6 on-enter
+// Plays the machine's cannon_path while it is in a cannon, so the path is in absolute stage units.
+void PlyCam_CannonThink(CamData *cam);                          // 0x800caee0
+// Kind 1 per-frame solve into xc0. Its up comes from Gr_GetDownVector at target->pos_high,
+// so the camera rolls with gravity; PlyCam_OnFootSolve does the same.
+void PlyCam_MachineSolve(CamData *cam, int is_first_frame);     // 0x800c05ac
+// Kind 1 smoothing of xc0 into xe8. The up is lerped without renormalizing, so it
+// shrinks through a near-reversal of gravity.
+void PlyCam_MachineBlend(CamData *cam);                         // 0x800c24e8
 void PlyCam_OnFootSolve(CamData *cam, int is_first_frame);      // 0x800cb500, kind 6 per-frame solve into xc0
 void PlyCam_OnFootBlend(CamData *cam);                          // 0x800cbec8, kind 6 smoothing of xc0 into xe8
 void PlyCam_ReplayEnter(CamData *cam, int *args);               // 0x800c89f0, kind 3 on-enter
