@@ -2,7 +2,6 @@
 #define KAR_H_STAGE
 
 #include "datatypes.h"
-#include "audio.h"
 #include "obj.h"
 #include "hurt.h"
 #include "collision.h"
@@ -131,21 +130,35 @@ static const char *const TopRideCourse_Names[TOPRIDE_NUM] = {
     [TOPRIDE_METAL] = "Metal",
 };
 
-typedef struct GrFogData
-{
-    u8 x0[0x1c];    // 0x0
-    int fog_kind;   // 0x1c
-} GrFogData;
-
+// 0x48-byte sky preset in the stage file's GrData.fog->colors array, interpolating fog,
+// screen tint, sky ambient color and AreaLight params over transition_frames.
 typedef struct GrFogDesc
 {
-    int transition_frames;  // 0x0
-    GXColor fog_color;      // 0x4
-    float fog_near;         // 0x8
-    float fog_far;          // 0xc
-    GXColor map_color;      // 0x10
-    GXColor sky_color;      // 0x14
+    s32 transition_frames;     // 0x00 blend duration in frames
+    GXColor fog_color;         // 0x04 fog/background color (interpolated)
+    float fog_near;            // 0x08 fog near distance (interpolated)
+    float fog_far;             // 0x0C fog far distance (interpolated)
+    GXColor map_color;         // 0x10 lbfade screen tint (transitions only)
+    GXColor sky_color;         // 0x14 ambient sky color (interpolated)
+    AreaLightData area_light;  // 0x18 directional light params (0x2C bytes)
+    u8 light_vis_flag;         // 0x44 bit 0 -> AreaLight registry +0x38 bit 0x80
+    u8 x45[3];                 // 0x45
 } GrFogDesc;
+
+// Runtime sky state owned by the fog GObj at GrObj+0x168 (its userdata): the target
+// preset, transition counter, and the lerp-start value for each interpolated field.
+typedef struct GrFogData
+{
+    GrFogDesc *target_preset;       // 0x00 current target preset
+    s32 transition_frame_counter;   // 0x04 0 -> target.transition_frames
+    u32 start_fog_color;            // 0x08 RGBA lerp start; reused as Sky_Update output mirror
+    float start_fog_near;           // 0x0C
+    float start_fog_far;            // 0x10
+    u32 start_sky_color;            // 0x14 RGBA
+    u32 current_output_sky_color;   // 0x18 RGBA written every frame; Sky_DrawTintQuad's (0x800d7e78) tint
+    s32 fog_kind;                   // 0x1C current preset index
+    AreaLightData start_area_light; // 0x20 lerp start for AreaLight_Lerp (0x2C bytes)
+} GrFogData;
 
 typedef struct GrModelMotionAnim
 {
@@ -171,23 +184,6 @@ typedef struct ModelSection
     void *unk_8;         // 0x08
     void *unk_c;         // 0x0C
 } ModelSection;
-
-struct SkyPresetEntry;
-
-// The {array, count} pair at SkyBlock+0x04. Repointing both fields swaps in an
-// extended preset array.
-typedef struct SkyPresetSubHeader
-{
-    struct SkyPresetEntry *preset_array; // 0x00 - base of the 0x48-byte preset entries
-    s32 preset_count;                    // 0x04 - number of presets in the array
-} SkyPresetSubHeader;
-
-// The GrData+0x34 sub-block: the initial fog descriptor and the preset sub-header.
-typedef struct SkyBlock
-{
-    HSD_FogDesc *fog_desc;             // 0x00 - initial fog parameters
-    SkyPresetSubHeader *preset_header; // 0x04 - sky preset array + count
-} SkyBlock;
 
 // One gravity zone's falloff, indexed like its point or spline. Inside radius the pull
 // is lerp(strength_center, strength_edge, dist / radius) along (pos - zone point); a
@@ -329,7 +325,18 @@ typedef struct GrData // exists in the stage file
     GrItemNode *item;      // 0x2c - item-spawn tables, one entry per ItemposId
     EventConfigData *event_config; // 0x30 - set on entering City Trial, whatever the events on/off
                            //        setting. Also stored as EventCheckData.data when events are on.
-    SkyBlock *sky_block;   // 0x34 - sky/fog descriptor pair: [0] HSD_FogDesc, [1] preset sub-header (array base + count)
+    struct
+    {
+        struct
+        {
+            HSD_FogDesc *desc;  // 0x0 - initial fog parameters
+        } *data;                // 0x0
+        struct
+        {
+            GrFogDesc *desc_arr; // 0x0 - sky presets; repointing both fields swaps in an extended array
+            int num;             // 0x4
+        } *colors;              // 0x4
+    } *fog;                // 0x34
     int x38;               // 0x38
     int x3c;               // 0x3c
     YakumonoTable *yakumono; // 0x40 - per-stage yakumono manifest
@@ -518,9 +525,9 @@ typedef struct GrObj
     u8 x12c[0x13C - 0x12C];
     void *gravity_pos;          // 0x13C - 0x24 bytes per Gravitypos point, position first
     u8 x140[0x168 - 0x140];
-    GOBJ *sky_gobj;             // 0x168 - fog/sky GObj built by Sky_InitFog.
+    GOBJ *fog_gobj;             // 0x168 - fog/sky GObj built by Sky_InitFog.
                                 //         hsd_object (+0x28) = HSD_Fog *,
-                                //         userdata (+0x2C) = SkyState *.
+                                //         userdata (+0x2C) = GrFogData *.
     u8 x16c[0x6FC - 0x16C];
     int yaku_num;               // 0x6FC - live yakumono GObjs, incremented per GrYaku_Create
     void *coll_tree;            // 0x700 - static KD-tree, = *(GrData+0x48); built by grColl_TreeInit
@@ -674,38 +681,6 @@ typedef enum CitySkyPreset
     CITYSKY_LIGHTHOUSE,
     CITYSKY_NUM,
 } CitySkyPreset;
-
-// 0x48-byte preset entry in the stage file's sky-block array, interpolating fog,
-// screen tint, sky ambient color and AreaLight params over transition_frames.
-// Color fields are packed RGBA8888 u32 with the high byte red.
-typedef struct SkyPresetEntry
-{
-    s32 transition_frames;     // 0x00 blend duration in frames
-    u32 fog_color;             // 0x04 RGBA fog/background color (interpolated)
-    float fog_start;           // 0x08 fog near distance (interpolated)
-    float fog_end;             // 0x0C fog far distance (interpolated)
-    u32 fade_color;            // 0x10 RGBA lbfade screen tint (transitions only)
-    u32 sky_ambient_color;     // 0x14 RGBA ambient sky color (interpolated)
-    AreaLightData area_light;  // 0x18 directional light params (0x2C bytes)
-    u8 light_vis_flag;         // 0x44 bit 0 -> AreaLight registry +0x38 bit 0x80
-    u8 x45[3];                // 0x45
-} SkyPresetEntry;
-
-// Runtime sky state owned by the fog/sky GObj at GrObj+0x168, reachable via
-// grobj->gobj[+0x168]+0x2C: the target preset, transition counter, and the
-// lerp-start value for each interpolated field.
-typedef struct SkyState
-{
-    SkyPresetEntry *target_preset;  // 0x00 current target preset
-    s32 transition_frame_counter;   // 0x04 0 -> target.transition_frames
-    u32 start_fog_color;            // 0x08 RGBA lerp start; reused as Sky_Update output mirror
-    float start_fog_start;          // 0x0C
-    float start_fog_end;            // 0x10
-    u32 start_sky_color;            // 0x14 RGBA
-    u32 current_output_sky_color;   // 0x18 RGBA written every frame; Sky_DrawTintQuad's (0x800d7e78) tint
-    s32 current_preset_index;       // 0x1C
-    AreaLightData start_area_light; // 0x20 lerp start for AreaLight_Lerp (0x2C bytes)
-} SkyState;
 
 void Sky_Init(GOBJ *stage_gobj);                         // 0x8010f114 - initial sky setup per stage
 void Sky_SetPresetIndex(GrObj *grobj, int preset_index);  // 0x800dc630 - store preset index in sky state +0x1C

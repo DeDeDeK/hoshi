@@ -74,7 +74,7 @@ void BootScene_Apply()
                 .ply = 0,
                 .x7 = -1,
                 .cpu_level = 8,
-                .x9 = -1,
+                .cpu_level_eff = -1,
                 .xa = 0,
                 .xb = 0,
                 .xc = 0,

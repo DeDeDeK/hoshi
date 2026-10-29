@@ -14,7 +14,7 @@ struct GXColor
 };
 
 // Pack four bytes into an RGBA8888 u32 (high byte = R) - the byte order of a GXColor,
-// which is how GXColor_Lerp reads the u32 color fields in SkyPresetEntry,
+// which is how GXColor_Lerp reads the u32 color fields in GrFogData,
 // AreaLightData, etc.
 #define RGBA(r, g, b, a) ((u32)(r) << 24 | (u32)(g) << 16 | (u32)(b) << 8 | (u32)(a))
 
@@ -443,16 +443,6 @@ typedef enum GXTexMtxType
     GX_MTX3x4 = 0,
     GX_MTX2x4,
 } GXTexMtxType;
-
-typedef enum GXTexFilter
-{
-    GX_NEAR,
-    GX_LINEAR,
-    GX_NEAR_MIP_NEAR,
-    GX_LIN_MIP_NEAR,
-    GX_NEAR_MIP_LIN,
-    GX_LIN_MIP_LIN,
-} GXTexFilter;
 
 typedef enum GXColorSrc
 {
