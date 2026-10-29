@@ -546,12 +546,27 @@ typedef struct vcAnimationWheel
     float cruise_timer[2][2];   // 0x38, {first-pair frame, period}, riding and not
 } vcAnimationWheel;             // 0x48
 
+// One machine hurtbox, a sphere at a joint. Its radius is scaled by MachineData.model_scale.
+typedef struct vcHurtDesc
+{
+    int joint;    // 0x00, index into the machine's joint table
+    Vec3 offset;  // 0x04, from the joint
+    float radius; // 0x10, 2.27 on the Warp Star, 4.2 on the Hydra, 0.95-1.95 on the bikes
+    int flags;    // 0x14
+} vcHurtDesc;     // 0x18
+
+typedef struct vcHurtGroup
+{
+    vcHurtDesc *desc; // 0x00
+    int num;          // 0x04, 1 on every vanilla machine
+} vcHurtGroup;
+
 // A Vc<Class><Stem>.dat's only public, named vcData<Class><Stem>.
 typedef struct vcData
 {
     vcAttributes *attr;                 // 0x00
     vcModelData *model;                 // 0x04
-    void *unk_collision_group;          // 0x08
+    vcHurtGroup *hurt;                  // 0x08, the hurtboxes Machine_InitHurtData (0x801d6e84) builds
     void *coll_attr;                    // 0x0c, 0x38-byte analytic float table
     void *coll_sphere;                  // 0x10, 0x18
     vcHandlingAttr *handling_attr;      // 0x14, copied to MachineData.attr->handling; 0x108 bytes on the bike class
@@ -1904,6 +1919,17 @@ void Machine_CalcDeflectDir(int *hit, Vec3 *fallback, Vec3 *out); // 0x801e0a44,
 // No-op unless the machine holds an event formation slot: releases the slot, then
 // runs Machine_ClaimSpawnSlot and Machine_OnEnterHitReaction.
 void Machine_EnterHitReaction(MachineData *md);        // 0x801e05bc
+// Takes the first free formation slot (MACHINE_FORMATION_NONE when all five are held,
+// which still stores the GObj one past the array) and enters common state 6.
+void Machine_JoinFormation(MachineData *md);           // 0x801e0498
+void Machine_EnterFormationFlight(MachineData *md);    // 0x801e1a48, MachineStateChange to common state 6
+// Common state 6's anim_cb; its input, phys and envcoll callbacks are empty. Riderless and
+// in a slot, it counts down the hover, sets the cruise velocity at take-off, then fades and
+// destroys the machine. With a rider aboard it only refreshes the ColAnim.
+void Machine_FormationFlightAnimThink(MachineData *md); // 0x801e1bf4
+// Releases the formation slot without claiming a spawn slot or leaving state 6. Called from
+// Machine_Destroy and from boarding (bl at 0x801c832c).
+void Machine_LeaveFormation(MachineData *md);          // 0x801e054c
 // Machine-vs-machine bumps. A real bump calls Machine_EnterHitReaction on the other
 // machine (bl at 0x801dacb8) and then on this one (0x801dacc0).
 void Machine_CheckMachineBumpCollision(MachineData *md); // 0x801daac4

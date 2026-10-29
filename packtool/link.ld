@@ -2467,4 +2467,11 @@ SECTIONS
   Gm_GetPlayerFinishedFlag = 0x8000979c;
   Ply_SetRunAmok = 0x8022d5c8;
   Gm_GetDededeHPMargin = 0x8000ca18;
+  Machine_JoinFormation = 0x801e0498;
+  Machine_EnterFormationFlight = 0x801e1a48;
+  Machine_FormationFlightAnimThink = 0x801e1bf4;
+  Machine_LeaveFormation = 0x801e054c;
+  Event_MachineFormation_AllocSlots = 0x801e0308;
+  Event_MachineFormation_IsDone = 0x801dfe84;
+  Event_MachineFormation_GetSlotGObj = 0x801e0654;
 }

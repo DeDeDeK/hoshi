@@ -117,6 +117,9 @@ typedef struct EventFunction
 static GOBJ **stc_eventcheck_gobj = (GOBJ **)(0x805dd0e0 + 0x618);
 static int *stc_event_machineformation_loadnum = (int *)(0x805dd0e0 + 0x750); // number of machines spawned for the machine formation event
 static GOBJ ***stc_event_formation_slots = (GOBJ ***)(0x805dd0e0 + 0x790);     // GOBJ *[5], indexed by MachineData.formation_slot
+void Event_MachineFormation_AllocSlots(void);          // 0x801e0308, stc_event_formation_slots at scene machine init
+int Event_MachineFormation_IsDone(void);               // 0x801dfe84, stc_event_machineformation_loadnum == 0
+GOBJ *Event_MachineFormation_GetSlotGObj(int slot);    // 0x801e0654, NULL when the slots are unallocated
 static EventFunction (*stc_event_function)[EVKIND_NUM] = (void *)0x804a5410;
 
 #define EVENT_SIS_ID_NUM (EVKIND_NUM + STKIND_NUM)
