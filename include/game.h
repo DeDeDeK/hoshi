@@ -3019,7 +3019,9 @@ void AirRide_CheckRaceDistanceObjectives(void); // 0x8004d454
 // GroundKind for two (clear_kind, frame target) tiers, requires
 // Gm_GetRaceLapTotal() to equal the course's canonical lap count (3 for Fantasy
 // Meadows, 2 elsewhere), and awards when the player's finish time is nonzero and
-// <= the target. GR_SPACE2 has no case. Takes the player index.
+// <= the target. GR_SPACE2 has no case: its jump-table entry (0x804976c0) lands on
+// the award loop with both tiers uninitialized, so it reads stack garbage as
+// clear_kind and frame target. Takes the player index.
 void AirRide_CheckRaceLapObjectives(int ply);   // 0x8004d248
 
 // Runs the Air Ride checklist pass at minor-scene exit: 47 cross-course objectives
